@@ -1,0 +1,6 @@
+@source "../Pages/**/*.cshtml";
+@import "tailwindcss";
+
+.code-cell {
+    @apply text-blue-500 font-mono text-xs bg-neutral-100 px-1.5 py-0.5 rounded;
+}

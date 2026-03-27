@@ -14,10 +14,15 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.5" />
+    <PackageReference Include="TechGems.PinesUI" Version="1.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PokeBinder.TcgCatalog.Domain\PokeBinder.TcgCatalog.Domain.csproj" />
   </ItemGroup>
+
+	<Target Name="TailwindBuild" AfterTargets="AfterBuild">
+		<Exec Command="tailwindcss -i ./input.css -o ./css/site.tailwind.css" WorkingDirectory="wwwroot" />
+	</Target>
 
 </Project>
