@@ -416,3 +416,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+Databases/**
+TCGCSV/**
+/.claude/settings.local.json
+/PokeBinderETL/test.db
+/PokeBinderETL/test.sqbpro
