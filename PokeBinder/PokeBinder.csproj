@@ -21,6 +21,10 @@
     <ProjectReference Include="..\PokeBinder.TcgCatalog.Domain\PokeBinder.TcgCatalog.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\js\" />
+  </ItemGroup>
+
 	<Target Name="TailwindBuild" AfterTargets="AfterBuild">
 		<Exec Command="tailwindcss -i ./input.css -o ./css/site.tailwind.css" WorkingDirectory="wwwroot" />
 	</Target>
