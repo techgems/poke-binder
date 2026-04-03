@@ -62,7 +62,7 @@ public class TcgPlayerImgDownloadService
             return new DownloadedImage(simpleCard.TcgPlayerId, filePath);
         }
         catch (HttpRequestException e) {
-            errors.Add($"[{DateTime.UtcNow:O}] Failed to retrieve image entirely for {simpleCard.TcgPlayerId} and Card Name: {simpleCard.CardName}: {e.Message}");
+            errors.Add($"{simpleCard.TcgPlayerId},{e.Message}");
             return new DownloadedImage(simpleCard.TcgPlayerId, string.Empty, attemptHasFailed: true);
         }
     }

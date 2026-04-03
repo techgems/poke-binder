@@ -1,4 +1,4 @@
-namespace PokeBinder.TcgCatalog.DataAccess.Entities;
+namespace PokeBinder.TcgCatalog.DbContext.Entities;
 
 public class Set
 {

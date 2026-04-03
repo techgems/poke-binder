@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace PokeBinder.TcgCatalog.DataAccess;
+namespace PokeBinder.TcgCatalog.DbContext.DI;
 
 public static class ServiceCollectionExtensions
 {

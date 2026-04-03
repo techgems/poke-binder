@@ -1,7 +1,8 @@
 ﻿using PokeBinder.ETL.Config;
 using PokeBinder.ETL.CsvLoader;
 using PokeBinder.ETL.CsvLoader.Models;
-using PokeBinder.ETL.Db.Entities;
+using PokeBinder.TcgCatalog.DbContext;
+using PokeBinder.TcgCatalog.DbContext.Entities;
 using PokeBinder.ETL.TcgPlayer;
 using PokeBinder.ETL.Utils;
 using Microsoft.Extensions.Configuration;
@@ -19,9 +20,9 @@ public class CardSimpleModel
 public class CardRepository
 {
     private TcgPlayerImgDownloadService _tcgPlayerImgDownloadService;
-    private CardDbContext _cardDbContext;
+    private TcgCatalogDbContext _cardDbContext;
 
-    public CardRepository(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, CardDbContext cardDbContext)
+    public CardRepository(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, TcgCatalogDbContext cardDbContext)
     {
         _tcgPlayerImgDownloadService = tcgPlayerImgDownloadService;
         _cardDbContext = cardDbContext;
@@ -66,7 +67,6 @@ public class CardRepository
         {
             var existingFilePath = FindExistingImagePath(card.TcgPlayerId, directorySet, fullDirectoryPath);
 
-            /*If told not to download images, ignore the commented code.*/
             if(existingFilePath is null)
             {
                 if (card.HasImageDownloadAttempt)
@@ -242,6 +242,7 @@ public class CardRepository
                 CardNumber = card.CardNumber,
                 Name = card.CardName,
                 Rarity = card.Rarity,
+                Stage = card.Stage,
                 TcgPlayerId = card.TcgPlayerId
             };
 

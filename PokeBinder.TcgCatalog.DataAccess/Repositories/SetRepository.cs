@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using PokeBinder.TcgCatalog.DataAccess.Entities;
+using PokeBinder.TcgCatalog.DbContext;
+using PokeBinder.TcgCatalog.DbContext.Entities;
 
 namespace PokeBinder.TcgCatalog.DataAccess.Repositories;
 

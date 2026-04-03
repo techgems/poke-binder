@@ -15,6 +15,7 @@ public class ModernPokemonCSV()
     public string SubType { get; set; }
     public string CardType { get; set; }
     public string HP { get; set; }
+    public string Stage { get; set; }
 };
 
 public class ModernPokemonSetsCsvMapper : CsvHelper.Configuration.ClassMap<ModernPokemonCSV>
@@ -28,5 +29,6 @@ public class ModernPokemonSetsCsvMapper : CsvHelper.Configuration.ClassMap<Moder
         Map(c => c.SubType).Name("subTypeName");
         Map(c => c.HP).Name("extHP");
         Map(c => c.CardType).Name("extCardType");
+        Map(c => c.Stage).Name("extStage");
     }
 }

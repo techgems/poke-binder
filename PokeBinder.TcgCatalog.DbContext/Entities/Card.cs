@@ -1,4 +1,4 @@
-namespace PokeBinder.TcgCatalog.DataAccess.Entities;
+namespace PokeBinder.TcgCatalog.DbContext.Entities;
 
 public class Card
 {
@@ -17,6 +17,8 @@ public class Card
     public string? CardNumber { get; set; }
 
     public string? ImageUrl { get; set; }
+
+    public string? Stage { get; set; }
 
     public string? MaskImageOneUrl { get; set; }
 

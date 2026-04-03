@@ -1,12 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using PokeBinder.TcgCatalog.Domain.Services;
 using PokeBinder.TcgCatalog.DomainModels.Queries;
 using PokeBinder.TcgCatalog.DomainModels.Responses;
 
 namespace PokeBinder.Pages;
 
-public class CardSearchModel(CardSearchService cardSearchService) : PageModel
+public class CardSearchModel : PageModel
 {
     [BindProperty]
     public CardSearchQuery Query { get; set; } = new();
@@ -19,7 +18,7 @@ public class CardSearchModel(CardSearchService cardSearchService) : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken ct)
     {
-        SearchResponse = await cardSearchService.SearchAsync(Query, ct);
+        await Task.CompletedTask;
         return Page();
     }
 }

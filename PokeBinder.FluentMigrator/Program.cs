@@ -26,16 +26,10 @@ public class Program
 
         Console.WriteLine();
 
-        if (IsTcgCatalogPopulated(tcgCatalogConnString))
-        {
-            Console.WriteLine("TCG Catalog database is already populated. Skipping migrations.");
-        }
-        else
-        {
-            Console.WriteLine("Running TCG Catalog database migrations...");
-            RunMigrations(tcgCatalogConnString, DatabaseTags.TcgCatalog);
-            Console.WriteLine("TCG Catalog database migrations complete.");
-        }
+        Console.WriteLine("Running TCG Catalog database migrations...");
+        RunMigrations(tcgCatalogConnString, DatabaseTags.TcgCatalog);
+        Console.WriteLine("TCG Catalog database migrations complete.");
+        
     }
 
     private static void RunMigrations(string connectionString, string tag)

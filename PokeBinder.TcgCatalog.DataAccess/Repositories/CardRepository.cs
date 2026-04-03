@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using PokeBinder.TcgCatalog.DataAccess.Entities;
+using PokeBinder.TcgCatalog.DbContext;
+using PokeBinder.TcgCatalog.DbContext.Entities;
 
 namespace PokeBinder.TcgCatalog.DataAccess.Repositories;
 
@@ -25,5 +26,35 @@ public class CardRepository(TcgCatalogDbContext context)
             .Where(c => c.Name != null && EF.Functions.Like(c.Name, $"%{name}%"))
             .Include(c => c.Set)
             .ToListAsync(ct);
+    }
+
+    public async Task<List<Card>> SearchAsync(string name, string rarity, string cardNumber, int? tcgPlayerId, int? setId, int? generationId, CancellationToken ct = default)
+    {
+        var cards = context.Cards
+            .Include(c => c.Set)
+                .ThenInclude(s => s!.Generation)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(name))
+            cards = cards.Where(c => c.Name != null && EF.Functions.Like(c.Name, $"%{name}%"));
+
+        if (!string.IsNullOrWhiteSpace(rarity))
+            cards = cards.Where(c => c.Rarity == rarity);
+
+        if (!string.IsNullOrWhiteSpace(cardNumber))
+            cards = cards.Where(c => c.CardNumber == cardNumber);
+
+        if (tcgPlayerId.HasValue)
+            cards = cards.Where(c => c.TcgPlayerId == tcgPlayerId.Value);
+
+        if (setId.HasValue)
+            cards = cards.Where(c => c.SetId == setId.Value);
+
+        if (generationId.HasValue)
+            cards = cards.Where(c => c.Set != null && c.Set.GenerationId == generationId.Value);
+
+        var results = await cards.ToListAsync(ct);
+
+        return results;
     }
 }

@@ -1,5 +1,5 @@
 ﻿#define IS_DATA_LOAD
-//#define IS_IMAGE_DOWNLOAD
+#define IS_IMAGE_DOWNLOAD
 
 using PokeBinder.ETL.Config;
 using PokeBinder.ETL.CsvLoader;
@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using PokeBinder.TcgCatalog.DbContext.DI;
 
 namespace PokeBinder.ETL
 {
@@ -53,8 +54,7 @@ namespace PokeBinder.ETL
 
             //https://tcgplayer-cdn.tcgplayer.com/product/{tcgPlayerId}_in_1000x1000.jpg
 
-            builder.Services.AddDbContext<CardDbContext>(options =>
-                options.UseSqlite(Configuration["Sqlite"]));
+            builder.Services.AddTcgCatalogDataAccess(Configuration["Sqlite"]!);
 
             builder.Services.AddScoped<TcgPlayerImgDownloadService>();
             builder.Services.AddScoped<CardRepository>();

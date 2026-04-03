@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Data;
-using PokeBinder.TcgCatalog.DataAccess;
-using PokeBinder.TcgCatalog.Domain;
+using PokeBinder.TcgCatalog.DataAccess.DI;
+using PokeBinder.TcgCatalog.Domain.DI;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -3,10 +3,13 @@
     <File Path="Databases/PokeBinder.db" />
     <File Path="Databases/TcgCatalog.db" />
   </Folder>
+  <Folder Name="/TcgCatalog/">
+    <Project Path="PokeBinder.TcgCatalog.DataAccess/PokeBinder.TcgCatalog.DataAccess.csproj" Id="bf24b1da-4038-404c-aa81-1dd986b6e01b" />
+    <Project Path="PokeBinder.TcgCatalog.DbContext/PokeBinder.TcgCatalog.DbContext.csproj" Id="6bd218a3-7aa1-4989-b246-9d8ea346edfb" />
+    <Project Path="PokeBinder.TcgCatalog.Domain/PokeBinder.TcgCatalog.Domain.csproj" Id="5fe8ed77-7743-4baa-b383-95c7b634e7d9" />
+    <Project Path="PokeBinder.TcgCatalog.DomainModels/PokeBinder.TcgCatalog.DomainModels.csproj" Id="fc56013b-9c42-4fd2-bf74-7cb03aab16e0" />
+    <Project Path="PokeBinderETL/PokeBinder.ETL.csproj" />
+  </Folder>
   <Project Path="PokeBinder.FluentMigrator/PokeBinder.FluentMigrator.csproj" Id="e6a2070a-62e4-4081-b8ac-5a0368ab658a" />
-  <Project Path="PokeBinder.TcgCatalog.DataAccess/PokeBinder.TcgCatalog.DataAccess.csproj" Id="bf24b1da-4038-404c-aa81-1dd986b6e01b" />
-  <Project Path="PokeBinder.TcgCatalog.Domain/PokeBinder.TcgCatalog.Domain.csproj" Id="5fe8ed77-7743-4baa-b383-95c7b634e7d9" />
-  <Project Path="PokeBinder.TcgCatalog.DomainModels/PokeBinder.TcgCatalog.DomainModels.csproj" Id="fc56013b-9c42-4fd2-bf74-7cb03aab16e0" />
   <Project Path="PokeBinder/PokeBinder.csproj" />
-  <Project Path="PokeBinderETL/PokeBinder.ETL.csproj" />
 </Solution>
