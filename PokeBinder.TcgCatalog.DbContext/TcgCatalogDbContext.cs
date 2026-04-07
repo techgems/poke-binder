@@ -10,6 +10,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Set> Sets => Set<Set>();
     public DbSet<Generation> Generations => Set<Generation>();
+    public DbSet<Game> Games => Set<Game>();
     public DbSet<GenerationFilterOption> GenerationFilterOptions => Set<GenerationFilterOption>();
     public DbSet<PokemonFilterOption> PokemonFilterOptions => Set<PokemonFilterOption>();
     public DbSet<RarityBySetFilterOption> RarityBySetFilterOptions => Set<RarityBySetFilterOption>();
@@ -17,6 +18,18 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Game>(entity =>
+        {
+            entity.ToTable("games");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Slug).HasColumnName("slug");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.HasMany(e => e.Generations)
+                .WithOne(g => g.Game)
+                .HasForeignKey(g => g.GameId);
+        });
+
         modelBuilder.Entity<Generation>(entity =>
         {
             entity.ToTable("generations");

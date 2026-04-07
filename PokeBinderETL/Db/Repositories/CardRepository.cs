@@ -1,12 +1,14 @@
-﻿using PokeBinder.ETL.Config;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using PokeBinder.ETL.Config;
 using PokeBinder.ETL.CsvLoader;
 using PokeBinder.ETL.CsvLoader.Models;
-using PokeBinder.TcgCatalog.DbContext;
-using PokeBinder.TcgCatalog.DbContext.Entities;
 using PokeBinder.ETL.TcgPlayer;
 using PokeBinder.ETL.Utils;
-using Microsoft.Extensions.Configuration;
+using PokeBinder.TcgCatalog.DbContext;
+using PokeBinder.TcgCatalog.DbContext.Entities;
 using System.Collections.Concurrent;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace PokeBinder.ETL.Db.Repositories;
 
@@ -21,11 +23,13 @@ public class CardRepository
 {
     private TcgPlayerImgDownloadService _tcgPlayerImgDownloadService;
     private TcgCatalogDbContext _cardDbContext;
+    private string _baseImageDirectory = string.Empty;
 
     public CardRepository(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, TcgCatalogDbContext cardDbContext)
     {
         _tcgPlayerImgDownloadService = tcgPlayerImgDownloadService;
         _cardDbContext = cardDbContext;
+        _baseImageDirectory = _configuration["ImagesDirectory"]!;
     }
 
     /// <summary>
@@ -55,8 +59,7 @@ public class CardRepository
         var set = _cardDbContext.Sets.Where(x => x.Id == setId).Select(x => new { x.Id, x.Name }).First();
 
         var setDirectoryName = set.Name.Replace(":", " -");
-        var directorySet = Path.Combine("ImagesTCG", setDirectoryName);
-        var fullDirectoryPath = Path.Combine(@"C:\", directorySet);
+        var directorySet = Path.Combine(_baseImageDirectory, setDirectoryName);
 
         var cards = _cardDbContext.Cards.Where(x => x.SetId == setId).ToList();
 
@@ -65,7 +68,7 @@ public class CardRepository
 
         foreach (var card in cards)
         {
-            var existingFilePath = FindExistingImagePath(card.TcgPlayerId, directorySet, fullDirectoryPath);
+            var existingFilePath = FindExistingImagePath(card.TcgPlayerId, directorySet, directorySet);
 
             if(existingFilePath is null)
             {
@@ -120,61 +123,59 @@ public class CardRepository
         return sets;
     }
 
+    public Result InsertGames() {         
+        
+        var gamesToInsert = new List<Game>()
+        {
+            new Game() { Name = "Pokemon TCG", Slug = "pokemon" },
+            new Game() { Name = "Pokemon TCG: Japan", Slug = "pokemon-japan" }
+        };
+
+        _cardDbContext.Games.UpsertRange(gamesToInsert).On(g => g.Slug).Run();
+
+        return Result.Success();
+    }
+
     public async Task<Result> AddGenerationAndSetsFromConfig(GenerationConfig generationConfig, string generationName, string generationSlug, int gameId)
     {
         long releaseDateUnix = generationConfig.ReleaseDate.ToUnixTimeSeconds();
 
         long? endDateUnix = generationConfig.EndDate?.ToUnixTimeSeconds();
 
-        var gen = _cardDbContext.Generations.FirstOrDefault(x => x.Slug == generationSlug);
-
-        int? genId = null;
-
-        if (gen is null)
+        var gen = new Generation()
         {
-            var dbGeneration = new Generation()
-            {
-                Slug = generationSlug,
-                StartDateUnix = releaseDateUnix,
-                EndDateUnix = endDateUnix.GetValueOrDefault(),
-                GameId = gameId,
-                Name = generationName
-            };
+            Slug = generationSlug,
+            StartDateUnix = releaseDateUnix,
+            EndDateUnix = endDateUnix.GetValueOrDefault(),
+            GameId = gameId,
+            Name = generationName
+        };
 
-            _cardDbContext.Generations.Add(dbGeneration);
-            await _cardDbContext.SaveChangesAsync();
+        var upsertedGen = _cardDbContext.Generations.Upsert(gen).On(g => g.Slug).RunAndReturn().First(); //Upsert doesn't require SaveChanges.
 
-            gen = dbGeneration;
-        }
-
-        var insertedGenerationId = gen.Id;
+        var insertedGenerationId = upsertedGen.Id;
 
         var allDownloadedImages = new List<DownloadedImage>();
 
+        var setsToInsert = generationConfig.Sets.Select(set => new Set()
+        {
+            FullName = set.FullName,
+            Code = set.Code,
+            GenerationId = insertedGenerationId,
+            Name = set.DisplayName,
+            PriorityOrder = set.PriorityOrder.GetValueOrDefault(),
+            ReleaseDateUnix = set.ReleaseDate.ToUnixTimeSeconds()
+        }).ToList();
+
+        var upsertedSets = _cardDbContext.Sets.UpsertRange(setsToInsert).On(x => x.Code).RunAndReturn().ToList();
+
         foreach (var set in generationConfig.Sets)
         {
-            var dbSet = _cardDbContext.Sets.FirstOrDefault(x => x.Code == set.Code);
-            if (dbSet is null) {
-
-                dbSet = new Set()
-                {
-                    FullName = set.FullName,
-                    Code = set.Code,
-                    GenerationId = insertedGenerationId,
-                    Name = set.DisplayName,
-                    PriorityOrder = set.PriorityOrder.GetValueOrDefault(),
-                    ReleaseDateUnix = set.ReleaseDate.ToUnixTimeSeconds()
-                };
-
-                _cardDbContext.Sets.Add(dbSet);
-                await _cardDbContext.SaveChangesAsync();
-            }
-
-            var insertedSetId = dbSet.Id;
+            var setFromDb = upsertedSets.First(x => x.Code == set.Code);
 
             var cardList = MapCsvFilesToSingleCardList(set.CsvFiles, generationConfig.BaseDirectory);
 
-            var insertedIds = AddCardsFromCsvModel(cardList, insertedSetId);
+            AddCardsFromCsvModel(cardList, setFromDb.Id, setFromDb.Name);
         }
 
         return Result.Success();
@@ -218,41 +219,33 @@ public class CardRepository
         Console.WriteLine($"Updated {updatedCount} card image URLs.");
     }
 
-    private List<int> AddCardsFromCsvModel(List<ModernPokemonCSV> list, int setId)
+    private void AddCardsFromCsvModel(List<ModernPokemonCSV> list, int setId, string setName)
     {
-        var insertedIds = new List<int>();
+        var setDirectoryName = setName.Replace(":", " -");
+        var directorySet = Path.Combine(_baseImageDirectory, setDirectoryName);
 
-        foreach (var card in list)
-        {
-            var cardExists = _cardDbContext.Cards.Any(x => x.TcgPlayerId == card.TcgPlayerId);
+        var cardList = 
+            list
+            .Where(card => !string.IsNullOrEmpty(card.Rarity) && card.Rarity != "Code Card")
+            .Select(card => {
+                var imageUrl = FindExistingImagePath(card.TcgPlayerId, directorySet, directorySet);
 
-            if (cardExists)
-            {
-                continue;
-            }
+                var c = new Card()
+                {
+                    SetId = setId,
+                    CardNumber = card.CardNumber,
+                    Name = card.CardName,
+                    Rarity = card.Rarity,
+                    Stage = card.Stage,
+                    TcgPlayerId = card.TcgPlayerId,
+                    ImageUrl = imageUrl
+                };
 
-            if (string.IsNullOrEmpty(card.Rarity) || card.Rarity == "Code Card")
-            {
-                continue;
-            }
+                return c;
+            }).ToList();
 
-            var dbCard = new Card()
-            {
-                SetId = setId,
-                CardNumber = card.CardNumber,
-                Name = card.CardName,
-                Rarity = card.Rarity,
-                Stage = card.Stage,
-                TcgPlayerId = card.TcgPlayerId
-            };
-
-            _cardDbContext.Cards.Add(dbCard);
-            _cardDbContext.SaveChanges();
-            insertedIds.Add(card.TcgPlayerId);
-        }
+        _cardDbContext.Cards.UpsertRange(cardList).On(x => x.TcgPlayerId).Run();
 
         Console.WriteLine($"Set with Id: {setId} inserted!");
-
-        return insertedIds;
     }
 }

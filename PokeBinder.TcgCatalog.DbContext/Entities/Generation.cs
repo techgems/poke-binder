@@ -14,5 +14,7 @@ public class Generation
 
     public int GameId { get; set; }
 
+    public Game Game { get; set; }
+
     public ICollection<Set> Sets { get; set; } = [];
 }

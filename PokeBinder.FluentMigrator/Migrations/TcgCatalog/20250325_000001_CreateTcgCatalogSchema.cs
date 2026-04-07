@@ -15,12 +15,12 @@ public class CreateTcgCatalogSchema : Migration
 
         Create.Table("games")
             .WithColumn("id").AsInt32().PrimaryKey()
-            .WithColumn("slug").AsString(255).Nullable()
+            .WithColumn("slug").AsString(255).Unique().Nullable()
             .WithColumn("name").AsString(255).Nullable();
 
         Create.Table("generations")
             .WithColumn("id").AsInt32().PrimaryKey()
-            .WithColumn("slug").AsString(127).Nullable()
+            .WithColumn("slug").AsString(127).Unique().Nullable()
             .WithColumn("name").AsString(255).Nullable()
             .WithColumn("startDateUnix").AsInt64().Nullable()
             .WithColumn("endDateUnix").AsInt64().Nullable()
@@ -29,7 +29,7 @@ public class CreateTcgCatalogSchema : Migration
 
         Create.Table("sets")
             .WithColumn("id").AsInt32().PrimaryKey()
-            .WithColumn("code").AsString(511).Nullable()
+            .WithColumn("code").AsString(511).Unique().Nullable()
             .WithColumn("name").AsString(511).Nullable()
             .WithColumn("fullName").AsString(511).Nullable()
             .WithColumn("releaseDateUnix").AsInt64().Nullable()
@@ -42,7 +42,7 @@ public class CreateTcgCatalogSchema : Migration
         Create.Table("cards")
             .WithColumn("id").AsInt32().PrimaryKey()
             .WithColumn("justTcgId").AsString(255).Nullable()
-            .WithColumn("tcgPlayerId").AsInt32().Nullable()
+            .WithColumn("tcgPlayerId").AsInt32().Unique().Nullable()
             .WithColumn("setId").AsInt32().Nullable()
                 .ForeignKey("FK_cards_sets", "sets", "id")
             .WithColumn("name").AsString(255).Nullable()

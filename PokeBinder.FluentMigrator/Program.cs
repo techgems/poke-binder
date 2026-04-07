@@ -7,6 +7,8 @@ namespace PokeBinder.FluentMigrator;
 
 public class Program
 {
+    //TODO: FLUENT MIGRATOR is cool, but it has limited support for SQLite.
+    //IN THE FUTURE THE IDEA IS TO MOVE TO DbUp instead, which has allows migrations in SQL, which will have better support for SQLite.
     public static void Main(string[] args)
     {
         var configuration = new ConfigurationBuilder()
@@ -14,15 +16,9 @@ public class Program
             .AddJsonFile("appsettings.json", optional: false)
             .Build();
 
-        var applicationConnString = configuration.GetConnectionString("Application")!;
         var tcgCatalogConnString = configuration.GetConnectionString("TcgCatalog")!;
 
-        EnsureDataDirectoryExists(applicationConnString);
         EnsureDataDirectoryExists(tcgCatalogConnString);
-
-        Console.WriteLine("Running Application database migrations...");
-        RunMigrations(applicationConnString, DatabaseTags.Application);
-        Console.WriteLine("Application database migrations complete.");
 
         Console.WriteLine();
 
@@ -50,26 +46,6 @@ public class Program
         using var scope = services.CreateScope();
         var runner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
         runner.MigrateUp();
-    }
-
-    private static bool IsTcgCatalogPopulated(string connectionString)
-    {
-        try
-        {
-            using var connection = new SqliteConnection(connectionString);
-            connection.Open();
-
-            using var command = connection.CreateCommand();
-            command.CommandText =
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'VersionInfo' AND name NOT LIKE 'sqlite_%';";
-            var tableCount = Convert.ToInt64(command.ExecuteScalar());
-
-            return tableCount > 0;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static void EnsureDataDirectoryExists(string connectionString)
