@@ -10,6 +10,6 @@
     <Project Path="PokeBinder.TcgCatalog.DomainModels/PokeBinder.TcgCatalog.DomainModels.csproj" Id="fc56013b-9c42-4fd2-bf74-7cb03aab16e0" />
     <Project Path="PokeBinderETL/PokeBinder.ETL.csproj" />
   </Folder>
-  <Project Path="PokeBinder.FluentMigrator/PokeBinder.FluentMigrator.csproj" Id="e6a2070a-62e4-4081-b8ac-5a0368ab658a" />
+  <Project Path="PokeBinder.Migrations/PokeBinder.Migrations.csproj" />
   <Project Path="PokeBinder/PokeBinder.csproj" />
 </Solution>

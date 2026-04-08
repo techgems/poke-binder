@@ -15,6 +15,8 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<PokemonFilterOption> PokemonFilterOptions => Set<PokemonFilterOption>();
     public DbSet<RarityBySetFilterOption> RarityBySetFilterOptions => Set<RarityBySetFilterOption>();
     public DbSet<CardTypeFilterOption> CardTypeFilterOptions => Set<CardTypeFilterOption>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<CardTag> CardTags => Set<CardTag>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,7 +71,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
         {
             entity.ToTable("generationFilterOptions");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(63);
 
             entity.HasMany(e => e.PokemonFilterOptions)
@@ -81,7 +83,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
         {
             entity.ToTable("pokemonFilterOptions");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.PokedexNumber).HasColumnName("pokedexNumber");
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(255);
             entity.Property(e => e.GenerationId).HasColumnName("generationId");
@@ -105,8 +107,33 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
         {
             entity.ToTable("cardTypeFilterOption");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(63);
+        });
+
+        modelBuilder.Entity<Tag>(entity =>
+        {
+            entity.ToTable("tags");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.ExtendedName).HasColumnName("extendedName");
+        });
+
+        modelBuilder.Entity<CardTag>(entity =>
+        {
+            entity.ToTable("cardTags");
+            entity.HasKey(e => new { e.CardId, e.TagId });
+            entity.Property(e => e.CardId).HasColumnName("cardId");
+            entity.Property(e => e.TagId).HasColumnName("tagId");
+
+            entity.HasOne(e => e.Card)
+                .WithMany()
+                .HasForeignKey(e => e.CardId);
+
+            entity.HasOne(e => e.Tag)
+                .WithMany(t => t.CardTags)
+                .HasForeignKey(e => e.TagId);
         });
 
         modelBuilder.Entity<Card>(entity =>
@@ -114,7 +141,6 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.ToTable("cards");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.JustTcgId).HasColumnName("justTcgId");
             entity.Property(e => e.TcgPlayerId).HasColumnName("tcgPlayerId");
             entity.Property(e => e.SetId).HasColumnName("setId");
             entity.Property(e => e.Name).HasColumnName("name");
@@ -122,6 +148,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.CardNumber).HasColumnName("cardNumber");
             entity.Property(e => e.ImageUrl).HasColumnName("imageUrl");
             entity.Property(e => e.Stage).HasColumnName("stage");
+            entity.Property(e => e.HP).HasColumnName("hp");
             entity.Property(e => e.MaskImageOneUrl).HasColumnName("maskImageOneUrl");
             entity.Property(e => e.MaskImageTwoUrl).HasColumnName("maskImageTwoUrl");
             entity.Property(e => e.HasImageDownloadAttempt).HasColumnName("hasImageDownloadAttempt")

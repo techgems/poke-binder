@@ -57,8 +57,8 @@ namespace PokeBinder.ETL
             builder.Services.AddTcgCatalogDataAccess(Configuration["Sqlite"]!);
 
             builder.Services.AddScoped<TcgPlayerImgDownloadService>();
-            builder.Services.AddScoped<CardRepository>();
-            builder.Services.AddScoped<FilterOptionSeedRepository>();
+            builder.Services.AddScoped<CardUpsertService>();
+            builder.Services.AddScoped<FilterOptionUpsertService>();
 
             using IHost host = builder.Build();
 
@@ -66,8 +66,8 @@ namespace PokeBinder.ETL
             IServiceProvider provider = serviceScope.ServiceProvider;
 
             var tcgPlayerImgDownloadService = provider.GetRequiredService<TcgPlayerImgDownloadService>();
-            var cardRepository = provider.GetRequiredService<CardRepository>();
-            var filterOptionSeedRepository = provider.GetRequiredService<FilterOptionSeedRepository>();
+            var cardRepository = provider.GetRequiredService<CardUpsertService>();
+            var filterOptionSeedRepository = provider.GetRequiredService<FilterOptionUpsertService>();
 
 
 #if IS_DATA_LOAD
@@ -83,7 +83,8 @@ namespace PokeBinder.ETL
             cardRepository.InsertGames();
 
             var pokemonEnglishGameId = 1;
-
+            
+            
             await cardRepository.AddGenerationAndSetsFromConfig(smSetDateAndFileList, "Sun & Moon", "sun-and-moon", pokemonEnglishGameId);
             await cardRepository.AddGenerationAndSetsFromConfig(swSetDateAndFileList, "Sword & Shield", "sword-and-shield", pokemonEnglishGameId);
             await cardRepository.AddGenerationAndSetsFromConfig(svSetDataAndFileList, "Scarlet & Violet", "scarlet-violet", pokemonEnglishGameId);

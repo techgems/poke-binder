@@ -19,13 +19,13 @@ public class CardSimpleModel
     public string CardName { get; set; } = string.Empty;
 }
 
-public class CardRepository
+public class CardUpsertService
 {
     private TcgPlayerImgDownloadService _tcgPlayerImgDownloadService;
     private TcgCatalogDbContext _cardDbContext;
     private string _baseImageDirectory = string.Empty;
 
-    public CardRepository(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, TcgCatalogDbContext cardDbContext)
+    public CardUpsertService(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, TcgCatalogDbContext cardDbContext)
     {
         _tcgPlayerImgDownloadService = tcgPlayerImgDownloadService;
         _cardDbContext = cardDbContext;
@@ -237,6 +237,8 @@ public class CardRepository
                     Name = card.CardName,
                     Rarity = card.Rarity,
                     Stage = card.Stage,
+                    HP = card.HP,
+                    CardType = card.CardType,
                     TcgPlayerId = card.TcgPlayerId,
                     ImageUrl = imageUrl
                 };
