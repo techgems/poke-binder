@@ -16,11 +16,11 @@ public class Card
 
     public string? ImageUrl { get; set; }
 
-    public string? CardType { get; set; }
+    public string CardType { get; set; } = string.Empty;
 
-    public int? HP { get; set; }
+    public string CardSubtype { get; set; } = string.Empty;
 
-    public string? Stage { get; set; }
+    public string? Artist { get; set; }
 
     public string? MaskImageOneUrl { get; set; }
 
@@ -28,5 +28,13 @@ public class Card
 
     public bool HasImageDownloadAttempt { get; set; }
 
+    public int? PokemonCardTextId { get; set; } = null;
+
+    public int? NonPokemonCardTextId { get; set; } = null;
+
     public Set? Set { get; set; }
+
+    public PokemonCardText? PokemonCardText { get; set; }
+
+    public NonPokemonCardText? NonPokemonCardText { get; set; }
 }

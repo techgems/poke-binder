@@ -12,9 +12,11 @@ public class ModernPokemonCSV()
     public string CardName { get; set; } = string.Empty;
     public string CardNumber { get; set; } = string.Empty;
     public string? Rarity { get; set; } = null;
-    public string? CardType { get; set; } = null;
+    public string? CompleteCardType { get; set; } = null;
     public int? HP { get; set; } = null;
     public string? Stage { get; set; } = null;
+
+    public string? NonPokemonCardText { get; set; } = null;
 };
 
 public class ModernPokemonSetsCsvMapper : CsvHelper.Configuration.ClassMap<ModernPokemonCSV>
@@ -26,7 +28,8 @@ public class ModernPokemonSetsCsvMapper : CsvHelper.Configuration.ClassMap<Moder
         Map(c => c.CardNumber).Name("extNumber");
         Map(c => c.Rarity).Name("extRarity");
         Map(c => c.HP).Name("extHP");
-        Map(c => c.CardType).Name("extCardType");
+        Map(c => c.CompleteCardType).Name("extCardType");
         Map(c => c.Stage).Name("extStage");
+        Map(c => c.NonPokemonCardText).Name("extCardText");
     }
 }

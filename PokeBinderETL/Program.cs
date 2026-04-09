@@ -59,6 +59,7 @@ namespace PokeBinder.ETL
             builder.Services.AddScoped<TcgPlayerImgDownloadService>();
             builder.Services.AddScoped<CardUpsertService>();
             builder.Services.AddScoped<FilterOptionUpsertService>();
+            builder.Services.AddScoped<CardCsvUtilsService>();
 
             using IHost host = builder.Build();
 

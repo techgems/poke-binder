@@ -17,6 +17,8 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<CardTypeFilterOption> CardTypeFilterOptions => Set<CardTypeFilterOption>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<CardTag> CardTags => Set<CardTag>();
+    public DbSet<PokemonCardText> PokemonCardTexts => Set<PokemonCardText>();
+    public DbSet<NonPokemonCardText> NonPokemonCardTexts => Set<NonPokemonCardText>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -136,6 +138,48 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
                 .HasForeignKey(e => e.TagId);
         });
 
+        modelBuilder.Entity<PokemonCardText>(entity =>
+        {
+            entity.ToTable("pkmnCardText");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.HP).HasColumnName("hp");
+            entity.Property(e => e.Resistance).HasColumnName("resistance");
+            entity.Property(e => e.Weaknesses).HasColumnName("weaknesses");
+            entity.Property(e => e.FlavorText).HasColumnName("flavorText");
+            entity.Property(e => e.Retreat).HasColumnName("retreat");
+            entity.Property(e => e.AttackList).HasColumnName("attackList")
+                .HasColumnType("TEXT")
+                .HasConversion(
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<List<Attack>>(v, (System.Text.Json.JsonSerializerOptions?)null)
+                );
+            entity.Property(e => e.Ability).HasColumnName("ability")
+                .HasColumnType("TEXT")
+                .HasConversion(
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<Ability>(v, (System.Text.Json.JsonSerializerOptions?)null)
+                );
+            entity.Property(e => e.EvolvesFrom).HasColumnName("evolvesFrom");
+            entity.Property(e => e.DexNumber).HasColumnName("dexNumber");
+            entity.Property(e => e.Stage).HasColumnName("stage");
+            entity.HasOne(e => e.Card)
+                .WithOne(c => c.PokemonCardText)
+                .HasForeignKey<PokemonCardText>(e => e.CardId);
+        });
+
+        modelBuilder.Entity<NonPokemonCardText>(entity =>
+        {
+            entity.ToTable("nonPkmnCardText");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Text).HasColumnName("text");
+
+            entity.HasOne(e => e.Card)
+                .WithOne(c => c.NonPokemonCardText)
+                .HasForeignKey<NonPokemonCardText>(e => e.Id);
+        });
+
         modelBuilder.Entity<Card>(entity =>
         {
             entity.ToTable("cards");
@@ -146,13 +190,24 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.Name).HasColumnName("name");
             entity.Property(e => e.Rarity).HasColumnName("rarity");
             entity.Property(e => e.CardNumber).HasColumnName("cardNumber");
+            entity.Property(e => e.CardType).HasColumnName("cardType");
+            entity.Property(e => e.CardSubtype).HasColumnName("cardSubtype");
             entity.Property(e => e.ImageUrl).HasColumnName("imageUrl");
-            entity.Property(e => e.Stage).HasColumnName("stage");
-            entity.Property(e => e.HP).HasColumnName("hp");
+            entity.Property(e => e.Artist).HasColumnName("artist");
             entity.Property(e => e.MaskImageOneUrl).HasColumnName("maskImageOneUrl");
             entity.Property(e => e.MaskImageTwoUrl).HasColumnName("maskImageTwoUrl");
             entity.Property(e => e.HasImageDownloadAttempt).HasColumnName("hasImageDownloadAttempt")
                 .HasDefaultValue(false);
+            entity.Property(e => e.PokemonCardTextId).HasColumnName("pkmnCardTextId");
+            entity.Property(e => e.NonPokemonCardTextId).HasColumnName("nonPkmnCardTextId");
+
+            entity.HasOne(e => e.PokemonCardText)
+                .WithMany()
+                .HasForeignKey(e => e.PokemonCardTextId);
+
+            entity.HasOne(e => e.NonPokemonCardText)
+                .WithMany()
+                .HasForeignKey(e => e.NonPokemonCardTextId);
         });
     }
 }

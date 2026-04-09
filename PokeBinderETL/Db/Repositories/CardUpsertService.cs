@@ -23,11 +23,13 @@ public class CardUpsertService
 {
     private TcgPlayerImgDownloadService _tcgPlayerImgDownloadService;
     private TcgCatalogDbContext _cardDbContext;
+    private CardCsvUtilsService _cardCsvUtils;
     private string _baseImageDirectory = string.Empty;
 
-    public CardUpsertService(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, TcgCatalogDbContext cardDbContext)
+    public CardUpsertService(IConfiguration _configuration, TcgPlayerImgDownloadService tcgPlayerImgDownloadService, CardCsvUtilsService cardCsvUtils, TcgCatalogDbContext cardDbContext)
     {
         _tcgPlayerImgDownloadService = tcgPlayerImgDownloadService;
+        _cardCsvUtils = cardCsvUtils;
         _cardDbContext = cardDbContext;
         _baseImageDirectory = _configuration["ImagesDirectory"]!;
     }
@@ -173,28 +175,13 @@ public class CardUpsertService
         {
             var setFromDb = upsertedSets.First(x => x.Code == set.Code);
 
-            var cardList = MapCsvFilesToSingleCardList(set.CsvFiles, generationConfig.BaseDirectory);
+            var cardList = _cardCsvUtils.MapCsvFilesToSingleCardList(set.CsvFiles, generationConfig.BaseDirectory);
 
             AddCardsFromCsvModel(cardList, setFromDb.Id, setFromDb.Name);
         }
 
         return Result.Success();
 
-    }
-
-    private List<ModernPokemonCSV> MapCsvFilesToSingleCardList(List<string> csvFiles, string baseDirectory)
-    {
-        var cardList = csvFiles
-            .SelectMany(csvFile =>
-            {
-                var fullPath = Path.IsPathRooted(csvFile)
-                    ? csvFile
-                    : Path.Combine(baseDirectory, csvFile);
-                return CardSetCsvLoader.ProcessSetCSV(fullPath);
-            })
-            .ToList();
-
-        return cardList;
     }
 
     private void UpdateCardImageUrls(IEnumerable<DownloadedImage> downloadedImages)
@@ -224,29 +211,13 @@ public class CardUpsertService
         var setDirectoryName = setName.Replace(":", " -");
         var directorySet = Path.Combine(_baseImageDirectory, setDirectoryName);
 
-        var cardList = 
-            list
-            .Where(card => !string.IsNullOrEmpty(card.Rarity) && card.Rarity != "Code Card")
-            .Select(card => {
-                var imageUrl = FindExistingImagePath(card.TcgPlayerId, directorySet, directorySet);
+        var cardsOnlyList = _cardCsvUtils.ExcludeSealedProduct(list);
 
-                var c = new Card()
-                {
-                    SetId = setId,
-                    CardNumber = card.CardNumber,
-                    Name = card.CardName,
-                    Rarity = card.Rarity,
-                    Stage = card.Stage,
-                    HP = card.HP,
-                    CardType = card.CardType,
-                    TcgPlayerId = card.TcgPlayerId,
-                    ImageUrl = imageUrl
-                };
-
-                return c;
-            }).ToList();
-
-        _cardDbContext.Cards.UpsertRange(cardList).On(x => x.TcgPlayerId).Run();
+        var groupedLists = _cardCsvUtils.MapCsvCardsToDbUpsertLists(cardsOnlyList, setId, setDirectoryName);
+       
+        _cardDbContext.Cards.UpsertRange(groupedLists.CardEntities).On(x => x.TcgPlayerId).Run();
+        _cardDbContext.PokemonCardTexts.UpsertRange(groupedLists.PkmnCardTextEntities).On(x => x.CardId).Run();
+        _cardDbContext.NonPokemonCardTexts.UpsertRange(groupedLists.NonPkmnCardTextEntities).On(x => x.CardId).Run();
 
         Console.WriteLine($"Set with Id: {setId} inserted!");
     }
