@@ -6,7 +6,7 @@ public class PokemonCardText
 {
     public int Id { get; set; }
 
-    public string? HP { get; set; }
+    public int HP { get; set; }
 
     public string? Resistance { get; set; }
 

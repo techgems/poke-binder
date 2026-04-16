@@ -67,29 +67,25 @@ namespace PokeBinder.ETL
             IServiceProvider provider = serviceScope.ServiceProvider;
 
             var tcgPlayerImgDownloadService = provider.GetRequiredService<TcgPlayerImgDownloadService>();
-            var cardRepository = provider.GetRequiredService<CardUpsertService>();
+            var cardUpsertService = provider.GetRequiredService<CardUpsertService>();
             var filterOptionSeedRepository = provider.GetRequiredService<FilterOptionUpsertService>();
 
-
 #if IS_DATA_LOAD
-
-            //TODO: ETL NOW HAS A NEW JOB THAT IT DIDN'T HAVE BEFORE, WHICH IS TO ADD SEED DATA FOR FILTER OPTION TABLES. THIS INCLUDES THINGS LIKE CARD TYPES, RARITIES, SETS, ETC.
-            //THESE CURRENTLY RESIDE IN THE FLUENT MIGRATOR PROJECT, BUT THE WAY THEY CREATE THE DATA IS FUZZY, BY USING A SQLITE SEQUENCE, WHEN NONE IS REQUIRED.
 
             var smSetDateAndFileList = Configuration.GetSection("SunAndMoon").Get<GenerationConfig>()!;
             var swSetDateAndFileList = Configuration.GetSection("SwordAndShield").Get<GenerationConfig>()!;
             var svSetDataAndFileList = Configuration.GetSection("ScarletAndViolet").Get<GenerationConfig>()!;
             var meSetDateAndFileList = Configuration.GetSection("MegaEvolution").Get<GenerationConfig>()!;
             
-            cardRepository.InsertGames();
+            cardUpsertService.InsertGames();
 
             var pokemonEnglishGameId = 1;
             
             
-            await cardRepository.AddGenerationAndSetsFromConfig(smSetDateAndFileList, "Sun & Moon", "sun-and-moon", pokemonEnglishGameId);
-            await cardRepository.AddGenerationAndSetsFromConfig(swSetDateAndFileList, "Sword & Shield", "sword-and-shield", pokemonEnglishGameId);
-            await cardRepository.AddGenerationAndSetsFromConfig(svSetDataAndFileList, "Scarlet & Violet", "scarlet-violet", pokemonEnglishGameId);
-            await cardRepository.AddGenerationAndSetsFromConfig(meSetDateAndFileList, "Mega Evolution", "mega-evolution", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(smSetDateAndFileList, "Sun & Moon", "sun-and-moon", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(swSetDateAndFileList, "Sword & Shield", "sword-and-shield", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(svSetDataAndFileList, "Scarlet & Violet", "scarlet-violet", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(meSetDateAndFileList, "Mega Evolution", "mega-evolution", pokemonEnglishGameId);
 
             filterOptionSeedRepository.SeedAll();
 

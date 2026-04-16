@@ -50,6 +50,7 @@ public class CardCsvUtilsService
             { CompleteCardType: var cardName } when cardName.Contains("Energy") => "Energy",
             { CompleteCardType: var cardName } when cardName.Contains("Item") || cardName.Contains("Supporter") || cardName.Contains("Stadium") || cardName.Contains("Tool") => "Trainer",
             { HP: var hp, Stage: var stage } when hp.HasValue && stage is not null => "Pokemon",
+            _ => _unknownTag
         };
 
         return dbCardType;
@@ -65,30 +66,13 @@ public class CardCsvUtilsService
         return cardTypeList;
     }
 
-    //TODO: IMPLEMENT AN UPSERT TO ADD CARD TEXT DATA
-    public List<PokemonCardText> MapCsvCardsToPokemonCardTextList(List<ModernPokemonCSV> list, int setId, string setName)
-    {
-        var cardTextList =
-            list
-            .Where(card => MapCsvCardTypeToDbCardType(card) == "Pokemon")
-            .Select(card => {
-                var c = new PokemonCardText()
-                {
-                    HP = card.HP.HasValue ? card.HP.Value.ToString() : null,
-                    Stage = card.Stage
-                };
-                return c;
-            }).ToList();
 
-        return cardTextList;
-    }
-
-    public CardUpsertGroupedLists MapCsvCardsToDbUpsertLists(List<ModernPokemonCSV> list, int setId, string setName)
+    public List<Card> MapCsvCardsToDbUpsertLists(List<ModernPokemonCSV> list, int setId, string setName)
     {
         var setDirectoryName = setName.Replace(":", " -");
         var directorySet = Path.Combine(_baseImageDirectory, setDirectoryName);
 
-        var fullUpsertObject = new CardUpsertGroupedLists();
+        var cardList = new List<Card>();
 
         foreach (var card in list)
         {
@@ -109,34 +93,10 @@ public class CardCsvUtilsService
                 ImageUrl = imageUrl
             };
 
-            
-
-            fullUpsertObject.CardEntities.Add(c);
-
-            if(cardType == "Trainer" || cardType == "Energy" && card.CardName.Contains("Basic"))
-            {
-                var nonPkmnCardText = new NonPokemonCardText()
-                {
-                    Text = card.NonPokemonCardText
-                };
-                fullUpsertObject.NonPkmnCardTextEntities.Add(nonPkmnCardText);
-                continue;
-            }
-
-            if(cardType == "Pokemon")
-            {
-                var pokemonCardText = new PokemonCardText()
-                {
-                    HP = card.HP.HasValue ? card.HP.Value.ToString() : null,
-                    Stage = card.Stage
-                };
-
-                fullUpsertObject.PkmnCardTextEntities.Add(pokemonCardText);
-                continue;
-            }
+            cardList.Add(c);
         }
 
-        return fullUpsertObject;
+        return cardList;
     }
 
     private string? FindExistingImagePath(int tcgPlayerId, string directorySet, string fullDirectoryPath)

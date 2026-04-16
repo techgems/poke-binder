@@ -6,6 +6,8 @@ public class Card
 
     public int TcgPlayerId { get; set; }
 
+    public int? ScrydexId { get; set; } = null;
+
     public int? SetId { get; set; }
 
     public string? Name { get; set; }
@@ -27,10 +29,6 @@ public class Card
     public string? MaskImageTwoUrl { get; set; }
 
     public bool HasImageDownloadAttempt { get; set; }
-
-    public int? PokemonCardTextId { get; set; } = null;
-
-    public int? NonPokemonCardTextId { get; set; } = null;
 
     public Set? Set { get; set; }
 

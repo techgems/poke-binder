@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS [pkmnCardText] (
     [id] INTEGER PRIMARY KEY,
-    [cardId] INTEGER NOT NULL,
-    [hp] TEXT NULL,
+    [cardId] INTEGER NOT NULL UNIQUE,
+    [hp] TEXT NOT NULL,
     [resistance] TEXT NULL,
     [weaknesses] TEXT NULL,
     [flavorText] TEXT NULL,
@@ -16,10 +16,7 @@ CREATE TABLE IF NOT EXISTS [pkmnCardText] (
 
 CREATE TABLE IF NOT EXISTS [nonPkmnCardText] (
     [id] INTEGER PRIMARY KEY,
-    [cardId] INTEGER NOT NULL UNIQUE REFERENCES [cards]([id]),
+    [cardId] INTEGER NOT NULL UNIQUE,
     [text] TEXT NULL,
     FOREIGN KEY([cardId]) REFERENCES [cards]([id])
 );
-
-ALTER TABLE [cards] ADD COLUMN [pkmnCardTextId] INTEGER NULL REFERENCES [pkmnCardText]([id]);
-ALTER TABLE [cards] ADD COLUMN [nonPkmnCardTextId] INTEGER NULL REFERENCES [nonPkmnCardText]([id]);

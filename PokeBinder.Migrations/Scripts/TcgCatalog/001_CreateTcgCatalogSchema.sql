@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS [sets] (
 CREATE TABLE IF NOT EXISTS [cards] (
     [id] INTEGER PRIMARY KEY,
     [tcgPlayerId] INTEGER UNIQUE,
+    [scrydexId] INTEGER NULL UNIQUE,
     [setId] INTEGER NOT NULL,
     [name] TEXT NOT NULL,
     [rarity] TEXT NOT NULL,
@@ -43,7 +44,6 @@ CREATE TABLE IF NOT EXISTS [cards] (
     [cardType] TEXT NOT NULL,
     [cardSubType] TEXT NOT NULL,
     [artist] TEXT NULL,
-    [hp] INTEGER NULL,
     [imageUrl] TEXT NULL,
     [maskImageOneUrl] TEXT NULL,
     [maskImageTwoUrl] TEXT NULL,

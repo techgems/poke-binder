@@ -143,6 +143,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.ToTable("pkmnCardText");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.CardId).HasColumnName("cardId");
             entity.Property(e => e.HP).HasColumnName("hp");
             entity.Property(e => e.Resistance).HasColumnName("resistance");
             entity.Property(e => e.Weaknesses).HasColumnName("weaknesses");
@@ -163,9 +164,10 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.EvolvesFrom).HasColumnName("evolvesFrom");
             entity.Property(e => e.DexNumber).HasColumnName("dexNumber");
             entity.Property(e => e.Stage).HasColumnName("stage");
+
             entity.HasOne(e => e.Card)
-                .WithOne(c => c.PokemonCardText)
-                .HasForeignKey<PokemonCardText>(e => e.CardId);
+                .WithMany()
+                .HasForeignKey(e => e.CardId);
         });
 
         modelBuilder.Entity<NonPokemonCardText>(entity =>
@@ -173,11 +175,12 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.ToTable("nonPkmnCardText");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.CardId).HasColumnName("cardId");
             entity.Property(e => e.Text).HasColumnName("text");
 
             entity.HasOne(e => e.Card)
-                .WithOne(c => c.NonPokemonCardText)
-                .HasForeignKey<NonPokemonCardText>(e => e.Id);
+                .WithMany()
+                .HasForeignKey(e => e.CardId);
         });
 
         modelBuilder.Entity<Card>(entity =>
@@ -186,6 +189,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.TcgPlayerId).HasColumnName("tcgPlayerId");
+            entity.Property(e => e.ScrydexId).HasColumnName("scrydexId");
             entity.Property(e => e.SetId).HasColumnName("setId");
             entity.Property(e => e.Name).HasColumnName("name");
             entity.Property(e => e.Rarity).HasColumnName("rarity");
@@ -198,16 +202,14 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.MaskImageTwoUrl).HasColumnName("maskImageTwoUrl");
             entity.Property(e => e.HasImageDownloadAttempt).HasColumnName("hasImageDownloadAttempt")
                 .HasDefaultValue(false);
-            entity.Property(e => e.PokemonCardTextId).HasColumnName("pkmnCardTextId");
-            entity.Property(e => e.NonPokemonCardTextId).HasColumnName("nonPkmnCardTextId");
 
             entity.HasOne(e => e.PokemonCardText)
-                .WithMany()
-                .HasForeignKey(e => e.PokemonCardTextId);
+                .WithOne(e => e.Card)
+                .HasForeignKey<PokemonCardText>(e => e.CardId);
 
             entity.HasOne(e => e.NonPokemonCardText)
-                .WithMany()
-                .HasForeignKey(e => e.NonPokemonCardTextId);
+                .WithOne(e => e.Card)
+                .HasForeignKey<NonPokemonCardText>(e => e.CardId);
         });
     }
 }

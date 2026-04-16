@@ -72,7 +72,7 @@ public class CardUpsertService
         {
             var existingFilePath = FindExistingImagePath(card.TcgPlayerId, directorySet, directorySet);
 
-            if(existingFilePath is null)
+            if (existingFilePath is null)
             {
                 if (card.HasImageDownloadAttempt)
                     continue;
@@ -125,8 +125,9 @@ public class CardUpsertService
         return sets;
     }
 
-    public Result InsertGames() {         
-        
+    public Result InsertGames()
+    {
+
         var gamesToInsert = new List<Game>()
         {
             new Game() { Name = "Pokemon TCG", Slug = "pokemon" },
@@ -177,7 +178,11 @@ public class CardUpsertService
 
             var cardList = _cardCsvUtils.MapCsvFilesToSingleCardList(set.CsvFiles, generationConfig.BaseDirectory);
 
-            AddCardsFromCsvModel(cardList, setFromDb.Id, setFromDb.Name);
+            var cardsOnlyList = _cardCsvUtils.ExcludeSealedProduct(cardList);
+
+            AddCardsFromCsvModel(cardsOnlyList, setFromDb.Id, setFromDb.Name);
+            //DO THIS ONLY AFTER THE CARDS HAVE BEEN INSERTED, OTHERWISE THE CARD TEXTS WON'T BE ABLE TO LINK TO THE CARD IDS.
+            AddCardsTextFromCardsList(cardsOnlyList);
         }
 
         return Result.Success();
@@ -211,14 +216,48 @@ public class CardUpsertService
         var setDirectoryName = setName.Replace(":", " -");
         var directorySet = Path.Combine(_baseImageDirectory, setDirectoryName);
 
-        var cardsOnlyList = _cardCsvUtils.ExcludeSealedProduct(list);
+        var cardsToUpsert = _cardCsvUtils.MapCsvCardsToDbUpsertLists(list, setId, setDirectoryName);
 
-        var groupedLists = _cardCsvUtils.MapCsvCardsToDbUpsertLists(cardsOnlyList, setId, setDirectoryName);
-       
-        _cardDbContext.Cards.UpsertRange(groupedLists.CardEntities).On(x => x.TcgPlayerId).Run();
-        _cardDbContext.PokemonCardTexts.UpsertRange(groupedLists.PkmnCardTextEntities).On(x => x.CardId).Run();
-        _cardDbContext.NonPokemonCardTexts.UpsertRange(groupedLists.NonPkmnCardTextEntities).On(x => x.CardId).Run();
+        var cardsInDb = _cardDbContext.Cards.UpsertRange(cardsToUpsert).On(x => x.TcgPlayerId).Run();
 
         Console.WriteLine($"Set with Id: {setId} inserted!");
+    }
+
+    private void AddCardsTextFromCardsList(List<ModernPokemonCSV> csvList)
+    {
+        var pkmnCardTexts = new List<PokemonCardText>();
+        var nonPkmnCardTexts = new List<NonPokemonCardText>();
+
+        var tcgPLayerIdList = csvList.Select(c => c.TcgPlayerId).ToList();
+        var cards = _cardDbContext.Cards.Where(x => tcgPLayerIdList.Contains(x.TcgPlayerId)).ToList();
+
+        foreach (var card in cards)
+        {
+            var csvCard = csvList.First(x => x.TcgPlayerId == card.TcgPlayerId);
+
+            if (card.CardType == "Pokemon")
+            {
+                //TODO: POLISH THE DATA CLEAN UP TO RETRIEVE MORE DATA FROM THE CSV CLEANLY.
+                pkmnCardTexts.Add(new PokemonCardText()
+                {
+                    CardId = card.Id,
+                    HP = csvCard.HP!.Value,
+                    Stage = csvCard.Stage
+                });
+            }
+            else
+            {
+                //TODO: POLISH THE DATA CLEAN REMOVE HTML.
+                nonPkmnCardTexts.Add(new NonPokemonCardText()
+                {
+                    CardId = card.Id,
+                    Text = csvCard.NonPokemonCardText
+                });
+            }
+        }
+
+        _cardDbContext.PokemonCardTexts.UpsertRange(pkmnCardTexts).On(x => x.CardId).Run();
+        _cardDbContext.NonPokemonCardTexts.UpsertRange(nonPkmnCardTexts).On(x => x.CardId).Run();
+
     }
 }
