@@ -72,6 +72,7 @@ namespace PokeBinder.ETL
 
 #if IS_DATA_LOAD
 
+            var bwSetDateAndFileList = Configuration.GetSection("BlackAndWhite").Get<GenerationConfig>()!;
             var xySetDateAndFileList = Configuration.GetSection("XY").Get<GenerationConfig>()!;
             var smSetDateAndFileList = Configuration.GetSection("SunAndMoon").Get<GenerationConfig>()!;
             var swSetDateAndFileList = Configuration.GetSection("SwordAndShield").Get<GenerationConfig>()!;
@@ -82,6 +83,7 @@ namespace PokeBinder.ETL
 
             var pokemonEnglishGameId = 1;
 
+            await cardUpsertService.AddGenerationAndSetsFromConfig(bwSetDateAndFileList, "Black & White", "black-and-white", pokemonEnglishGameId);
             await cardUpsertService.AddGenerationAndSetsFromConfig(xySetDateAndFileList, "X & Y", "xy", pokemonEnglishGameId);
             await cardUpsertService.AddGenerationAndSetsFromConfig(smSetDateAndFileList, "Sun & Moon", "sun-and-moon", pokemonEnglishGameId);
             await cardUpsertService.AddGenerationAndSetsFromConfig(swSetDateAndFileList, "Sword & Shield", "sword-and-shield", pokemonEnglishGameId);

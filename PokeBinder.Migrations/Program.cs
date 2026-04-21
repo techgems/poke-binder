@@ -16,8 +16,10 @@ public class Program
             .Build();
 
         var tcgCatalogConnString = configuration.GetConnectionString("TcgCatalog")!;
+        var applicationConnString = configuration.GetConnectionString("Application")!;
 
         EnsureDatabaseDirectoryExists(tcgCatalogConnString);
+        EnsureDatabaseDirectoryExists(applicationConnString);
 
         Console.WriteLine("Running TCG Catalog database migrations...");
         var tcgResult = RunMigrations(tcgCatalogConnString, "PokeBinder.Migrations.Scripts.TcgCatalog.");
@@ -26,6 +28,14 @@ public class Program
             return -1;
 
         Console.WriteLine("TCG Catalog database migrations complete.");
+
+        Console.WriteLine("Running PokeBinder database migrations...");
+        var appResult = RunMigrations(applicationConnString, "PokeBinder.Migrations.Scripts.PokeBinder.");
+
+        if (!appResult)
+            return -1;
+
+        Console.WriteLine("PokeBinder database migrations complete.");
         return 0;
     }
 

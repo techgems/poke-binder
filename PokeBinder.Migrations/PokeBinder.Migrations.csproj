@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Scripts\TcgCatalog\*.sql" />
+    <EmbeddedResource Include="Scripts\PokeBinder\*.sql" />
   </ItemGroup>
 
   <ItemGroup>
