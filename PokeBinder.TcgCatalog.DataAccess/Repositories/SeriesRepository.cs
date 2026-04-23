@@ -4,16 +4,16 @@ using PokeBinder.TcgCatalog.DbContext.Entities;
 
 namespace PokeBinder.TcgCatalog.DataAccess.Repositories;
 
-public class GenerationRepository(TcgCatalogDbContext context)
+public class SeriesRepository(TcgCatalogDbContext context)
 {
-    public async Task<Generation?> GetByIdAsync(int id, CancellationToken ct = default)
+    public async Task<Series?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         return await context.Generations
             .Include(g => g.Sets)
             .FirstOrDefaultAsync(g => g.Id == id, ct);
     }
 
-    public async Task<List<Generation>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<Series>> GetAllAsync(CancellationToken ct = default)
     {
         return await context.Generations
             .OrderBy(g => g.StartDateUnix)

@@ -145,7 +145,7 @@ public class CardUpsertService
 
         long? endDateUnix = generationConfig.EndDate?.ToUnixTimeSeconds();
 
-        var gen = new Generation()
+        var gen = new Series()
         {
             Slug = generationSlug,
             StartDateUnix = releaseDateUnix,
@@ -164,7 +164,7 @@ public class CardUpsertService
         {
             FullName = set.FullName,
             Code = set.Code,
-            GenerationId = insertedGenerationId,
+            SeriesId = insertedGenerationId,
             Name = set.DisplayName,
             PriorityOrder = set.PriorityOrder.GetValueOrDefault(),
             ReleaseDateUnix = set.ReleaseDate.ToUnixTimeSeconds()

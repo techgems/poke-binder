@@ -32,7 +32,7 @@ public class CardRepository(TcgCatalogDbContext context)
     {
         var cards = context.Cards
             .Include(c => c.Set)
-                .ThenInclude(s => s!.Generation)
+                .ThenInclude(s => s!.Series)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(name))
@@ -51,7 +51,7 @@ public class CardRepository(TcgCatalogDbContext context)
             cards = cards.Where(c => c.SetId == setId.Value);
 
         if (generationId.HasValue)
-            cards = cards.Where(c => c.Set != null && c.Set.GenerationId == generationId.Value);
+            cards = cards.Where(c => c.Set != null && c.Set.SeriesId == generationId.Value);
 
         var results = await cards.ToListAsync(ct);
 

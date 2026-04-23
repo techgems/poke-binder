@@ -14,19 +14,27 @@ public static class CardSetCsvLoader
 {
     public static List<ModernPokemonCSV> ProcessSetCSV(string fileLocation)
     {
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+        try
         {
-            HasHeaderRecord = true,
-        };
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HasHeaderRecord = true,
+            };
 
 
-        using var reader = new StreamReader(fileLocation);
-        using var csv = new CsvReader(reader, config);
+            using var reader = new StreamReader(fileLocation);
+            using var csv = new CsvReader(reader, config);
 
-        csv.Context.RegisterClassMap<ModernPokemonSetsCsvMapper>();
+            csv.Context.RegisterClassMap<ModernPokemonSetsCsvMapper>();
 
-        var deserializedRecords = csv.GetRecords<ModernPokemonCSV>();
+            var deserializedRecords = csv.GetRecords<ModernPokemonCSV>();
 
-        return deserializedRecords.ToList();
+            return deserializedRecords.ToList();
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Error processing CSV file: {ex.Message}");
+            throw;
+        }
     }
 }

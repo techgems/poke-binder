@@ -14,7 +14,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<CardRepository>();
         services.AddScoped<SetRepository>();
-        services.AddScoped<GenerationRepository>();
+        services.AddScoped<SeriesRepository>();
         services.AddScoped<GenerationFilterOptionRepository>();
         services.AddScoped<PokemonFilterOptionRepository>();
         services.AddScoped<RarityBySetFilterOptionRepository>();

@@ -36,17 +36,6 @@ namespace PokeBinder.ETL
             HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
             builder.Configuration.AddConfiguration(Configuration);
 
-
-            //Register HttpClients
-            builder.Services.AddHttpClient("JustTcg", (serviceProvider, client) =>
-            {
-                var apiKey = Configuration["JustTCG:ApiKey"];
-                var url = Configuration["JustTCG:Url"];
-
-                client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-                client.BaseAddress = new Uri(url!);
-            });
-
             builder.Services.AddHttpClient("TcgPlayerCDN", (serviceProvider, client) =>
             {
                 client.BaseAddress = new Uri("https://tcgplayer-cdn.tcgplayer.com/");
@@ -72,23 +61,39 @@ namespace PokeBinder.ETL
 
 #if IS_DATA_LOAD
 
-            var bwSetDateAndFileList = Configuration.GetSection("BlackAndWhite").Get<GenerationConfig>()!;
-            var xySetDateAndFileList = Configuration.GetSection("XY").Get<GenerationConfig>()!;
-            var smSetDateAndFileList = Configuration.GetSection("SunAndMoon").Get<GenerationConfig>()!;
-            var swSetDateAndFileList = Configuration.GetSection("SwordAndShield").Get<GenerationConfig>()!;
-            var svSetDataAndFileList = Configuration.GetSection("ScarletAndViolet").Get<GenerationConfig>()!;
-            var meSetDateAndFileList = Configuration.GetSection("MegaEvolution").Get<GenerationConfig>()!;
+            var originalSeriesConfig = Configuration.GetSection("OriginalSeries").Get<GenerationConfig>()!;
+            var neoSeriesConfig = Configuration.GetSection("NeoSeries").Get<GenerationConfig>()!;
+            var legendaryCollectionConfig = Configuration.GetSection("LegendaryCollection").Get<GenerationConfig>()!;
+            var eCardConfig = Configuration.GetSection("eCard").Get<GenerationConfig>()!;
+            var exSeriesConfig = Configuration.GetSection("EXSeries").Get<GenerationConfig>()!;
+            var diamondAndPearlConfig = Configuration.GetSection("DiamondAndPearl").Get<GenerationConfig>()!;
+            var platinumConfig = Configuration.GetSection("Platinum").Get<GenerationConfig>()!;
+            var heartGoldSoulSilverConfig = Configuration.GetSection("HeartGoldSoulSilver").Get<GenerationConfig>()!;
+            var blackAndWhiteConfig = Configuration.GetSection("BlackAndWhite").Get<GenerationConfig>()!;
+            var xAndYConfig = Configuration.GetSection("XY").Get<GenerationConfig>()!;
+            var sunAndMoonConfig = Configuration.GetSection("SunAndMoon").Get<GenerationConfig>()!;
+            var swordAndShieldConfig = Configuration.GetSection("SwordAndShield").Get<GenerationConfig>()!;
+            var scarletAndVioletConfig = Configuration.GetSection("ScarletAndViolet").Get<GenerationConfig>()!;
+            var megaEvolutionsConfig = Configuration.GetSection("MegaEvolution").Get<GenerationConfig>()!;
             
             cardUpsertService.InsertGames();
 
             var pokemonEnglishGameId = 1;
 
-            await cardUpsertService.AddGenerationAndSetsFromConfig(bwSetDateAndFileList, "Black & White", "black-and-white", pokemonEnglishGameId);
-            await cardUpsertService.AddGenerationAndSetsFromConfig(xySetDateAndFileList, "X & Y", "xy", pokemonEnglishGameId);
-            await cardUpsertService.AddGenerationAndSetsFromConfig(smSetDateAndFileList, "Sun & Moon", "sun-and-moon", pokemonEnglishGameId);
-            await cardUpsertService.AddGenerationAndSetsFromConfig(swSetDateAndFileList, "Sword & Shield", "sword-and-shield", pokemonEnglishGameId);
-            await cardUpsertService.AddGenerationAndSetsFromConfig(svSetDataAndFileList, "Scarlet & Violet", "scarlet-violet", pokemonEnglishGameId);
-            await cardUpsertService.AddGenerationAndSetsFromConfig(meSetDateAndFileList, "Mega Evolution", "mega-evolution", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(originalSeriesConfig, "Original Series", "original-series", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(neoSeriesConfig, "Neo Series", "neo-series", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(legendaryCollectionConfig, "Legendary Collection", "legendary-collection", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(eCardConfig, "e-Card Series", "e-card-series", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(exSeriesConfig, "EX Series", "ex-series", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(diamondAndPearlConfig, "Diamond & Pearl", "diamond-and-pearl", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(platinumConfig, "Platinum", "platinum", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(heartGoldSoulSilverConfig, "HeartGold & SoulSilver", "heartgold-soulsilver", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(blackAndWhiteConfig, "Black & White", "black-and-white", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(xAndYConfig, "X & Y", "xy", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(sunAndMoonConfig, "Sun & Moon", "sun-and-moon", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(swordAndShieldConfig, "Sword & Shield", "sword-and-shield", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(scarletAndVioletConfig, "Scarlet & Violet", "scarlet-violet", pokemonEnglishGameId);
+            await cardUpsertService.AddGenerationAndSetsFromConfig(megaEvolutionsConfig, "Mega Evolution", "mega-evolution", pokemonEnglishGameId);
 
             filterOptionSeedRepository.SeedAll();
 

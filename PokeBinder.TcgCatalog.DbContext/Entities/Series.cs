@@ -1,6 +1,6 @@
 namespace PokeBinder.TcgCatalog.DbContext.Entities;
 
-public class Generation
+public class Series
 {
     public int Id { get; set; }
 

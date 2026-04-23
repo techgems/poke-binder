@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS [games] (
     [name] TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS [generations] (
+CREATE TABLE IF NOT EXISTS [series] (
     [id] INTEGER PRIMARY KEY,
     [slug] TEXT UNIQUE NOT NULL,
     [name] TEXT NOT NULL,
@@ -26,10 +26,10 @@ CREATE TABLE IF NOT EXISTS [sets] (
     [fullName] TEXT NOT NULL,
     [releaseDateUnix] INTEGER NOT NULL,
     [imageUrl] TEXT NULL,
-    [generationId] INTEGER NOT NULL,
+    [seriesId] INTEGER NOT NULL,
     [priorityOrder] INTEGER NULL,
     [dateLoadedUnix] INTEGER NOT NULL,
-    FOREIGN KEY ([generationId]) REFERENCES [generations]([id])
+    FOREIGN KEY (seriesId) REFERENCES [series]([id])
 );
 
 CREATE TABLE IF NOT EXISTS [cards] (

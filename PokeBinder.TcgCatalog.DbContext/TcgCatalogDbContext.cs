@@ -9,7 +9,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Set> Sets => Set<Set>();
-    public DbSet<Generation> Generations => Set<Generation>();
+    public DbSet<Series> Generations => Set<Series>();
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GenerationFilterOption> GenerationFilterOptions => Set<GenerationFilterOption>();
     public DbSet<PokemonFilterOption> PokemonFilterOptions => Set<PokemonFilterOption>();
@@ -34,9 +34,9 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
                 .HasForeignKey(g => g.GameId);
         });
 
-        modelBuilder.Entity<Generation>(entity =>
+        modelBuilder.Entity<Series>(entity =>
         {
-            entity.ToTable("generations");
+            entity.ToTable("series");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Slug).HasColumnName("slug");
@@ -46,8 +46,8 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.GameId).HasColumnName("gameId");
 
             entity.HasMany(e => e.Sets)
-                .WithOne(s => s.Generation)
-                .HasForeignKey(s => s.GenerationId);
+                .WithOne(s => s.Series)
+                .HasForeignKey(s => s.SeriesId);
         });
 
         modelBuilder.Entity<Set>(entity =>
@@ -60,7 +60,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.FullName).HasColumnName("fullName");
             entity.Property(e => e.ReleaseDateUnix).HasColumnName("releaseDateUnix");
             entity.Property(e => e.ImageUrl).HasColumnName("imageUrl");
-            entity.Property(e => e.GenerationId).HasColumnName("generationId");
+            entity.Property(e => e.SeriesId).HasColumnName("seriesId");
             entity.Property(e => e.PriorityOrder).HasColumnName("priorityOrder");
             entity.Property(e => e.DateLoadedUnix).HasColumnName("dateLoadedUnix");
 

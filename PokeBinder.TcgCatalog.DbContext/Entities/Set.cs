@@ -14,13 +14,13 @@ public class Set
 
     public string? ImageUrl { get; set; }
 
-    public int GenerationId { get; set; }
+    public int SeriesId { get; set; }
 
     public bool PriorityOrder { get; set; }
 
     public long DateLoadedUnix { get; set; }
 
-    public Generation? Generation { get; set; }
+    public Series? Series { get; set; }
 
     public ICollection<Card> Cards { get; set; } = [];
 }
