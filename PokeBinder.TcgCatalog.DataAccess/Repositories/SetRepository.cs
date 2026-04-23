@@ -13,10 +13,10 @@ public class SetRepository(TcgCatalogDbContext context)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 
-    public async Task<List<Set>> GetBySeriesId(int generationId, CancellationToken ct = default)
+    public async Task<List<Set>> GetBySeriesId(int seriesId, CancellationToken ct = default)
     {
         return await context.Sets
-            .Where(s => s.SeriesId == generationId)
+            .Where(s => s.SeriesId == seriesId)
             .ToListAsync(ct);
     }
 
