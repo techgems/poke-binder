@@ -1,5 +1,6 @@
-﻿#define IS_DATA_LOAD
+﻿//#define IS_DATA_LOAD
 //#define IS_IMAGE_DOWNLOAD
+#define IS_VALIDATE
 
 using PokeBinder.ETL.Config;
 using PokeBinder.ETL.CsvLoader;
@@ -49,6 +50,7 @@ namespace PokeBinder.ETL
             builder.Services.AddScoped<CardUpsertService>();
             builder.Services.AddScoped<FilterOptionUpsertService>();
             builder.Services.AddScoped<CardCsvUtilsService>();
+            builder.Services.AddScoped<CardSetValidationService>();
 
             using IHost host = builder.Build();
 
@@ -101,6 +103,12 @@ namespace PokeBinder.ETL
 
 #if IS_IMAGE_DOWNLOAD
             await cardRepository.SyncImagesForAllCards();
+#endif
+
+#if IS_VALIDATE
+            var cardSetValidationService = provider.GetRequiredService<CardSetValidationService>();
+            var validationLogDirectory = Path.Combine(AppContext.BaseDirectory, "ValidationLogs");
+            cardSetValidationService.ValidateAndReport(validationLogDirectory);
 #endif
             //await host.StartAsync();
         }

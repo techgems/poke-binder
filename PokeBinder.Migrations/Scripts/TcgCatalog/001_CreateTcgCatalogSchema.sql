@@ -40,7 +40,6 @@ CREATE TABLE IF NOT EXISTS [cards] (
     [name] TEXT NOT NULL,
     [rarity] TEXT NOT NULL,
     [cardNumber] TEXT NOT NULL,
-    [stage] TEXT NULL,
     [cardType] TEXT NOT NULL,
     [cardSubType] TEXT NOT NULL,
     [artist] TEXT NULL,

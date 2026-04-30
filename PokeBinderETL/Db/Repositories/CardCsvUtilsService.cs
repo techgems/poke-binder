@@ -47,13 +47,21 @@ public class CardCsvUtilsService
 
         dbCardType = csvCard switch
         {
-            { CompleteCardType: var cardName } when cardName.Contains("Energy") => "Energy",
-            { CompleteCardType: var cardName } when cardName.Contains("Item") || cardName.Contains("Supporter") || cardName.Contains("Stadium") || cardName.Contains("Tool") => "Trainer",
-            { HP: var hp, Stage: var stage } when hp.HasValue && stage is not null => "Pokemon",
+            { CompleteCardType: var cardType } when cardType.Contains("Energy") => "Energy",
+            { CompleteCardType: var cardType } when cardType.Contains("Item") || cardType.Contains("Supporter") || cardType.Contains("Stadium") || cardType.Contains("Tool") || cardType.Contains("Trainer") => "Trainer",
+            { HP: var hp, Stage: var stage } when hp.GetValueOrDefault() != 0 && stage is not null => "Pokemon",
             _ => _unknownTag
         };
 
         return dbCardType;
+    }
+
+    private string MapSubType(string mappedCardType, string csvFullType) 
+    { 
+        if(mappedCardType == _unknownTag)
+            return _unknownTag;
+
+        return csvFullType;
     }
 
     public List<ModernPokemonCSV> ExcludeSealedProduct(List<ModernPokemonCSV> list)
@@ -79,7 +87,7 @@ public class CardCsvUtilsService
             var imageUrl = FindExistingImagePath(card.TcgPlayerId, directorySet, directorySet);
 
             var cardType = MapCsvCardTypeToDbCardType(card);
-            var cardSubtype = cardType == _unknownTag ? _unknownTag : card.CompleteCardType!;
+            var cardSubtype = MapSubType(cardType, card.CompleteCardType!);
 
             var c = new Card()
             {
