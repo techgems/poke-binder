@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Binder/">
     <Project Path="PokeBinder.Binder.DbContext/PokeBinder.Binder.DbContext.csproj" Id="a2d6cafa-775d-41fc-857e-3f2ad84cd30b" />
+    <Project Path="PokeBinder.Binder.Users/PokeBinder.Binder.Users.csproj" />
   </Folder>
   <Folder Name="/Databases/">
     <File Path="Databases/PokeBinder.db" />

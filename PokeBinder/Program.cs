@@ -1,21 +1,37 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using PokeBinder.Data;
+using PokeBinder.Binders.DbContext.DI;
+using PokeBinder.Binders.DbContext.Entities;
+using PokeBinder.Binders.Users.DI;
 using PokeBinder.TcgCatalog.DataAccess.DI;
 using PokeBinder.TcgCatalog.Domain.DI;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+var applicationConnectionString = builder.Configuration.GetConnectionString("Application")
+    ?? throw new InvalidOperationException("Connection string 'Application' not found.");
+builder.Services.AddBinderDataAccess(applicationConnectionString);
 
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+builder.Services
+    .AddBinderIdentity(options => options.SignIn.RequireConfirmedAccount = true)
+    .AddSignInManager()
+    .AddPasswordlessLoginTokenProvider()
+    .AddDefaultTokenProviders();
 
-var tcgCatalogConnectionString = builder.Configuration.GetConnectionString("TcgCatalog") ?? throw new InvalidOperationException("Connection string 'TcgCatalog' not found.");
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/Account/Login";
+    options.LogoutPath = "/Account/Logout";
+    options.AccessDeniedPath = "/Account/AccessDenied";
+});
+
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
+
+var tcgCatalogConnectionString = builder.Configuration.GetConnectionString("TcgCatalog")
+    ?? throw new InvalidOperationException("Connection string 'TcgCatalog' not found.");
+
+
 builder.Services.AddTcgCatalogDataAccess(tcgCatalogConnectionString);
 builder.Services.AddTcgCatalogDomain();
 
@@ -24,14 +40,9 @@ builder.Services.AddRazorPages();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseMigrationsEndPoint();
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
@@ -39,6 +50,7 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();

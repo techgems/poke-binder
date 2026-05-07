@@ -12,6 +12,14 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<BinderCard> BinderCards => Set<BinderCard>();
     public DbSet<BinderTray> BinderTray => Set<BinderTray>();
 
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<UserClaim> UserClaims => Set<UserClaim>();
+    public DbSet<RoleClaim> RoleClaims => Set<RoleClaim>();
+    public DbSet<UserLogin> UserLogins => Set<UserLogin>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<BinderSize>(entity =>
@@ -70,6 +78,89 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.BinderId).HasColumnName("binderId");
             entity.Property(e => e.CardId).HasColumnName("cardId");
             entity.Property(e => e.Quantity).HasColumnName("quantity");
+        });
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Email).HasColumnName("email");
+            entity.Property(e => e.EmailConfirmed).HasColumnName("emailConfirmed");
+            entity.Property(e => e.PasswordHash).HasColumnName("passwordHash");
+            entity.Property(e => e.SecurityStamp).HasColumnName("securityStamp");
+            entity.Property(e => e.ConcurrencyStamp).HasColumnName("concurrencyStamp");
+            entity.Property(e => e.PhoneNumber).HasColumnName("phoneNumber");
+            entity.Property(e => e.PhoneNumberConfirmed).HasColumnName("phoneNumberConfirmed");
+            entity.Property(e => e.TwoFactorEnabled).HasColumnName("twoFactorEnabled");
+            entity.Property(e => e.LockoutEnd).HasColumnName("lockoutEnd");
+            entity.Property(e => e.LockoutEnabled).HasColumnName("lockoutEnabled");
+            entity.Property(e => e.AccessFailedCount).HasColumnName("accessFailedCount");
+
+            entity.HasIndex(e => e.Email).IsUnique().HasDatabaseName("IX_users_email");
+        });
+
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.ToTable("roles");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.ConcurrencyStamp).HasColumnName("concurrencyStamp");
+        });
+
+        modelBuilder.Entity<UserRole>(entity =>
+        {
+            entity.ToTable("userRoles");
+            entity.HasKey(e => new { e.UserId, e.RoleId });
+            entity.Property(e => e.UserId).HasColumnName("userId");
+            entity.Property(e => e.RoleId).HasColumnName("roleId");
+        });
+
+        modelBuilder.Entity<UserClaim>(entity =>
+        {
+            entity.ToTable("userClaims");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("userId");
+            entity.Property(e => e.ClaimType).HasColumnName("claimType");
+            entity.Property(e => e.ClaimValue).HasColumnName("claimValue");
+
+            entity.HasIndex(e => e.UserId).HasDatabaseName("IX_userClaims_userId");
+        });
+
+        modelBuilder.Entity<RoleClaim>(entity =>
+        {
+            entity.ToTable("roleClaims");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.RoleId).HasColumnName("roleId");
+            entity.Property(e => e.ClaimType).HasColumnName("claimType");
+            entity.Property(e => e.ClaimValue).HasColumnName("claimValue");
+
+            entity.HasIndex(e => e.RoleId).HasDatabaseName("IX_roleClaims_roleId");
+        });
+
+        modelBuilder.Entity<UserLogin>(entity =>
+        {
+            entity.ToTable("userLogins");
+            entity.HasKey(e => new { e.LoginProvider, e.ProviderKey });
+            entity.Property(e => e.LoginProvider).HasColumnName("loginProvider");
+            entity.Property(e => e.ProviderKey).HasColumnName("providerKey");
+            entity.Property(e => e.ProviderDisplayName).HasColumnName("providerDisplayName");
+            entity.Property(e => e.UserId).HasColumnName("userId");
+
+            entity.HasIndex(e => e.UserId).HasDatabaseName("IX_userLogins_userId");
+        });
+
+        modelBuilder.Entity<UserToken>(entity =>
+        {
+            entity.ToTable("userTokens");
+            entity.HasKey(e => new { e.UserId, e.LoginProvider, e.Name });
+            entity.Property(e => e.UserId).HasColumnName("userId");
+            entity.Property(e => e.LoginProvider).HasColumnName("loginProvider");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.Value).HasColumnName("value");
         });
     }
 }
