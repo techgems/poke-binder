@@ -23,6 +23,8 @@ public class LoginModel : PageModel
 
     public string? ReturnUrl { get; set; }
 
+    public bool ShowTokenSentMessage { get; set; }
+
     public void OnGet(string? returnUrl = null)
     {
         ReturnUrl = returnUrl;
@@ -73,10 +75,13 @@ public class LoginModel : PageModel
         var url = Url.Page("AuthCallback", "Account", new { token, email = Input.Email }, Request.Scheme);
 
         System.IO.File.WriteAllText("passwordless.txt", url);
+
+        ShowTokenSentMessage = true;
     }
 
     public class InputModel
     {
+        [Display(Name = "Email")]
         [Required]
         [EmailAddress]
         public string Email { get; set; } = string.Empty;

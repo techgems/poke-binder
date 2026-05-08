@@ -43,7 +43,7 @@ public class AuthCallbackModel : PageModel
                 new ClaimsPrincipal(claimsIdentity));
 
             //Successful login page
-            return LocalRedirect(ReturnUrl ?? "/Index");
+            return LocalRedirect(ReturnUrl ?? "/Protected");
         }
 
         //Failed due to wrong token or expired token. Could show a page about the token being invalid or expired and a button to resend the email.

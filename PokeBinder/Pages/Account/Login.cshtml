@@ -4,23 +4,30 @@
     ViewData["Title"] = "Login";
 }
 
-<h1>Login/Register</h1>
-
-<p>
-    Enter your email and you will receive a link to log in. This is a passwordless login system, so no password is required.
-</p>
-
-<form method="post">
-    <div asp-validation-summary="All"></div>
-
+@if(Model.ShowTokenSentMessage)
+{
     <div>
-        <label asp-for="Input.Email"></label>
-        <input asp-for="Input.Email" />
-        <span asp-validation-for="Input.Email"></span>
+        Your one time password has been sent to your email. Click the link provided in order to continue or <a asp-page="/Account/Login">click here</a> to go back.
     </div>
-    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
-    <button type="submit">Log in</button>
-</form>
+}
+else
+{
+    <h1>Login/Register</h1>
+
+    <p>
+        Enter your email and you will receive a link to log in. This is a passwordless login system, so no password is required.
+    </p>
+
+    <form method="post">
+        <div asp-validation-summary="All"></div>
+
+        <div class="my-4">
+            <pines-input show-label="true" asp-for="Input.Email"></pines-input>
+            <span asp-validation-for="Input.Email"></span>
+        </div>
+        <pines-button type="submit" variant="Primary" color="Blue">Log In</pines-button>
+    </form>
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
