@@ -4,38 +4,24 @@
     Layout = "_LandingLayout";
     ViewData["Title"] = "Digital binders for the Pokémon TCG";
     ViewData["Description"] = "PokeBinder turns your Pokémon TCG collection into beautiful digital binders with live market values, instant sharing, and a near-complete catalog of every Pokémon card ever printed.";
-
-    var placeholderGradients = new[]
-    {
-        "from-yellow-300 via-amber-400 to-orange-500",
-        "from-rose-400 via-red-500 to-orange-600",
-        "from-sky-400 via-blue-500 to-indigo-600",
-        "from-emerald-400 via-green-500 to-teal-600",
-        "from-fuchsia-400 via-purple-500 to-violet-700",
-        "from-slate-400 via-slate-500 to-slate-700",
-        "from-pink-400 via-rose-500 to-red-600",
-        "from-lime-300 via-yellow-400 to-amber-500",
-        "from-cyan-300 via-sky-500 to-blue-700",
-        "from-violet-400 via-fuchsia-500 to-pink-600",
-        "from-orange-300 via-rose-400 to-fuchsia-600",
-        "from-teal-300 via-emerald-500 to-green-700"
-    };
 }
 
 @* Transparent landing header *@
-<header class="absolute inset-x-0 top-0 z-50">
-    <nav aria-label="Primary" class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+<landing-header>
+    <slot name="@LandingHeader.LogoSlot">
         <a asp-page="/Index" class="flex items-center gap-2" aria-label="PokeBinder home">
             <img src="~/images/TCG Forge First Draft.png"
                  alt="PokeBinder"
                  class="h-10 w-auto drop-shadow-[0_0_20px_rgba(168,85,247,0.35)]" />
         </a>
+    </slot>
+    <slot name="@LandingHeader.OptionsSlot">
         <a asp-page="/Account/Login"
-               class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-5 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">
+           class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-5 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">
             Sign in
         </a>
-    </nav>
-</header>
+    </slot>
+</landing-header>
 
 @* Full-bleed dark landing page *@
 <main role="main" class="relative w-full bg-neutral-950 text-neutral-100 overflow-hidden">
@@ -46,31 +32,7 @@
         @* --- Backdrop: alternating rows of sliding pokemon cards --- *@
         <div aria-hidden="true" class="absolute inset-0 -z-10 select-none">
 
-            @* Vertical stack of card rows *@
-            <div class="absolute inset-0 flex flex-col justify-center gap-6 py-8 opacity-25 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]">
-
-                @for (int row = 0; row < 5; row++)
-                {
-                    var direction = row % 2 == 0 ? "animate-card-scroll-left" : "animate-card-scroll-right";
-                    var rowOffset = row * 4;
-
-                    <div class="flex shrink-0 gap-6 w-max @direction will-change-transform">
-                        @* Render the placeholder card list twice for a seamless loop *@
-                        @for (int dup = 0; dup < 2; dup++)
-                        {
-                            @for (int i = 0; i < 12; i++)
-                            {
-                                var gradient = placeholderGradients[(i + rowOffset) % placeholderGradients.Length];
-                                <div class="relative w-[180px] aspect-[63/88] rounded-xl shrink-0 bg-gradient-to-br @gradient shadow-xl ring-1 ring-white/10">
-                                    <div class="absolute inset-2 rounded-lg ring-1 ring-white/20 bg-gradient-to-tr from-white/5 to-white/0"></div>
-                                    <div class="absolute inset-x-3 top-3 h-3 rounded-sm bg-white/10"></div>
-                                    <div class="absolute inset-x-3 bottom-3 h-6 rounded-sm bg-black/20"></div>
-                                </div>
-                            }
-                        }
-                    </div>
-                }
-            </div>
+            <hero-card-rows-component></hero-card-rows-component>
 
             @* Vignette + radial wash *@
             <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(59,7,100,0.45),rgba(10,10,10,0)_60%)]"></div>

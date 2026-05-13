@@ -1,0 +1,60 @@
+@model HeroCardRowsComponent
+@{
+    var placeholderGradients = new[]
+    {
+        "from-yellow-300 via-amber-400 to-orange-500",
+        "from-rose-400 via-red-500 to-orange-600",
+        "from-sky-400 via-blue-500 to-indigo-600",
+        "from-emerald-400 via-green-500 to-teal-600",
+        "from-fuchsia-400 via-purple-500 to-violet-700",
+        "from-slate-400 via-slate-500 to-slate-700",
+        "from-pink-400 via-rose-500 to-red-600",
+        "from-lime-300 via-yellow-400 to-amber-500",
+        "from-cyan-300 via-sky-500 to-blue-700",
+        "from-violet-400 via-fuchsia-500 to-pink-600",
+        "from-orange-300 via-rose-400 to-fuchsia-600",
+        "from-teal-300 via-emerald-500 to-green-700"
+    };
+
+    const int rowCount = 5;
+    const int cardsPerRow = 12;
+}
+
+<div class="absolute inset-0 flex flex-col justify-center gap-6 py-8 opacity-25 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]">
+
+    @for (int row = 0; row < rowCount; row++)
+    {
+        var direction = row % 2 == 0 ? "animate-card-scroll-left" : "animate-card-scroll-right";
+        var rowOffset = row * 4;
+        var rowImages = Model.RowImages != null && row < Model.RowImages.Count
+            ? Model.RowImages[row]
+            : null;
+
+        <div class="flex shrink-0 gap-6 w-max @direction will-change-transform">
+            @* Render the card list twice for a seamless loop *@
+            @for (int dup = 0; dup < 2; dup++)
+            {
+                @for (int i = 0; i < cardsPerRow; i++)
+                {
+                    var imageUrl = rowImages != null && i < rowImages.Count ? rowImages[i] : null;
+
+                    if (!string.IsNullOrEmpty(imageUrl))
+                    {
+                        <img src="@imageUrl"
+                             alt=""
+                             class="w-[180px] aspect-[63/88] rounded-xl shrink-0 object-cover shadow-xl ring-1 ring-white/10" />
+                    }
+                    else
+                    {
+                        var gradient = placeholderGradients[(i + rowOffset) % placeholderGradients.Length];
+                        <div class="relative w-[180px] aspect-[63/88] rounded-xl shrink-0 bg-gradient-to-br @gradient shadow-xl ring-1 ring-white/10">
+                            <div class="absolute inset-2 rounded-lg ring-1 ring-white/20 bg-gradient-to-tr from-white/5 to-white/0"></div>
+                            <div class="absolute inset-x-3 top-3 h-3 rounded-sm bg-white/10"></div>
+                            <div class="absolute inset-x-3 bottom-3 h-6 rounded-sm bg-black/20"></div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    }
+</div>
