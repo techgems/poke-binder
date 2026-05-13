@@ -62,17 +62,8 @@
             </p>
 
             <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <a asp-page="/CardSearch"
-                   class="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-purple-900/40 transition hover:from-purple-400 hover:to-fuchsia-400 hover:shadow-purple-700/50">
-                    Search Cards
-                    <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                    </svg>
-                </a>
-                <a asp-page="/Account/Login"
-                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-7 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">
-                    Get Started — it's free
-                </a>
+                <primary-cta-button page="/CardSearch">Search Cards</primary-cta-button>
+                <primary-cta-button page="/Account/Login" variant="Outline">Get Started — it's free</primary-cta-button>
             </div>
 
             <div class="mt-12 flex items-center justify-center gap-8 text-xs text-neutral-400">
@@ -189,13 +180,7 @@
                             Filter by set, rarity, type, artist, or price. Our catalog covers nearly every card ever printed — from Base Set Charizards to the latest Scarlet &amp; Violet pulls.
                         </p>
                     </div>
-                    <a asp-page="/CardSearch"
-                       class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200">
-                        Try the card search
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                        </svg>
-                    </a>
+                    <primary-cta-button page="/CardSearch" variant="White">Try the card search</primary-cta-button>
                 </div>
             </div>
         </div>

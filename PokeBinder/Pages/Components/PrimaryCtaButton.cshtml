@@ -1,0 +1,47 @@
+@model PrimaryCtaButton
+@{
+    var widthClass = Model.FullWidth ? " w-full" : "";
+    string classes;
+    string? arrowClasses;
+
+    switch (Model.Variant)
+    {
+        case CtaVariant.Outline:
+            classes = $"inline-flex{widthClass} items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-7 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/10";
+            arrowClasses = null;
+            break;
+        case CtaVariant.White:
+            classes = $"group inline-flex shrink-0{widthClass} items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200";
+            arrowClasses = "h-4 w-4 transition-transform group-hover:translate-x-0.5";
+            break;
+        default:
+            classes = $"group inline-flex{widthClass} items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-purple-900/40 transition hover:from-purple-400 hover:to-fuchsia-400 hover:shadow-purple-700/50";
+            arrowClasses = "h-4 w-4 transition-transform group-hover:translate-x-0.5";
+            break;
+    }
+}
+
+@if (!string.IsNullOrEmpty(Model.Page))
+{
+    <a asp-page="@Model.Page" class="@classes">
+        @Model.ChildContent
+        @if (arrowClasses != null)
+        {
+            <svg class="@arrowClasses" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+        }
+    </a>
+}
+else
+{
+    <button type="@Model.ButtonType" class="@classes">
+        @Model.ChildContent
+        @if (arrowClasses != null)
+        {
+            <svg class="@arrowClasses" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+        }
+    </button>
+}
