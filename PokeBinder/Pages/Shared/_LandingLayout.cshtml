@@ -1,0 +1,82 @@
+@{
+    var title = ViewData["Title"] as string;
+    var pageTitle = string.IsNullOrWhiteSpace(title)
+        ? "PokeBinder — Digital binders for the Pokémon TCG"
+        : $"{title} | PokeBinder";
+
+    var description = ViewData["Description"] as string
+        ?? "PokeBinder turns your Pokémon TCG collection into beautiful digital binders with live market values, instant sharing, and a near-complete catalog of every Pokémon card ever printed.";
+
+    var keywords = ViewData["Keywords"] as string
+        ?? "Pokémon TCG, digital binder, card collection, card prices, card values, binder builder, Pokémon cards, TCG tracker";
+
+    var request = Context.Request;
+    var canonical = ViewData["Canonical"] as string
+        ?? $"{request.Scheme}://{request.Host}{request.Path}";
+
+    var ogImage = ViewData["OgImage"] as string
+        ?? $"{request.Scheme}://{request.Host}/images/TCG Forge First Draft.png";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>@pageTitle</title>
+    <meta name="description" content="@description" />
+    <meta name="keywords" content="@keywords" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="PokeBinder" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <link rel="canonical" href="@canonical" />
+
+    @* Open Graph *@
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PokeBinder" />
+    <meta property="og:title" content="@pageTitle" />
+    <meta property="og:description" content="@description" />
+    <meta property="og:url" content="@canonical" />
+    <meta property="og:image" content="@ogImage" />
+    <meta property="og:locale" content="en_US" />
+
+    @* Twitter Card *@
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="@pageTitle" />
+    <meta name="twitter:description" content="@description" />
+    <meta name="twitter:image" content="@ogImage" />
+
+    @* Performance: preconnect / dns-prefetch hints for self-hosted assets *@
+    <link rel="preconnect" href="@($"{request.Scheme}://{request.Host}")" crossorigin />
+    <link rel="icon" type="image/png" href="~/images/TCG Forge First Draft.png" />
+
+    @* Structured data: organization + website *@
+    <script type="application/ld+json">
+        {
+            "@@context": "https://schema.org",
+            "@@type": "WebSite",
+            "name": "PokeBinder",
+            "url": "@canonical",
+            "description": "@description",
+            "potentialAction": {
+                "@@type": "SearchAction",
+                "target": "@($"{request.Scheme}://{request.Host}/CardSearch?q={{search_term_string}}")",
+                "query-input": "required name=search_term_string"
+            }
+        }
+    </script>
+
+    <pines-css />
+    <link rel="stylesheet" href="~/css/site.tailwind.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/PokeBinder.styles.css" asp-append-version="true" />
+
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body class="bg-neutral-950 text-neutral-100 antialiased">
+    @RenderBody()
+
+    @await RenderSectionAsync("Scripts", required: false)
+    <pines-scripts />
+    <render-static-scripts />
+</body>
+</html>
