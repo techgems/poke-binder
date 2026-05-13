@@ -1,6 +1,33 @@
 @source "../Pages/**/*.cshtml";
 @import "tailwindcss";
 
+@theme {
+    --animate-card-scroll-left: card-scroll-left 80s linear infinite;
+    --animate-card-scroll-right: card-scroll-right 80s linear infinite;
+    --animate-hero-float: hero-float 6s ease-in-out infinite;
+    --animate-pulse-glow: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes card-scroll-left {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes card-scroll-right {
+    from { transform: translate3d(-50%, 0, 0); }
+    to { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes hero-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+}
+
 .code-cell {
     @apply text-blue-500 font-mono text-xs bg-neutral-100 px-1.5 py-0.5 rounded;
 }
