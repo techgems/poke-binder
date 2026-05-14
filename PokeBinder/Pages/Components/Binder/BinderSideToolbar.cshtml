@@ -1,0 +1,37 @@
+@model BinderSideToolbar
+
+<aside aria-label="Binder toolbar"
+       class="fixed top-0 left-0 z-40 flex h-screen flex-col items-center justify-center gap-2 border-r border-white/10 bg-neutral-950/70 p-2 backdrop-blur-md shadow-2xl shadow-black/40">
+
+    <binder-toolbar-button label="Add cards to binder">
+        <binder-icon icon="Plus"></binder-icon>
+    </binder-toolbar-button>
+
+    <binder-toolbar-button label="Page Arrangement" disabled="true">
+        <binder-icon icon="Grid"></binder-icon>
+    </binder-toolbar-button>
+
+    <binder-toolbar-button label="Search this binder">
+        <binder-icon icon="Search"></binder-icon>
+    </binder-toolbar-button>
+
+    <binder-toolbar-button label="Share binder" disabled="true">
+        <binder-icon icon="Share"></binder-icon>
+    </binder-toolbar-button>
+
+    <div role="separator" class="my-1 h-px bg-white/10"></div>
+
+    <binder-toolbar-button label="Undo" disabled="true">
+        <binder-icon icon="Undo"></binder-icon>
+    </binder-toolbar-button>
+
+    <binder-toolbar-button label="Redo" disabled="true">
+        <binder-icon icon="Redo"></binder-icon>
+    </binder-toolbar-button>
+
+    <div role="separator" class="my-1 h-px bg-white/10"></div>
+
+    <binder-toolbar-button label="Clear binder" destructive="true">
+        <binder-icon icon="Trash"></binder-icon>
+    </binder-toolbar-button>
+</aside>

@@ -1,0 +1,27 @@
+@model BinderToolbarButton
+@{
+    var baseClasses = "group/btn relative flex h-11 w-11 items-center justify-center rounded-xl ring-1 ring-white/10 bg-white/5 transition";
+    string stateClasses;
+    if (Model.Disabled)
+    {
+        stateClasses = "text-neutral-500 opacity-40 cursor-not-allowed";
+    }
+    else if (Model.Destructive)
+    {
+        stateClasses = "text-neutral-300 hover:bg-rose-500/10 hover:text-rose-300 hover:ring-rose-400/30";
+    }
+    else
+    {
+        stateClasses = "text-neutral-300 hover:bg-white/10 hover:text-white";
+    }
+    var tooltipClasses = "pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-neutral-900/95 px-2 py-1 text-xs font-medium text-white ring-1 ring-white/10 shadow-lg opacity-0 group-hover/btn:opacity-100 transition";
+}
+
+<button type="button"
+        aria-label="@Model.Label"
+        class="@baseClasses @stateClasses"
+        disabled="@(Model.Disabled ? "disabled" : null)"
+        aria-disabled="@(Model.Disabled ? "true" : null)">
+    @Model.ChildContent
+    <span class="@tooltipClasses">@Model.Label</span>
+</button>
