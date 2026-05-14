@@ -1,4 +1,5 @@
 @source "../Pages/**/*.cshtml";
+@source "../Components/**/*.cshtml";
 @import "tailwindcss";
 
 @theme {

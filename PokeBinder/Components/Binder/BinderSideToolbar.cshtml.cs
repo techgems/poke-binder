@@ -1,6 +1,6 @@
 using TechGems.StaticComponents;
 
-namespace PokeBinder.Pages.Components.Binder;
+namespace PokeBinder.Components.Binder;
 
 public class BinderSideToolbar : StaticNode
 {

@@ -1,6 +1,6 @@
 using TechGems.StaticComponents;
 
-namespace PokeBinder.Pages.Components;
+namespace PokeBinder.Components;
 
 public enum CtaVariant
 {
