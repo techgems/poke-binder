@@ -10,7 +10,7 @@
 </head>
 <body class="bg-white antialiased">
 
-    @* Top navigation bar, once we have a proper UI Kit we can remove pines from this one. *@
+    @* Top navigation bar *@
     <pines-navbar home-route="/">
         <slot name="nav-links">
             <pines-sidebar-link asp-page="/Index">Home</pines-sidebar-link>
@@ -22,7 +22,21 @@
 
     @* Page body: sidebar + main content *@
     <div class="relative flex items-start min-h-screen px-4 pt-0 pb-0 mx-auto mt-16 max-w-7xl">
-       
+
+        @* Mobile overlay to close sidebar *@
+        <pines-backdrop-blur></pines-backdrop-blur>
+
+        @* Left sidebar *@
+        <pines-sidebar>
+            <pines-sidebar-section section-name="Card Search">
+                <pines-sidebar-link asp-page="/Index">Home</pines-sidebar-link>
+                <pines-sidebar-link asp-page="/CardSearch">Installation</pines-sidebar-link>
+            </pines-sidebar-section>
+            <pines-sidebar-section section-name="Binders">
+                <pines-sidebar-link asp-page="/Components/my-binders">My Binders</pines-sidebar-link>
+            </pines-sidebar-section>
+        </pines-sidebar>
+
         @* Main content area — offset by sidebar width on large screens *@
         <main role="main" class="flex-1 w-full min-w-0 pl-0 lg:pl-63 pb-16 pt-5">
             @RenderBody()

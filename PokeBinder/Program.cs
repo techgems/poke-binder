@@ -36,11 +36,18 @@ builder.Services.AddTcgCatalogDataAccess(tcgCatalogConnectionString);
 builder.Services.AddTcgCatalogDomain();
 
 builder.Services.AddRazorPages();
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "PokeBinder API v1"));
+}
+else
 {
     app.UseExceptionHandler("/Error");
     app.UseHsts();
@@ -56,5 +63,6 @@ app.UseAuthorization();
 app.MapStaticAssets();
 app.MapRazorPages()
    .WithStaticAssets();
+app.MapControllers();
 
 app.Run();

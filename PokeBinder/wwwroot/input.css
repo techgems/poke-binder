@@ -1,6 +1,5 @@
 @source "../Pages/**/*.cshtml";
 @source "../Components/**/*.cshtml";
-@import "tailwindcss";
 
 @theme {
     --animate-card-scroll-left: card-scroll-left 80s linear infinite;
