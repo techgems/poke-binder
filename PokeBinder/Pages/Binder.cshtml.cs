@@ -1,12 +1,12 @@
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace PokeBinder.Pages
+namespace PokeBinder.Pages;
+
+[Authorize]
+public class SvelteAppModel : PageModel
 {
-    public class BinderModel : PageModel
+    public void OnGet()
     {
-        public void OnGet()
-        {
-        }
     }
 }

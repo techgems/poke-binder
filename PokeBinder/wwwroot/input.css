@@ -28,6 +28,14 @@
     50% { opacity: 0.9; }
 }
 
+/* ASP.NET always renders an empty <ul> inside a validation summary, so the
+   element is never :empty and `empty:hidden` can never hide it. MVC marks it
+   .validation-summary-valid when there is nothing to report, so key off that
+   instead. */
+.validation-summary-valid {
+    @apply hidden;
+}
+
 .code-cell {
     @apply text-blue-500 font-mono text-xs bg-neutral-100 px-1.5 py-0.5 rounded;
 }

@@ -1,6 +1,16 @@
-﻿@page
-@model PokeBinder.Pages.BinderModel
+@page
+@model PokeBinder.Pages.SvelteAppModel
+@inject IWebHostEnvironment Env
 @{
+    ViewData["Title"] = "Svelte App";
+    Layout = null;
 }
 
-<binder-side-toolbar></binder-side-toolbar>
+@if (Env.IsDevelopment())
+{
+    <dev-vite-scripts app-name="BinderBuilderSvelte" />
+}
+else
+{
+    <prod-vite-scripts app-name="BinderBuilderSvelte" />
+}

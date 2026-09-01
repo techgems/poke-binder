@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+@import '@skeletonlabs/skeleton';
+@import '@skeletonlabs/skeleton-svelte';
+
+@source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
+
+@import './poke-binder.css';
+
+/* Dark mode is driven by the `.dark` class, which main.ts sets on <html> by default. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Glassmorphic surface preset — Skeleton ships these as custom presets, not built-ins. */
+@utility preset-glass-surface {
+  background: color-mix(in oklab, var(--color-surface-100-900) 40%, transparent);
+  box-shadow: 0 0 30px color-mix(in oklab, var(--color-surface-50-950) 30%, transparent) inset;
+  backdrop-filter: blur(16px);
+}

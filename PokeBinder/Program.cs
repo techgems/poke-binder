@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Identity;
 using PokeBinder.Binders.DbContext.Entities;
 using PokeBinder.Binders.Users.DI;
 using PokeBinder.Features.DI;
+using ViteDotNet;
+using ViteDotNet.NPM;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +35,7 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddViteIntegration(builder.Configuration);
 
 var app = builder.Build();
 
@@ -41,6 +44,7 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "PokeBinder API v1"));
+    app.RunViteDevServer();
 }
 else
 {
