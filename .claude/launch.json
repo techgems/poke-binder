@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pokebinder",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "PokeBinder/PokeBinder.csproj",
+        "--no-launch-profile",
+        "--",
+        "--environment",
+        "Development",
+        "--urls",
+        "http://localhost:5076"
+      ],
+      "port": 5076
+    }
+  ]
+}
