@@ -6,22 +6,6 @@ surface, plus a Svelte SPA mounted inside the binder builder page.
 Targets `net10.0`. Referenced projects: `PokeBinder.Features`,
 `PokeBinder.Binder.DbContext`, `PokeBinder.Binder.Users`.
 
-## Running
-
-```bash
-dotnet run
-```
-
-Launch profiles live in `Properties/launchSettings.json`: `http` serves on
-`http://localhost:5076`, `https` on `https://localhost:7018` (HTTP redirects to
-HTTPS). In Development the app also maps OpenAPI and Swagger UI at
-`/openapi/v1.json` and `/swagger`, and starts the Vite dev server automatically
-via `app.RunViteDevServer()`.
-
-Data comes from two SQLite files resolved relative to the project directory —
-`../Databases/PokeBinder.db` (application/identity) and
-`../Databases/TcgCatalog.db` (card catalog). Both connection strings are
-required at startup; the app throws if either is missing.
 
 ## Styling — Tailwind CSS
 
@@ -45,11 +29,7 @@ rebuild continuously while working:
 tailwindcss -i wwwroot/input.css -o wwwroot/css/site.tailwind.css --watch
 ```
 
-The bundle was last generated with Tailwind v4.1.18. On this machine the
-executable lives at `C:\Tailwind\tailwindcss.exe`; if `tailwindcss` is not on
-your `PATH`, grab the standalone binary for your platform from the
-[Tailwind releases](https://github.com/tailwindlabs/tailwindcss/releases) and
-invoke it by full path.
+The bundle was last generated with Tailwind v4.1.18 with a local installation of Tailwind CLI.
 
 `input.css` starts with `@import "tailwindcss";` followed by `@source`
 directives pointing at `../Pages/**/*.cshtml` and `../Components/**/*.cshtml`.
@@ -99,7 +79,3 @@ they are new, and issues a one-time token consumed at `/Account/AuthCallback`.
 Email delivery is not implemented yet — `Login.cshtml.cs` writes the login link
 to `passwordless.txt` in the working directory instead. Open that file to
 complete a sign-in locally.
-
-Validation is server-side only. The jQuery Validation scripts that ship with the
-default Razor Pages template have been removed; `asp-validation-for` and the
-validation summary render on POST round-trips.
