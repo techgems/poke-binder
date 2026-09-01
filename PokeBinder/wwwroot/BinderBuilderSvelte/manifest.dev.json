@@ -1,5 +1,5 @@
 {
-  "port": 5174,
+  "port": 5177,
   "entrypoint": "src/main.ts",
   "containerElementId": "app",
   "isReact": false

@@ -11,10 +11,15 @@ public static class GetSearchStarterFilters
 {
     private const string CacheKey = "CardSearch:StarterFilters";
 
+    /// <summary>Placeholder card type the ETL writes when the source data has none; never offered as a filter.</summary>
+    private const string UnknownCardType = "UNKNOWN";
+
     public record Request();
 
     public record Response(
+        IReadOnlyList<SuperTypeFilter> SuperTypes,
         IReadOnlyList<GenerationsFilter> Generations,
+        IReadOnlyList<SeriesFilter> Series,
         IReadOnlyList<SetsFilter> Sets,
         IReadOnlyList<PokemonFilter> Pokemon,
         IReadOnlyList<RarityBySetFilter> RarityBySet,
@@ -45,17 +50,38 @@ public static class GetSearchStarterFilters
 
     private static async Task<Response> QueryAsync(TcgCatalogDbContext context, CancellationToken ct)
     {
+        var superTypes = await QuerySuperTypesAsync(context, ct);
         var generations = await context.GenerationFilterOptions.Select(MapGenerations).ToListAsync(ct);
+        var series = await context.Series.Select(MapSeries).ToListAsync(ct);
         var sets = await context.Sets.Select(MapSets).ToListAsync(ct);
         var pokemon = await context.PokemonFilterOptions.Select(MapPokemon).ToListAsync(ct);
         var rarities = await context.RarityBySetFilterOptions.Select(MapRarities).ToListAsync(ct);
         var cardTypes = await context.CardTypeFilterOptions.Select(MapCardTypes).ToListAsync(ct);
 
-        return new Response(generations, sets, pokemon, rarities, cardTypes);
+        return new Response(superTypes, generations, series, sets, pokemon, rarities, cardTypes);
+    }
+
+    // Super types have no table of their own, so they are read as the distinct card types in use.
+    private static async Task<List<SuperTypeFilter>> QuerySuperTypesAsync(TcgCatalogDbContext context, CancellationToken ct)
+    {
+        var names = await context.Cards
+            .Where(card => card.CardType != UnknownCardType)
+            .Select(card => card.CardType)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return names.Select(name => new SuperTypeFilter() { Name = name }).ToList();
     }
 
     private static readonly Expression<Func<GenerationFilterOption, GenerationsFilter>> MapGenerations =
         series => new GenerationsFilter()
+        {
+            Id = series.Id,
+            Name = series.Name
+        };
+
+    private static readonly Expression<Func<Series, SeriesFilter>> MapSeries =
+        series => new SeriesFilter()
         {
             Id = series.Id,
             Name = series.Name
@@ -66,7 +92,7 @@ public static class GetSearchStarterFilters
         {
             Id = set.Id,
             Name = set.Name,
-            GenerationId = set.SeriesId
+            SeriesId = set.SeriesId
         };
 
     private static readonly Expression<Func<PokemonFilterOption, PokemonFilter>> MapPokemon =

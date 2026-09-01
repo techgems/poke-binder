@@ -4,11 +4,11 @@ using System.Text;
 
 namespace PokeBinder.Features.CardSearch.GetSearchStarterFilters.Models;
 
-public class SetsFilter
+/// <summary>
+/// A card's super type (Pokemon, Trainer, Energy). There is no table behind this filter, so the
+/// name doubles as the identifier.
+/// </summary>
+public class SuperTypeFilter
 {
-    public int Id { get; set; }
-
     public string Name { get; set; } = string.Empty;
-
-    public int SeriesId { get; set; }
 }

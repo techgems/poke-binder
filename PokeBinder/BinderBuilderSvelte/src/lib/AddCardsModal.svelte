@@ -1,5 +1,9 @@
 <script lang="ts">
-  import AddCardFilters, { emptySelection, type FilterSelection } from './AddCardFilters.svelte'
+  import AddCardFilters, {
+    effectiveSelection,
+    emptySelection,
+    type FilterSelection,
+  } from './AddCardFilters.svelte'
   import Modal from './Modal.svelte'
 
   interface Props {
@@ -9,7 +13,12 @@
 
   let { open = $bindable(false) }: Props = $props()
 
+  // What the user has picked, including choices the current super type has hidden.
   let selection = $state<FilterSelection>(emptySelection())
+
+  // What search is actually run with: the picks above minus the ones the super type rules out.
+  // This is the only selection that should ever reach the server.
+  const appliedSelection = $derived(effectiveSelection(selection))
 </script>
 
 <Modal bind:open title="Add Cards" width="max-w-6xl" class="flex flex-col h-[85dvh]">

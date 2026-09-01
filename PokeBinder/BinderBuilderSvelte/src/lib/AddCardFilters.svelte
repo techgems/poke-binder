@@ -1,7 +1,15 @@
 <script lang="ts" module>
+  /** The one super type whose cards the Pokemon-only fields describe. */
+  export const POKEMON_SUPER_TYPE = 'Pokemon'
+
+  /** Along with Pokemon, the super types whose cards carry a card type. */
+  export const ENERGY_SUPER_TYPE = 'Energy'
+
   /** The current state of every filter field, keyed by field. */
   export interface FilterSelection {
+    superTypes: string[]
     generations: string[]
+    series: string[]
     sets: string[]
     pokemon: string[]
     rarities: string[]
@@ -9,7 +17,55 @@
   }
 
   export function emptySelection(): FilterSelection {
-    return { generations: [], sets: [], pokemon: [], rarities: [], cardTypes: [] }
+    return {
+      superTypes: [],
+      generations: [],
+      series: [],
+      sets: [],
+      pokemon: [],
+      rarities: [],
+      cardTypes: [],
+    }
+  }
+
+  /**
+   * Whether the Pokemon-only fields (generations, Pokemon) still describe the cards on offer.
+   * Selecting nothing means every super type, so the fields stay; picking anything but Pokemon
+   * puts non-Pokemon cards in the results, which those fields cannot speak about.
+   */
+  export function pokemonFieldsApply(superTypes: string[]): boolean {
+    return superTypes.every((superType) => superType === POKEMON_SUPER_TYPE)
+  }
+
+  /**
+   * Whether the Card Type field still describes the cards on offer. Only Pokemon and Energy cards
+   * carry a card type, so selecting any other super type puts cards in the results that the field
+   * cannot speak about.
+   */
+  export function cardTypeFieldApplies(superTypes: string[]): boolean {
+    return superTypes.every(
+      (superType) => superType === POKEMON_SUPER_TYPE || superType === ENERGY_SUPER_TYPE,
+    )
+  }
+
+  /**
+   * The selection to actually search on. The user's picks stay in the UI selection so they survive
+   * toggling a super type off and on, but every field the super type has hidden is dropped here —
+   * the server must not narrow by filters the user can no longer see.
+   */
+  export function effectiveSelection(selection: FilterSelection): FilterSelection {
+    const applied = { ...selection }
+
+    if (!pokemonFieldsApply(selection.superTypes)) {
+      applied.generations = []
+      applied.pokemon = []
+    }
+
+    if (!cardTypeFieldApplies(selection.superTypes)) {
+      applied.cardTypes = []
+    }
+
+    return applied
   }
 </script>
 
@@ -56,6 +112,20 @@
     selection = emptySelection()
   }
 
+  const superTypes: FilterOption[] = $derived(
+    (filters?.superTypes ?? []).map((superType) => ({
+      label: superType.name,
+      value: superType.name,
+    })),
+  )
+
+  // Hides the Pokemon-only fields once a non-Pokemon super type is in play. Their selections are
+  // deliberately left untouched so they return intact; effectiveSelection() is what keeps them out
+  // of the search while they are hidden.
+  const showPokemonFields = $derived(pokemonFieldsApply(selection.superTypes))
+
+  const showCardTypeField = $derived(cardTypeFieldApplies(selection.superTypes))
+
   const generations: FilterOption[] = $derived(
     (filters?.generations ?? []).map((generation) => ({
       label: generation.name,
@@ -63,9 +133,28 @@
     })),
   )
 
-  const sets: FilterOption[] = $derived(
-    (filters?.sets ?? []).map((set) => ({ label: set.name, value: String(set.id) })),
+  const series: FilterOption[] = $derived(
+    (filters?.series ?? []).map((entry) => ({ label: entry.name, value: String(entry.id) })),
   )
+
+  // Narrowed by the chosen series, but always shown: no series selected means every set.
+  const sets: FilterOption[] = $derived.by(() => {
+    const selectedSeriesIds = new Set(selection.series)
+
+    return (filters?.sets ?? [])
+      .filter((set) => selectedSeriesIds.size === 0 || selectedSeriesIds.has(String(set.seriesId)))
+      .map((set) => ({ label: set.name, value: String(set.id) }))
+  })
+
+  // Drop any set the current series selection no longer offers.
+  $effect(() => {
+    const available = new Set(sets.map((set) => set.value))
+    const kept = selection.sets.filter((set) => available.has(set))
+
+    if (kept.length !== selection.sets.length) {
+      selection.sets = kept
+    }
+  })
 
   // Narrowed by the chosen generations, but always shown. Server order is pokedex order.
   const pokemon: FilterOption[] = $derived.by(() => {
@@ -146,45 +235,69 @@
       <button type="button" class="btn btn-sm preset-tonal" onclick={loadFilters}>Retry</button>
     </div>
   {:else}
+    <div class="space-y-2">
+      <span class="label-text">Super Type</span>
+      <ToggleGroup
+        multiple
+        value={selection.superTypes}
+        onValueChange={(details) => (selection.superTypes = details.value)}
+        class="flex-wrap"
+      >
+        {#each superTypes as superType (superType.value)}
+          <ToggleGroup.Item value={superType.value}>{superType.label}</ToggleGroup.Item>
+        {/each}
+      </ToggleGroup>
+    </div>
+
     <FilterCombobox
-      label="Generations"
-      data={generations}
-      placeholder="All generations"
-      bind:value={selection.generations}
+      label="Series"
+      data={series}
+      placeholder="Type a series name"
+      bind:value={selection.series}
     />
     <FilterCombobox
       label="Sets"
       data={sets}
-      placeholder="All sets"
+      placeholder="Type a set name"
       bind:value={selection.sets}
     />
-    <FilterCombobox
-      label="Pokemon"
-      data={pokemon}
-      placeholder="All Pokemon"
-      bind:value={selection.pokemon}
-    />
+    {#if showPokemonFields}
+      <FilterCombobox
+        label="Pokemon Generations"
+        data={generations}
+        placeholder="Select a Pokemon Generation"
+        bind:value={selection.generations}
+      />
+      <FilterCombobox
+        label="Pokemon"
+        data={pokemon}
+        placeholder="Type a Pokemon"
+        bind:value={selection.pokemon}
+      />
+    {/if}
     {#if selection.sets.length > 0}
       <FilterCombobox
         label="Rarity"
         data={rarities}
-        placeholder="All rarities"
+        placeholder="Type a rarity"
         bind:value={selection.rarities}
       />
     {/if}
 
-    <div class="space-y-2">
-      <span class="label-text">Card Type</span>
-      <ToggleGroup
-        multiple
-        value={selection.cardTypes}
-        onValueChange={(details) => (selection.cardTypes = details.value)}
-        class="flex-wrap"
-      >
-        {#each cardTypes as cardType (cardType.value)}
-          <ToggleGroup.Item value={cardType.value}>{cardType.label}</ToggleGroup.Item>
-        {/each}
-      </ToggleGroup>
-    </div>
+    {#if showCardTypeField}
+      <div class="space-y-2">
+        <span class="label-text">Card Type</span>
+        <ToggleGroup
+          multiple
+          value={selection.cardTypes}
+          onValueChange={(details) => (selection.cardTypes = details.value)}
+          class="flex-wrap"
+        >
+          {#each cardTypes as cardType (cardType.value)}
+            <ToggleGroup.Item value={cardType.value}>{cardType.label}</ToggleGroup.Item>
+          {/each}
+        </ToggleGroup>
+      </div>
+    {/if}
   {/if}
 </aside>

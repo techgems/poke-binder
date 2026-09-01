@@ -154,7 +154,7 @@ public class CardUpsertService
             Name = generationName
         };
 
-        var upsertedGen = _cardDbContext.Generations.Upsert(gen).On(g => g.Slug).RunAndReturn().First();
+        var upsertedGen = _cardDbContext.Series.Upsert(gen).On(g => g.Slug).RunAndReturn().First();
 
         var insertedGenerationId = upsertedGen.Id;
 

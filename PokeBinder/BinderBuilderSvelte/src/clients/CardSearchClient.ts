@@ -1,6 +1,16 @@
 // Client for the card search endpoints. Same-origin requests, so the auth cookie rides along.
 
+/** A card's super type (Pokemon, Trainer, Energy). Has no table, so the name is the identifier. */
+export interface SuperTypeFilter {
+  name: string
+}
+
 export interface GenerationsFilter {
+  id: number
+  name: string
+}
+
+export interface SeriesFilter {
   id: number
   name: string
 }
@@ -8,7 +18,7 @@ export interface GenerationsFilter {
 export interface SetsFilter {
   id: number
   name: string
-  generationId: number
+  seriesId: number
 }
 
 export interface PokemonFilter {
@@ -31,7 +41,9 @@ export interface CardTypeFilter {
 }
 
 export interface StarterFilters {
+  superTypes: SuperTypeFilter[]
   generations: GenerationsFilter[]
+  series: SeriesFilter[]
   sets: SetsFilter[]
   pokemon: PokemonFilter[]
   rarityBySet: RarityBySetFilter[]

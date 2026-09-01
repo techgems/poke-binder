@@ -9,7 +9,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Set> Sets => Set<Set>();
-    public DbSet<Series> Generations => Set<Series>();
+    public DbSet<Series> Series => Set<Series>();
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GenerationFilterOption> GenerationFilterOptions => Set<GenerationFilterOption>();
     public DbSet<PokemonFilterOption> PokemonFilterOptions => Set<PokemonFilterOption>();
@@ -29,7 +29,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Slug).HasColumnName("slug");
             entity.Property(e => e.Name).HasColumnName("name");
-            entity.HasMany(e => e.Generations)
+            entity.HasMany(e => e.Series)
                 .WithOne(g => g.Game)
                 .HasForeignKey(g => g.GameId);
         });
