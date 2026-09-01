@@ -16,3 +16,12 @@
   box-shadow: 0 0 30px color-mix(in oklab, var(--color-surface-50-950) 30%, transparent) inset;
   backdrop-filter: blur(16px);
 }
+
+/*
+  Portalled popups (combobox, menu, select, …) land on <body> with z-index: auto, so they render
+  behind an open modal, whose backdrop and positioner sit at z-50. Zag copies the floating
+  content's computed z-index onto its positioner (as --z-index), so this is the level to set it at.
+*/
+[data-part='positioner'] > [data-part='content'] {
+  z-index: 60;
+}

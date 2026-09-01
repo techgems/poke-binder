@@ -6,7 +6,7 @@
     type ComboboxRootProps,
   } from '@skeletonlabs/skeleton-svelte'
 
-  import type { FilterOption } from './mock-filters'
+  import type { FilterOption } from './filter-option'
 
   interface Props {
     /** Field label. */
@@ -15,9 +15,11 @@
     data: FilterOption[]
     /** Input placeholder. */
     placeholder?: string
+    /** Selected option values. Bindable. */
+    value?: string[]
   }
 
-  let { label, data, placeholder = 'Search…' }: Props = $props()
+  let { label, data, placeholder = 'Search…', value = $bindable([]) }: Props = $props()
 
   let query = $state('')
 
@@ -38,6 +40,8 @@
     }),
   )
 
+  const selected = $derived(data.filter((option) => value.includes(option.value)))
+
   const onOpenChange = () => {
     query = ''
   }
@@ -45,30 +49,49 @@
   const onInputValueChange: ComboboxRootProps['onInputValueChange'] = (event) => {
     query = event.inputValue
   }
+
+  const onValueChange: ComboboxRootProps['onValueChange'] = (event) => {
+    value = event.value
+  }
 </script>
 
-<Combobox
-  {collection}
-  {onOpenChange}
-  {onInputValueChange}
-  {placeholder}
-  inputBehavior="autohighlight"
->
-  <Combobox.Label>{label}</Combobox.Label>
-  <Combobox.Control>
-    <Combobox.Input />
-    <Combobox.Trigger />
-  </Combobox.Control>
-  <Portal>
-    <Combobox.Positioner>
-      <Combobox.Content>
-        {#each items as item (item.value)}
-          <Combobox.Item {item}>
-            <Combobox.ItemText>{item.label}</Combobox.ItemText>
-            <Combobox.ItemIndicator />
-          </Combobox.Item>
-        {/each}
-      </Combobox.Content>
-    </Combobox.Positioner>
-  </Portal>
-</Combobox>
+<div class="space-y-2">
+  <Combobox
+    multiple
+    {collection}
+    {value}
+    {onValueChange}
+    {onOpenChange}
+    {onInputValueChange}
+    {placeholder}
+    inputBehavior="autohighlight"
+  >
+    <Combobox.Label>{label}</Combobox.Label>
+    <Combobox.Control>
+      <Combobox.Input />
+      <Combobox.Trigger />
+    </Combobox.Control>
+    <Portal>
+      <Combobox.Positioner>
+        <!-- Cap the popup so long lists scroll instead of running off the screen. -->
+        <Combobox.Content class="max-h-[min(20rem,var(--available-height,20rem))] overflow-y-auto">
+          {#each items as item (item.value)}
+            <Combobox.Item {item}>
+              <Combobox.ItemText>{item.label}</Combobox.ItemText>
+              <Combobox.ItemIndicator />
+            </Combobox.Item>
+          {/each}
+        </Combobox.Content>
+      </Combobox.Positioner>
+    </Portal>
+  </Combobox>
+
+  {#if selected.length > 0}
+    <!-- Skeleton recommends rendering the selection outside the combobox when multiple. -->
+    <div class="flex flex-wrap gap-1">
+      {#each selected as option (option.value)}
+        <span class="badge preset-filled-primary-500">{option.label}</span>
+      {/each}
+    </div>
+  {/if}
+</div>
