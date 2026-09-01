@@ -1,9 +1,4 @@
-namespace PokeBinder.TcgCatalog.DomainModels.Responses;
-
-public class CardSearchResponse
-{
-    public List<CardSearchResult> Results { get; set; } = [];
-}
+namespace PokeBinder.Features.CardSearch.SearchCardsByFilter.Models;
 
 public class CardSearchResult
 {

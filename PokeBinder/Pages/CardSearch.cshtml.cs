@@ -1,16 +1,15 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using PokeBinder.TcgCatalog.DomainModels.Queries;
-using PokeBinder.TcgCatalog.DomainModels.Responses;
+using PokeBinder.Features.CardSearch.SearchCardsByFilter;
 
 namespace PokeBinder.Pages;
 
 public class CardSearchModel : PageModel
 {
     [BindProperty]
-    public CardSearchQuery Query { get; set; } = new();
+    public SearchCardsByFilter.Request Query { get; set; } = new();
 
-    public CardSearchResponse? SearchResponse { get; set; }
+    public SearchCardsByFilter.Response? SearchResponse { get; set; }
 
     public void OnGet()
     {

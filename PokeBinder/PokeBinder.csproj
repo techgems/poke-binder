@@ -17,7 +17,6 @@
     <ProjectReference Include="..\PokeBinder.Binder.DbContext\PokeBinder.Binder.DbContext.csproj" />
     <ProjectReference Include="..\PokeBinder.Binder.Users\PokeBinder.Binder.Users.csproj" />
     <ProjectReference Include="..\PokeBinder.Features\PokeBinder.Features.csproj" />
-    <ProjectReference Include="..\PokeBinder.TcgCatalog.Domain\PokeBinder.TcgCatalog.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

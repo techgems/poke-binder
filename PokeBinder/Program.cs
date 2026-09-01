@@ -1,16 +1,18 @@
 using Microsoft.AspNetCore.Identity;
-using PokeBinder.Binders.DbContext.DI;
 using PokeBinder.Binders.DbContext.Entities;
 using PokeBinder.Binders.Users.DI;
-using PokeBinder.TcgCatalog.DataAccess.DI;
-using PokeBinder.TcgCatalog.Domain.DI;
+using PokeBinder.Features.DI;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var applicationConnectionString = builder.Configuration.GetConnectionString("Application")
     ?? throw new InvalidOperationException("Connection string 'Application' not found.");
-builder.Services.AddBinderDataAccess(applicationConnectionString);
+
+var tcgCatalogConnectionString = builder.Configuration.GetConnectionString("TcgCatalog")
+    ?? throw new InvalidOperationException("Connection string 'TcgCatalog' not found.");
+
+builder.Services.AddFeatures(applicationConnectionString, tcgCatalogConnectionString);
 
 builder.Services
     .AddBinderIdentity(options => options.SignIn.RequireConfirmedAccount = true)
@@ -27,13 +29,6 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     .AddIdentityCookies();
-
-var tcgCatalogConnectionString = builder.Configuration.GetConnectionString("TcgCatalog")
-    ?? throw new InvalidOperationException("Connection string 'TcgCatalog' not found.");
-
-
-builder.Services.AddTcgCatalogDataAccess(tcgCatalogConnectionString);
-builder.Services.AddTcgCatalogDomain();
 
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
