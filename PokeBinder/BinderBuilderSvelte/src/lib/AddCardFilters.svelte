@@ -67,16 +67,60 @@
     (filters?.sets ?? []).map((set) => ({ label: set.name, value: String(set.id) })),
   )
 
-  const pokemon: FilterOption[] = $derived(
-    (filters?.pokemon ?? []).map((mon) => ({ label: mon.name, value: String(mon.id) })),
-  )
+  // Narrowed by the chosen generations, but always shown. Server order is pokedex order.
+  const pokemon: FilterOption[] = $derived.by(() => {
+    const selectedGenerationIds = new Set(selection.generations)
 
-  // Rarities arrive per set, so collapse them to the distinct rarity names.
-  const rarities: FilterOption[] = $derived(
-    [...new Set((filters?.rarityBySet ?? []).map((rarity) => rarity.rarity))]
-      .sort((a, b) => a.localeCompare(b))
-      .map((rarity) => ({ label: rarity, value: rarity })),
-  )
+    return (filters?.pokemon ?? [])
+      .filter(
+        (mon) =>
+          selectedGenerationIds.size === 0 || selectedGenerationIds.has(String(mon.generationId)),
+      )
+      .map((mon) => ({
+        // Pad to three digits so the list lines up; anything four digits or longer is left alone.
+        label: `${String(mon.pokedexNumber).padStart(3, '0')} - ${mon.name}`,
+        value: String(mon.id),
+      }))
+  })
+
+  // Drop any Pokemon the current generation selection no longer offers.
+  $effect(() => {
+    const available = new Set(pokemon.map((mon) => mon.value))
+    const kept = selection.pokemon.filter((mon) => available.has(mon))
+
+    if (kept.length !== selection.pokemon.length) {
+      selection.pokemon = kept
+    }
+  })
+
+  // Rarity is scoped to the chosen sets: no set, no rarity field. Each option is a rarity-by-set
+  // row, so the value is that row's own id rather than the rarity name.
+  const rarities: FilterOption[] = $derived.by(() => {
+    if (selection.sets.length === 0) return []
+
+    const selectedSetIds = new Set(selection.sets)
+    const setNames = new Map((filters?.sets ?? []).map((set) => [set.id, set.name]))
+    // The same rarity name repeats across sets, so name the set once more than one is selected.
+    const qualify = selection.sets.length > 1
+
+    return (filters?.rarityBySet ?? [])
+      .filter((rarity) => selectedSetIds.has(String(rarity.setId)))
+      .map((rarity) => ({
+        label: qualify ? `${rarity.rarity} · ${setNames.get(rarity.setId) ?? ''}` : rarity.rarity,
+        value: String(rarity.id),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  })
+
+  // Drop any rarity that the current set selection no longer offers.
+  $effect(() => {
+    const available = new Set(rarities.map((rarity) => rarity.value))
+    const kept = selection.rarities.filter((rarity) => available.has(rarity))
+
+    if (kept.length !== selection.rarities.length) {
+      selection.rarities = kept
+    }
+  })
 
   const cardTypes: FilterOption[] = $derived(
     (filters?.cardType ?? []).map((cardType) => ({
@@ -120,12 +164,14 @@
       placeholder="All Pokemon"
       bind:value={selection.pokemon}
     />
-    <FilterCombobox
-      label="Rarity"
-      data={rarities}
-      placeholder="All rarities"
-      bind:value={selection.rarities}
-    />
+    {#if selection.sets.length > 0}
+      <FilterCombobox
+        label="Rarity"
+        data={rarities}
+        placeholder="All rarities"
+        bind:value={selection.rarities}
+      />
+    {/if}
 
     <div class="space-y-2">
       <span class="label-text">Card Type</span>

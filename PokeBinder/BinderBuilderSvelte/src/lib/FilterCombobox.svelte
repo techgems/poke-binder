@@ -58,6 +58,7 @@
 <div class="space-y-2">
   <Combobox
     multiple
+    closeOnSelect
     {collection}
     {value}
     {onValueChange}
