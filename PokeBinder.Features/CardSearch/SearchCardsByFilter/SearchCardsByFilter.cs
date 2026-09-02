@@ -8,9 +8,18 @@ namespace PokeBinder.Features.CardSearch.SearchCardsByFilter;
 
 public static class SearchCardsByFilter
 {
+    /// <summary>Page size used when the caller does not ask for one.</summary>
+    public const int DefaultPageSize = 50;
+
     /// <summary>
-    /// Every field mirrors one multi-select filter field in the UI. An empty list means the user
-    /// narrowed nothing by that field, so it is left out of the query entirely.
+    /// Ceiling on page size. The first search a user sees has no filters at all, which matches
+    /// every card in the catalog, so the page size is capped rather than trusted.
+    /// </summary>
+    public const int MaxPageSize = 200;
+
+    /// <summary>
+    /// Every filter field mirrors one multi-select filter field in the UI. An empty list means the
+    /// user narrowed nothing by that field, so it is left out of the query entirely.
     /// </summary>
     public record Request
     {
@@ -30,24 +39,53 @@ public static class SearchCardsByFilter
         public IReadOnlyList<int> Rarities { get; init; } = [];
 
         public IReadOnlyList<int> CardTypes { get; init; } = [];
+
+        /// <summary>1-based page to return. Anything below 1 is treated as the first page.</summary>
+        public int PageNumber { get; init; } = 1;
+
+        /// <summary>Rows per page, clamped to <see cref="MaxPageSize"/>.</summary>
+        public int PageSize { get; init; } = DefaultPageSize;
     }
 
-    public record Response(IReadOnlyList<CardSearchResult> Results);
+    public record Response(
+        IReadOnlyList<CardSearchResult> Results,
+        int PageNumber,
+        int PageSize,
+        bool HasMore);
 
     public static async Task<Response> Handler(
         Request request,
         TcgCatalogDbContext context,
         CancellationToken ct = default)
     {
-        var results = await ApplyFilters(context.Cards, request, context)
-            // Without an order the results shift between calls, so paging or diffing them later
-            // would be unreliable.
+        var pageSize = Math.Clamp(request.PageSize, 1, MaxPageSize);
+        var pageNumber = Math.Max(request.PageNumber, 1);
+
+        // Guard the offset arithmetic: an absurd page number would otherwise overflow into a
+        // negative Skip rather than an empty page.
+        var skip = (int)Math.Min((long)(pageNumber - 1) * pageSize, int.MaxValue);
+
+        var rows = await ApplyFilters(context.Cards, request, context)
+            // Paging needs a total order, otherwise SQLite is free to return a row on two
+            // different pages. Name alone repeats heavily, so the unique id breaks the ties.
             .OrderBy(card => card.Name)
             .ThenBy(card => card.Id)
             .Select(MapResult)
+            .Skip(skip)
+            // Reading one row past the page is what tells us a next page exists. A total count
+            // would mean a second query, and it would have to repeat the name scan the pokemon
+            // and generation filters rely on.
+            .Take(pageSize + 1)
             .ToListAsync(ct);
 
-        return new Response(results);
+        var hasMore = rows.Count > pageSize;
+
+        if (hasMore)
+        {
+            rows.RemoveAt(rows.Count - 1);
+        }
+
+        return new Response(rows, pageNumber, pageSize, hasMore);
     }
 
     /// <summary>
