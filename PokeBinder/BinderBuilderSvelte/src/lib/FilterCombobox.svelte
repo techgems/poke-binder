@@ -1,4 +1,5 @@
 <script lang="ts">
+  import XIcon from '@lucide/svelte/icons/x'
   import {
     Combobox,
     Portal,
@@ -53,6 +54,10 @@
   const onValueChange: ComboboxRootProps['onValueChange'] = (event) => {
     value = event.value
   }
+
+  function remove(optionValue: string) {
+    value = value.filter((selectedValue) => selectedValue !== optionValue)
+  }
 </script>
 
 <div class="space-y-2">
@@ -91,7 +96,19 @@
     <!-- Skeleton recommends rendering the selection outside the combobox when multiple. -->
     <div class="flex flex-wrap gap-1">
       {#each selected as option (option.value)}
-        <span class="badge preset-filled-primary-500">{option.label}</span>
+        <span class="badge preset-filled-primary-500 pr-0.5">
+          {option.label}
+          <!-- Dropping one pick without reopening the list. The combobox is controlled by `value`,
+               so editing it here is all it takes for the list to agree. -->
+          <button
+            type="button"
+            class="hover:preset-filled-error-500 grid size-4 shrink-0 place-items-center rounded-full"
+            aria-label={`Remove ${option.label}`}
+            onclick={() => remove(option.value)}
+          >
+            <XIcon class="size-3" />
+          </button>
+        </span>
       {/each}
     </div>
   {/if}

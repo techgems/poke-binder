@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PokeBinder.Features.CardImages;
 using PokeBinder.Features.CardSearch.SearchCardsByFilter.Models;
 using PokeBinder.TcgCatalog.DbContext;
 using PokeBinder.TcgCatalog.DbContext.Entities;
@@ -56,6 +57,7 @@ public static class SearchCardsByFilter
     public static async Task<Response> Handler(
         Request request,
         TcgCatalogDbContext context,
+        CardImageUrls imageUrls,
         CancellationToken ct = default)
     {
         var pageSize = Math.Clamp(request.PageSize, 1, MaxPageSize);
@@ -83,6 +85,13 @@ public static class SearchCardsByFilter
         if (hasMore)
         {
             rows.RemoveAt(rows.Count - 1);
+        }
+
+        // The card stores a local file path, so it becomes a URL once the rows are back rather than
+        // inside the query — string surgery in SQL would buy nothing here.
+        foreach (var row in rows)
+        {
+            row.ImageUrl = imageUrls.ToPublicUrl(row.ImageUrl);
         }
 
         return new Response(rows, pageNumber, pageSize, hasMore);

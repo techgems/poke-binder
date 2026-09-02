@@ -52,6 +52,43 @@ export interface StarterFilters {
   cardType: CardTypeFilter[]
 }
 
+/** Filters for a card search. Ids go over the wire as numbers, unlike the string-valued UI state. */
+export interface CardSearchRequest {
+  superTypes: string[]
+  generations: number[]
+  series: number[]
+  sets: number[]
+  pokemon: number[]
+  rarities: number[]
+  cardTypes: number[]
+  /** 1-based. Omit to get the first page. */
+  pageNumber?: number
+  /** Omit to take the server's default; the server caps it regardless. */
+  pageSize?: number
+}
+
+export interface CardSearchResult {
+  id: number
+  name: string | null
+  rarity: string | null
+  cardNumber: string | null
+  tcgPlayerId: number
+  /**
+   * Loadable URL for the card art, already resolved server-side from the ETL's local file path.
+   * Null when the card has no art or its path sits outside the configured image root.
+   */
+  imageUrl: string | null
+  setName: string | null
+}
+
+/** One page of search results. There is no total count, only whether another page exists. */
+export interface CardSearchPage {
+  results: CardSearchResult[]
+  pageNumber: number
+  pageSize: number
+  hasMore: boolean
+}
+
 export const CardSearchClient = {
   async getStarterFilters(signal?: AbortSignal): Promise<StarterFilters> {
     const response = await fetch('/api/cardFilters/starterFilters', {
@@ -66,5 +103,26 @@ export const CardSearchClient = {
     }
 
     return (await response.json()) as StarterFilters
+  },
+
+  async searchByFilter(
+    request: CardSearchRequest,
+    signal?: AbortSignal,
+  ): Promise<CardSearchPage> {
+    // The filters go in the body rather than the query string: there are seven of them and every
+    // one is multi-valued.
+    const response = await fetch('/api/cardSearch/byFilter', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(request),
+      signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Card search failed (${response.status} ${response.statusText}).`)
+    }
+
+    return (await response.json()) as CardSearchPage
   },
 }
