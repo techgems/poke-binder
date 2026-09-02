@@ -73,6 +73,7 @@
   import { ToggleGroup } from '@skeletonlabs/skeleton-svelte'
 
   import { CardSearchClient, type StarterFilters } from '../clients/CardSearchClient'
+  import CardTypeFilterGroup, { type CardTypeOption } from './CardTypeFilterGroup.svelte'
   import type { FilterOption } from './filter-option'
   import FilterCombobox from './FilterCombobox.svelte'
 
@@ -211,10 +212,11 @@
     }
   })
 
-  const cardTypes: FilterOption[] = $derived(
+  const cardTypes: CardTypeOption[] = $derived(
     (filters?.cardType ?? []).map((cardType) => ({
       label: cardType.name,
       value: String(cardType.id),
+      imageUrl: cardType.imageUrl,
     })),
   )
 </script>
@@ -285,19 +287,7 @@
     {/if}
 
     {#if showCardTypeField}
-      <div class="space-y-2">
-        <span class="label-text">Card Type</span>
-        <ToggleGroup
-          multiple
-          value={selection.cardTypes}
-          onValueChange={(details) => (selection.cardTypes = details.value)}
-          class="flex-wrap"
-        >
-          {#each cardTypes as cardType (cardType.value)}
-            <ToggleGroup.Item value={cardType.value}>{cardType.label}</ToggleGroup.Item>
-          {/each}
-        </ToggleGroup>
-      </div>
+      <CardTypeFilterGroup options={cardTypes} bind:value={selection.cardTypes} />
     {/if}
   {/if}
 </aside>

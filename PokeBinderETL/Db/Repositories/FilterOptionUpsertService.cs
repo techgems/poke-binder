@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PokeBinder.TcgCatalog.DbContext;
 using PokeBinder.TcgCatalog.DbContext.Entities;
 
@@ -83,17 +83,17 @@ public class FilterOptionUpsertService(TcgCatalogDbContext dbContext)
 
     private static CardTypeFilterOption[] GetCardTypes() =>
     [
-        new CardTypeFilterOption { Id = 1, Name = "Grass" },
-        new CardTypeFilterOption { Id = 2, Name = "Fire" },
-        new CardTypeFilterOption { Id = 3, Name = "Water" },
-        new CardTypeFilterOption { Id = 4, Name = "Lightning" },
-        new CardTypeFilterOption { Id = 5, Name = "Psychic" },
-        new CardTypeFilterOption { Id = 6, Name = "Fighting" },
-        new CardTypeFilterOption { Id = 7, Name = "Darkness" },
-        new CardTypeFilterOption { Id = 8, Name = "Metal" },
-        new CardTypeFilterOption { Id = 9, Name = "Fairy" },
-        new CardTypeFilterOption { Id = 10, Name = "Dragon" },
-        new CardTypeFilterOption { Id = 11, Name = "Colorless" },
+        new CardTypeFilterOption { Id = 1, Name = "Grass", ImageUrl = "/images/TcgImages/grass.png" },
+        new CardTypeFilterOption { Id = 2, Name = "Fire", ImageUrl = "/images/TcgImages/fire.png" },
+        new CardTypeFilterOption { Id = 3, Name = "Water", ImageUrl = "/images/TcgImages/water.png" },
+        new CardTypeFilterOption { Id = 4, Name = "Lightning", ImageUrl = "/images/TcgImages/lightning.png" },
+        new CardTypeFilterOption { Id = 5, Name = "Psychic", ImageUrl = "/images/TcgImages/psychic.png" },
+        new CardTypeFilterOption { Id = 6, Name = "Fighting", ImageUrl = "/images/TcgImages/fighting.png" },
+        new CardTypeFilterOption { Id = 7, Name = "Darkness", ImageUrl = "/images/TcgImages/darkness.png" },
+        new CardTypeFilterOption { Id = 8, Name = "Metal", ImageUrl = "/images/TcgImages/metal.png" },
+        new CardTypeFilterOption { Id = 9, Name = "Fairy", ImageUrl = "/images/TcgImages/fairy.png" },
+        new CardTypeFilterOption { Id = 10, Name = "Dragon", ImageUrl = "/images/TcgImages/dragon.png" },
+        new CardTypeFilterOption { Id = 11, Name = "Colorless", ImageUrl = "/images/TcgImages/colorless.png" },
     ];
 
     private static List<PokemonFilterOption> GetAllPokemon()

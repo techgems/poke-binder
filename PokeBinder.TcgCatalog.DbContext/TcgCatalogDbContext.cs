@@ -111,6 +111,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(63);
+            entity.Property(e => e.ImageUrl).HasColumnName("imageUrl").HasMaxLength(255);
         });
 
         modelBuilder.Entity<Tag>(entity =>

@@ -38,6 +38,8 @@ export interface RarityBySetFilter {
 export interface CardTypeFilter {
   id: number
   name: string
+  // Null when the type has no energy symbol art.
+  imageUrl: string | null
 }
 
 export interface StarterFilters {

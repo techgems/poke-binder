@@ -117,6 +117,7 @@ public static class GetSearchStarterFilters
         cardType => new CardTypeFilter()
         {
             Id = cardType.Id,
-            Name = cardType.Name
+            Name = cardType.Name,
+            ImageUrl = cardType.ImageUrl
         };
 }
