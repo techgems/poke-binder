@@ -59,7 +59,8 @@ export interface CardSearchRequest {
   series: number[]
   sets: number[]
   pokemon: number[]
-  rarities: number[]
+  /** Rarity names, not ids: the same name is the same rarity in every set. */
+  rarities: string[]
   cardTypes: number[]
   /** 1-based. Omit to get the first page. */
   pageNumber?: number

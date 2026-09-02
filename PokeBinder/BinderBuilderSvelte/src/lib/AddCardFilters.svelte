@@ -12,6 +12,7 @@
     series: string[]
     sets: string[]
     pokemon: string[]
+    /** Rarity names rather than ids: one name is one rarity, whichever set it was printed in. */
     rarities: string[]
     cardTypes: string[]
   }
@@ -183,26 +184,47 @@
     }
   })
 
-  // Rarity is scoped to the chosen sets: no set, no rarity field. Each option is a rarity-by-set
-  // row, so the value is that row's own id rather than the rarity name.
-  const rarities: FilterOption[] = $derived.by(() => {
-    if (selection.sets.length === 0) return []
+  // The sets whose rarities are worth offering. Chosen sets win over chosen series, because naming
+  // sets is the narrower statement; a series stands in for all of the sets inside it. Scoping at
+  // all is what stops the user pairing a rarity with a set that never printed one, which could
+  // only ever return nothing.
+  const rarityScopeSetIds: Set<number> = $derived.by(() => {
+    if (selection.sets.length > 0) {
+      return new Set(selection.sets.map(Number))
+    }
 
-    const selectedSetIds = new Set(selection.sets)
-    const setNames = new Map((filters?.sets ?? []).map((set) => [set.id, set.name]))
-    // The same rarity name repeats across sets, so name the set once more than one is selected.
-    const qualify = selection.sets.length > 1
+    if (selection.series.length > 0) {
+      const selectedSeriesIds = new Set(selection.series)
 
-    return (filters?.rarityBySet ?? [])
-      .filter((rarity) => selectedSetIds.has(String(rarity.setId)))
-      .map((rarity) => ({
-        label: qualify ? `${rarity.rarity} · ${setNames.get(rarity.setId) ?? ''}` : rarity.rarity,
-        value: String(rarity.id),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label))
+      return new Set(
+        (filters?.sets ?? [])
+          .filter((set) => selectedSeriesIds.has(String(set.seriesId)))
+          .map((set) => set.id),
+      )
+    }
+
+    return new Set<number>()
   })
 
-  // Drop any rarity that the current set selection no longer offers.
+  // A rarity name means the same thing wherever it appears — a Special Illustration Rare in Mega
+  // Evolution is the one in Phantasmal Flames — so the options are the distinct names in scope and
+  // the name is what gets filtered on. The rarity-by-set rows only decide what is on offer; which
+  // set a name came from stops mattering once it is listed.
+  const rarities: FilterOption[] = $derived.by(() => {
+    if (rarityScopeSetIds.size === 0) return []
+
+    const names = new Set(
+      (filters?.rarityBySet ?? [])
+        .filter((rarity) => rarityScopeSetIds.has(rarity.setId))
+        .map((rarity) => rarity.rarity),
+    )
+
+    return [...names]
+      .sort((left, right) => left.localeCompare(right))
+      .map((name) => ({ label: name, value: name }))
+  })
+
+  // Drop any rarity the current series and set selection no longer offers.
   $effect(() => {
     const available = new Set(rarities.map((rarity) => rarity.value))
     const kept = selection.rarities.filter((rarity) => available.has(rarity))
@@ -277,7 +299,8 @@
         bind:value={selection.pokemon}
       />
     {/if}
-    {#if selection.sets.length > 0}
+    <!-- Shown once a series or a set has put some rarities in scope. -->
+    {#if rarities.length > 0}
       <FilterCombobox
         label="Rarity"
         data={rarities}

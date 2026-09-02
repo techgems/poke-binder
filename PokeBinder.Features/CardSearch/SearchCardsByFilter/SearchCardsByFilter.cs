@@ -36,8 +36,8 @@ public static class SearchCardsByFilter
         /// <summary>Pokemon filter option ids, not pokedex numbers.</summary>
         public IReadOnlyList<int> Pokemon { get; init; } = [];
 
-        /// <summary>Rarity-by-set row ids, each standing for one (set, rarity) pair.</summary>
-        public IReadOnlyList<int> Rarities { get; init; } = [];
+        /// <summary>Rarity names. One name is one rarity, whichever set printed it.</summary>
+        public IReadOnlyList<string> Rarities { get; init; } = [];
 
         public IReadOnlyList<int> CardTypes { get; init; } = [];
 
@@ -132,14 +132,12 @@ public static class SearchCardsByFilter
                 .Contains(card.CardSubtype));
         }
 
-        // A rarity option is a (set, rarity) pair, so both halves have to match: the same rarity
-        // name means a different thing from one set to the next.
+        // Rarity matches on the name alone. A rarity means the same thing in every set, so a card
+        // qualifies whatever set it came from; the rarity-by-set rows exist only so the UI can
+        // avoid offering a rarity no set in scope ever printed.
         if (request.Rarities.Count > 0)
         {
-            cards = cards.Where(card => context.RarityBySetFilterOptions.Any(option =>
-                request.Rarities.Contains(option.Id)
-                && option.SetId == card.SetId
-                && option.Rarity == card.Rarity));
+            cards = cards.Where(card => card.Rarity != null && request.Rarities.Contains(card.Rarity));
         }
 
         // Nothing links a card to a pokemon by id — pkmnCardText.dexNumber is unpopulated — so the

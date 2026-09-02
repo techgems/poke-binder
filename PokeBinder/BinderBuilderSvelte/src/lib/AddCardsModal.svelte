@@ -124,7 +124,8 @@
       series: selected.series.map(Number),
       sets: selected.sets.map(Number),
       pokemon: selected.pokemon.map(Number),
-      rarities: selected.rarities.map(Number),
+      // Rarities travel as names, not ids; the rest of the fields are ids.
+      rarities: [...selected.rarities],
       cardTypes: selected.cardTypes.map(Number),
       pageNumber,
     }
