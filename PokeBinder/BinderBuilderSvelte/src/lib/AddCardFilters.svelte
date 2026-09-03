@@ -73,42 +73,29 @@
 <script lang="ts">
   import { ToggleGroup } from '@skeletonlabs/skeleton-svelte'
 
-  import { CardSearchClient, type StarterFilters } from '../clients/CardSearchClient'
+  import type { StarterFilters } from '../clients/CardSearchClient'
   import CardTypeFilterGroup, { type CardTypeOption } from './CardTypeFilterGroup.svelte'
   import type { FilterOption } from './filter-option'
   import FilterCombobox from './FilterCombobox.svelte'
 
   interface Props {
-    /** Load the filter options once this turns true — lets the caller defer the request. */
-    active?: boolean
+    /**
+     * The catalog's filter options, or null while they are still being fetched. Loading them is the
+     * workspace's job, not this component's: nothing in the Add Cards tab works without them, so a
+     * failure has to be reported at that level rather than inside one of its three columns.
+     */
+    filters?: StarterFilters | null
+    /** Whether that fetch is still in flight. */
+    loading?: boolean
     /** The current filter selection. Bindable. */
     selection?: FilterSelection
   }
 
-  let { active = true, selection = $bindable(emptySelection()) }: Props = $props()
-
-  let filters = $state<StarterFilters | null>(null)
-  let loading = $state(false)
-  let loadError = $state<string | null>(null)
-
-  $effect(() => {
-    if (active) void loadFilters()
-  })
-
-  async function loadFilters() {
-    if (filters || loading) return
-
-    loading = true
-    loadError = null
-
-    try {
-      filters = await CardSearchClient.getStarterFilters()
-    } catch (error) {
-      loadError = error instanceof Error ? error.message : String(error)
-    } finally {
-      loading = false
-    }
-  }
+  let {
+    filters = null,
+    loading = false,
+    selection = $bindable(emptySelection()),
+  }: Props = $props()
 
   function resetFilters() {
     selection = emptySelection()
@@ -251,13 +238,10 @@
     </button>
   </header>
 
+  <!-- No error branch: a failed load takes the whole workspace, so this only ever sees the fetch
+       succeed or still be running. -->
   {#if loading}
     <p class="opacity-60">Loading filters…</p>
-  {:else if loadError}
-    <div class="space-y-2">
-      <p class="text-error-500">{loadError}</p>
-      <button type="button" class="btn btn-sm preset-tonal" onclick={loadFilters}>Retry</button>
-    </div>
   {:else}
     <div class="space-y-2">
       <span class="label-text">Super Type</span>

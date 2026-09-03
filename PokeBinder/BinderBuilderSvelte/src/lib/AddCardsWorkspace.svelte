@@ -1,15 +1,17 @@
 <script lang="ts">
+  import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert'
+
   import {
     CardSearchClient,
     type CardSearchRequest,
     type CardSearchResult,
+    type StarterFilters,
   } from '../clients/CardSearchClient'
   import AddCardFilters, {
     effectiveSelection,
     emptySelection,
     type FilterSelection,
   } from './AddCardFilters.svelte'
-  import Modal from './Modal.svelte'
   import SearchModeSelector, {
     DEFAULT_SEARCH_MODE,
     type SearchMode,
@@ -23,15 +25,59 @@
   const CARD_BACK_URL = '/images/TcgImages/card-back.png'
 
   interface Props {
-    /** Whether the modal is open. Bindable. */
-    open?: boolean
+    /** Load the filter options once this turns true — lets the host defer the request. */
+    active?: boolean
+    /** Additional classes for the workspace grid. */
+    class?: string
   }
 
-  let { open = $bindable(false) }: Props = $props()
+  let { active = true, class: classes = '' }: Props = $props()
 
   // Which filtering system is driving the search. Only the active one is rendered, so its state is
   // the only state the results can be built from; the others keep theirs for when they come back.
   let mode = $state<SearchMode>(DEFAULT_SEARCH_MODE)
+
+  // The catalog's filter options. Advanced filters are built entirely out of them, so advanced mode
+  // cannot open without this fetch — which is why it is owned here and its failure takes the whole
+  // workspace rather than one column of it.
+  let starterFilters = $state<StarterFilters | null>(null)
+  let filtersLoading = $state(false)
+  let filtersError = $state<string | null>(null)
+
+  // Deliberately not $state. It records that the request has been made at all, and the effect below
+  // must not depend on it: reading a piece of state that loadStarterFilters() also writes is what
+  // turns a failed load into an unbounded retry loop, since clearing `loading` re-runs the effect,
+  // which fetches again, forever. A plain variable is invisible to the effect, so the only way back
+  // in is retryStarterFilters() — a person clicking a button.
+  let filtersRequested = false
+
+  // Scoped to advanced mode on purpose. Simple search is getting its own backend slice and shares
+  // nothing with these options, so it must neither pay for the request nor be held up by it failing.
+  $effect(() => {
+    if (active && mode === 'advanced') void loadStarterFilters()
+  })
+
+  async function loadStarterFilters() {
+    if (filtersRequested) return
+
+    filtersRequested = true
+    filtersLoading = true
+    filtersError = null
+
+    try {
+      starterFilters = await CardSearchClient.getStarterFilters()
+    } catch (error) {
+      filtersError = error instanceof Error ? error.message : String(error)
+    } finally {
+      filtersLoading = false
+    }
+  }
+
+  function retryStarterFilters() {
+    filtersRequested = false
+
+    void loadStarterFilters()
+  }
 
   // Advanced filters: what the user has picked, including choices the current super type has hidden.
   let selection = $state<FilterSelection>(emptySelection())
@@ -40,9 +86,13 @@
   // rules out. This is the only selection that should ever reach the server.
   const appliedSelection = $derived(effectiveSelection(selection))
 
-  // Simple search: the card name and identifier fields.
+  // Simple search: the card name and identifier fields. Inert for now — the slice that serves them
+  // does not exist on the backend yet, so nothing reads these.
   let terms = $state<SimpleSearchTerms>(emptyTerms())
 
+  // One pool of results for both modes. Simple search and advanced filters differ only in which
+  // endpoint fills this and what the paging cursor means to it; everything downstream — the grid,
+  // Load more, the eventual selection — is shared and stays that way.
   let results = $state<CardSearchResult[]>([])
   let page = $state(1)
   let hasMore = $state(false)
@@ -62,9 +112,9 @@
   $effect(() => {
     const key = JSON.stringify(appliedSelection)
 
-    // The modal opens with nothing picked, and searching that would fetch page one of the whole
-    // catalog for nothing. The first real filter change arms the search; from then on every change
-    // re-runs it — including clearing the filters back to empty again.
+    // The workspace starts with nothing picked, and searching that would fetch page one of the
+    // whole catalog for nothing. The first real filter change arms the search; from then on every
+    // change re-runs it — including clearing the filters back to empty again.
     if (!armed) {
       if (key === untouched) return
 
@@ -136,21 +186,44 @@
   }
 </script>
 
-<!-- Wider and taller than the other modals: the extra room all goes to the results grid, since the
-     two side columns are fixed and only the middle one flexes. -->
-<Modal bind:open title="Add Cards" width="max-w-[100rem]" class="flex flex-col h-[92dvh]">
-  <div class="grid flex-1 min-h-0 grid-cols-[18rem_1fr_16rem] gap-4">
-    <!-- Filters. The mode selector sits in this column because all it does is choose which filter
-         set is shown; the rows are auto/minmax(0,1fr) so the filters below can shrink and scroll. -->
-    <div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
-      <SearchModeSelector bind:mode />
-      {#if mode === 'simple'}
-        <SimpleSearchFilters bind:terms />
-      {:else if mode === 'advanced'}
-        <AddCardFilters active={open} bind:selection />
-      {/if}
-    </div>
+<!-- The two side columns are fixed and only the middle one flexes, so whatever extra room the host
+     hands this grid all goes to the results. -->
+<div class="grid min-h-0 flex-1 grid-cols-[18rem_1fr_16rem] gap-4 {classes}">
+  <!-- Filters. The mode selector sits in this column because all it does is choose which filter
+       set is shown; the rows are auto/minmax(0,1fr) so the filters below can shrink and scroll. -->
+  <div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
+    <SearchModeSelector bind:mode />
+    {#if mode === 'simple'}
+      <SimpleSearchFilters bind:terms />
+    {:else if !filtersError}
+      <AddCardFilters filters={starterFilters} loading={filtersLoading} bind:selection />
+    {/if}
+  </div>
 
+  {#if mode === 'advanced' && filtersError}
+    <!-- Promoted across the results and selected columns rather than tucked into the filter column:
+         with no options to pick there is nothing to filter by and nothing to search, so those two
+         columns would only be separate ways of showing an empty box. The mode selector stays
+         outside it deliberately — this failure says nothing about simple search, which calls its
+         own endpoint, and hiding the selector behind the error would strand the user in the one
+         mode that is actually broken. -->
+    <div
+      class="col-span-2 grid min-h-0 place-items-center rounded-container border border-error-500/40 bg-error-500/5 p-6"
+    >
+      <div class="max-w-md space-y-3 text-center">
+        <TriangleAlertIcon class="mx-auto size-8 text-error-500" />
+        <h3 class="h4">Card filters could not be loaded</h3>
+        <p class="text-sm opacity-75">
+          Advanced filters are built from these options, so there is nothing to filter by until the
+          request goes through.
+        </p>
+        <p class="text-xs opacity-60">{filtersError}</p>
+        <button type="button" class="btn preset-filled-primary-500" onclick={retryStarterFilters}>
+          Try again
+        </button>
+      </div>
+    </div>
+  {:else}
     <!-- Results -->
     <section class="flex min-h-0 flex-col rounded-container border border-surface-200-800/50">
       {#if !hasSearched}
@@ -167,10 +240,8 @@
           {searching ? 'Searching…' : 'No cards match these filters'}
         </p>
       {:else}
-        <!-- Fixed at five columns: the cards scale with the modal instead of the count changing. -->
-        <ul
-          class="grid min-h-0 flex-1 grid-cols-5 content-start gap-3 overflow-y-auto p-3"
-        >
+        <!-- Fixed at five columns: the cards scale with the panel instead of the count changing. -->
+        <ul class="grid min-h-0 flex-1 grid-cols-5 content-start gap-3 overflow-y-auto p-3">
           {#each results as card (card.id)}
             {@const detail = [card.setName, card.rarity, card.cardNumber]
               .filter(Boolean)
@@ -223,5 +294,5 @@
     >
       <p class="opacity-60">Selected cards will appear here</p>
     </aside>
-  </div>
-</Modal>
+  {/if}
+</div>

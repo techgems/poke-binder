@@ -4,16 +4,20 @@
   import SearchIcon from '@lucide/svelte/icons/search'
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
   import UndoIcon from '@lucide/svelte/icons/undo-2'
-  import { AppBar, Switch } from '@skeletonlabs/skeleton-svelte'
+  import { AppBar } from '@skeletonlabs/skeleton-svelte'
 
   import ActionSidebar from './lib/ActionSidebar.svelte'
-  import AddCardsModal from './lib/AddCardsModal.svelte'
   import BackgroundBlobs from './lib/BackgroundBlobs.svelte'
   import Modal from './lib/Modal.svelte'
+  import WorkspacePanel, {
+    DEFAULT_WORKSPACE_TAB,
+    type WorkspaceTab,
+  } from './lib/WorkspacePanel.svelte'
 
-  let showDetails = $state(false)
   let searchOpen = $state(false)
-  let addOpen = $state(false)
+
+  // Held here rather than inside the panel so the sidebar can switch tabs as well as the tab strip.
+  let tab = $state<WorkspaceTab>(DEFAULT_WORKSPACE_TAB)
 </script>
 
 <!-- No opaque background here: the page colour comes from <html>, so the fixed -z-10 blob layer stays visible. -->
@@ -37,12 +41,14 @@
 
   <div class="flex items-start gap-4 px-4">
     <ActionSidebar>
+      <!-- Adding cards is a tab now rather than a dialog, so this jumps to it instead of opening
+           anything. It stays because it is the one action the rail leads with. -->
       <button
         type="button"
         class="btn-icon btn-icon-lg preset-filled-primary-500"
-        title="Add"
-        aria-label="Add"
-        onclick={() => (addOpen = true)}
+        title="Add cards"
+        aria-label="Add cards"
+        onclick={() => (tab = 'add')}
       >
         <PlusIcon class="size-6" />
       </button>
@@ -74,38 +80,14 @@
       {/snippet}
     </ActionSidebar>
 
-    <main class="flex flex-1 justify-center pt-20 pb-4">
-      <div class="card preset-filled-surface-100-900 p-6 space-y-4 w-full max-w-2xl">
-        <header class="space-y-1">
-          <h2 class="h2">Svelte SPA</h2>
-          <p class="opacity-75">
-            Rendered by Vite.NET inside an authenticated Razor page, styled with Skeleton.
-          </p>
-        </header>
-
-        <Switch checked={showDetails} onCheckedChange={(e) => (showDetails = e.checked)}>
-          <Switch.HiddenInput />
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <Switch.Label>Show details</Switch.Label>
-        </Switch>
-
-        {#if showDetails}
-          <p>
-            This component tree is mounted into the <code class="pre">#app</code> container emitted by
-            the Vite.NET tag helper.
-          </p>
-        {/if}
-
-        <footer>
-          <button type="button" class="btn preset-filled-primary-500">Skeleton button</button>
-        </footer>
-      </div>
+    <!-- One viewport tall and a column, so the panel below can claim the leftover height with
+         flex-1 rather than a calc() that would have to restate this pt/pb in rem — the theme
+         scales the root font size, so that arithmetic does not stay true. min-w-0 lets the
+         workspace shrink past its content width instead of shoving the sidebar off screen. -->
+    <main class="flex h-dvh min-w-0 flex-1 flex-col pt-20 pb-4">
+      <WorkspacePanel bind:tab class="min-h-0 flex-1" />
     </main>
   </div>
-
-  <AddCardsModal bind:open={addOpen} />
 
   <Modal bind:open={searchOpen} title="Search cards">
     <input class="input" type="search" placeholder="Search by card name…" />

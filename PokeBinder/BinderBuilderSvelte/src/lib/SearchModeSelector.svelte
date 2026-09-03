@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  /** The filtering systems the Add Cards modal can be driven by. Exactly one is ever active. */
+  /** The filtering systems the Add Cards tab can be driven by. Exactly one is ever active. */
   export type SearchMode = 'simple' | 'advanced'
 
   interface SearchModeOption {
@@ -12,7 +12,7 @@
     { value: 'advanced', label: 'Advanced Filters' },
   ]
 
-  /** Advanced is the only system that is actually wired up, so it is where the modal starts. */
+  /** Advanced is the only system that is actually wired up, so it is where the search starts. */
   export const DEFAULT_SEARCH_MODE: SearchMode = 'advanced'
 </script>
 
