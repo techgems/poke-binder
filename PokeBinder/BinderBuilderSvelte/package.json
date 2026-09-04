@@ -24,6 +24,7 @@
     "@lucide/svelte": "^1.39.0",
     "@skeletonlabs/skeleton": "^5.0.1",
     "@skeletonlabs/skeleton-svelte": "^5.0.1",
+    "hover-tilt": "^1.0.0",
     "vite-dotnet": "^1.0.0"
   }
 }

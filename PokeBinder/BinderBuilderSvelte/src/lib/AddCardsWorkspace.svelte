@@ -20,6 +20,8 @@
     emptyTerms,
     type SimpleSearchTerms,
   } from './SimpleSearchFilters.svelte'
+  import CardSpotlight from './tilt/CardSpotlight.svelte'
+  import TiltCard from './tilt/TiltCard.svelte'
 
   /** Stand-in art for cards the catalog has no image for. */
   const CARD_BACK_URL = '/images/TcgImages/card-back.png'
@@ -184,11 +186,17 @@
   function loadMore() {
     if (!searching && hasMore) void search(page + 1)
   }
+
+  // The card currently lifted to the front, or null for none. Holding the card rather than a bare
+  // open flag is what lets the overlay show its details without a second copy of them.
+  let spotlit = $state<CardSearchResult | null>(null)
 </script>
 
 <!-- The two side columns are fixed and only the middle one flexes, so whatever extra room the host
      hands this grid all goes to the results. -->
-<div class="grid min-h-0 flex-1 grid-cols-[18rem_1fr_16rem] gap-4 {classes}">
+<!-- relative so the spotlight below covers exactly this workspace: the tab strip above it stays
+     reachable, and nothing has to stack a second dialog to get a card to the front. -->
+<div class="relative grid min-h-0 flex-1 grid-cols-[18rem_1fr_16rem] gap-4 {classes}">
   <!-- Filters. The mode selector sits in this column because all it does is choose which filter
        set is shown; the rows are auto/minmax(0,1fr) so the filters below can shrink and scroll. -->
   <div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
@@ -248,15 +256,19 @@
               .join(' · ')}
             <li>
               <figure class="space-y-1" title={[card.name, detail].filter(Boolean).join('\n')}>
-                <!-- Cards are portrait at a consistent 719:1000, so the box is reserved up front
-                     and lazy loading keeps a long results page from fetching everything at once.
-                     Cards with no art fall back to the card back, which keeps every tile the same
-                     shape instead of leaving a hole in the grid. -->
-                <img
+                <!-- TiltCard stands in for a plain <img> and reserves the same 719:1000 box, so
+                     taking the effect back out is a one-line swap. Cards with no art fall back to
+                     the card back, which keeps every tile the same shape instead of leaving a hole
+                     in the grid. The scale stays small deliberately: this list scrolls, and a tile
+                     that grew past the gap between columns would be clipped at the container edge
+                     rather than overlapping its neighbour. -->
+                <TiltCard
                   src={card.imageUrl ?? CARD_BACK_URL}
                   alt={card.imageUrl ? (card.name ?? 'Card') : 'No image available'}
-                  loading="lazy"
-                  class="rounded-container aspect-[719/1000] w-full bg-surface-200-800/40 object-cover"
+                  label={card.name ?? 'Card'}
+                  class="w-full rounded-container"
+                  scaleFactor={1.06}
+                  onclick={() => (spotlit = card)}
                 />
                 <figcaption class="space-y-0.5">
                   <p class="truncate text-xs">{card.name}</p>
@@ -295,4 +307,34 @@
       <p class="opacity-60">Selected cards will appear here</p>
     </aside>
   {/if}
+
+  <!-- A card with no art still gets lifted — its details are worth reading either way — but it is
+       held flat here, so the one card that will not move is the one whose art the catalog is
+       missing. Only here: in the results grid every tile tilts, art or not, because a tile that
+       sat still among moving neighbours would read as broken rather than as missing art. -->
+  <CardSpotlight
+    open={spotlit !== null}
+    src={spotlit?.imageUrl ?? CARD_BACK_URL}
+    alt={spotlit?.imageUrl ? (spotlit.name ?? 'Card') : 'No image available'}
+    label={spotlit?.name ? `${spotlit.name} preview` : 'Card preview'}
+    tilt={spotlit?.imageUrl != null}
+    onclose={() => (spotlit = null)}
+  >
+    {#snippet details()}
+      <p class="font-semibold">{spotlit?.name}</p>
+      <p class="text-sm opacity-60">
+        {[spotlit?.setName, spotlit?.rarity, spotlit?.cardNumber].filter(Boolean).join(' · ')}
+      </p>
+      {#if spotlit && spotlit.imageUrl === null}
+        <p class="text-sm text-warning-500">This card has no image in the catalog.</p>
+      {/if}
+    {/snippet}
+
+    {#snippet actions()}
+      <!-- Placeholder alongside the one action that works: the selection this would add to is
+           still the empty column on the right. -->
+      <button type="button" class="btn preset-filled-primary-500" disabled>Add to binder</button>
+      <button type="button" class="btn preset-tonal" onclick={() => (spotlit = null)}>Close</button>
+    {/snippet}
+  </CardSpotlight>
 </div>
