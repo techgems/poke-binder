@@ -12,8 +12,12 @@
     { value: 'advanced', label: 'Advanced Filters' },
   ]
 
-  /** Advanced is the only system that is actually wired up, so it is where the search starts. */
-  export const DEFAULT_SEARCH_MODE: SearchMode = 'advanced'
+  /**
+   * Simple search is where the workspace opens: two typed fields ask less of someone who already
+   * knows what they are looking for, and starting here also means the advanced filter options are
+   * not fetched until somebody actually switches to them.
+   */
+  export const DEFAULT_SEARCH_MODE: SearchMode = 'simple'
 </script>
 
 <script lang="ts">

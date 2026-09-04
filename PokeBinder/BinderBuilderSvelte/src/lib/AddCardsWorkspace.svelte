@@ -5,6 +5,7 @@
     CardSearchClient,
     type CardSearchRequest,
     type CardSearchResult,
+    type SimpleCardSearchRequest,
     type StarterFilters,
   } from '../clients/CardSearchClient'
   import AddCardFilters, {
@@ -53,8 +54,8 @@
   // in is retryStarterFilters() — a person clicking a button.
   let filtersRequested = false
 
-  // Scoped to advanced mode on purpose. Simple search is getting its own backend slice and shares
-  // nothing with these options, so it must neither pay for the request nor be held up by it failing.
+  // Scoped to advanced mode on purpose. Simple search has its own endpoint and shares nothing with
+  // these options, so it must neither pay for the request nor be held up by it failing.
   $effect(() => {
     if (active && mode === 'advanced') void loadStarterFilters()
   })
@@ -88,9 +89,18 @@
   // rules out. This is the only selection that should ever reach the server.
   const appliedSelection = $derived(effectiveSelection(selection))
 
-  // Simple search: the card name and identifier fields. Inert for now — the slice that serves them
-  // does not exist on the backend yet, so nothing reads these.
+  // Simple search: the card name and identifier fields.
   let terms = $state<SimpleSearchTerms>(emptyTerms())
+
+  // What a simple search is actually run with. Trimming here rather than at the request is what
+  // keeps the search key below stable — a trailing space is not a different search.
+  const appliedTerms = $derived({
+    cardName: terms.cardName.trim(),
+    cardNumber: terms.cardIdentifier.trim(),
+  })
+
+  /** Whether either field holds something to search for. */
+  const hasTerms = $derived(appliedTerms.cardName !== '' || appliedTerms.cardNumber !== '')
 
   // One pool of results for both modes. Simple search and advanced filters differ only in which
   // endpoint fills this and what the paging cursor means to it; everything downstream — the grid,
@@ -105,6 +115,9 @@
   /** How the effective selection looks while the user has still touched nothing. */
   const untouched = JSON.stringify(effectiveSelection(emptySelection()))
 
+  /** How long a simple search waits out typing before it goes to the server. */
+  const TERM_DEBOUNCE_MS = 300
+
   // Plain variables on purpose: these steer when a search runs and are never rendered, so making
   // them reactive would only risk feeding the effect below back into itself.
   let armed = false
@@ -112,26 +125,79 @@
   let inFlight: AbortController | null = null
 
   $effect(() => {
-    const key = JSON.stringify(appliedSelection)
+    const advancedKey = JSON.stringify(appliedSelection)
 
-    // The workspace starts with nothing picked, and searching that would fetch page one of the
-    // whole catalog for nothing. The first real filter change arms the search; from then on every
-    // change re-runs it — including clearing the filters back to empty again.
-    if (!armed) {
-      if (key === untouched) return
+    // The key names the mode as well as the state, so switching modes counts as a change even when
+    // neither side has moved: the cards on screen came from the other endpoint and no longer
+    // answer the question being asked.
+    const key =
+      mode === 'simple' ? `simple:${JSON.stringify(appliedTerms)}` : `advanced:${advancedKey}`
 
-      armed = true
+    if (mode === 'simple') {
+      // Two empty boxes are not a search. The endpoint answers them with an empty page, so asking
+      // would spend a request to arrive exactly where the user already is.
+      if (!hasTerms) {
+        clearResults()
+
+        return
+      }
+
+      // Every keystroke changes the key, so a typed name would otherwise be one request per
+      // character. The cleanup is the other half of that: it throws the pending wait away as soon
+      // as the next character — or a mode switch — makes it stale.
+      const timer = setTimeout(() => {
+        // Deliberately inside the wait rather than guarding the effect: the cleanup above cancels
+        // the pending search on every re-run, and a re-run can land on a key that has already
+        // been searched — typing a trailing space makes a new terms object out of the same terms.
+        // Skipping early there would cancel a search without ever scheduling its replacement.
+        if (key === lastSearched) return
+
+        lastSearched = key
+
+        void search(1)
+      }, TERM_DEBOUNCE_MS)
+
+      return () => clearTimeout(timer)
     }
 
-    // effectiveSelection() returns a fresh object whenever the raw selection changes, so the same
-    // effective filters can arrive twice: picking a generation while a non-Pokemon super type is
-    // zeroing it out, for one. Only a real change should cost a request.
+    // The same filters can arrive twice: effectiveSelection() returns a fresh object whenever the
+    // raw selection changes — picking a generation while a non-Pokemon super type is zeroing it
+    // out, for one. Only a real change should cost a request.
     if (key === lastSearched) return
 
+    // Advanced mode starts with nothing picked, and searching that would fetch page one of the
+    // whole catalog for nothing. The first real filter change arms the search; from then on every
+    // change re-runs it — including clearing the filters back to empty again.
+    if (!armed && advancedKey === untouched) {
+      // Anything a simple search left on screen still goes: it does not answer these filters.
+      clearResults()
+
+      return
+    }
+
+    armed = true
     lastSearched = key
 
     void search(1)
   })
+
+  /** Empties the results pool and drops the request that was filling it. */
+  function clearResults() {
+    inFlight?.abort()
+    inFlight = null
+
+    // Nothing on screen came from a search any more, so no key may be treated as already answered.
+    // Without this, coming back to a mode whose terms are still typed in would dedupe against the
+    // search whose results were just thrown away and leave the user staring at an empty column.
+    lastSearched = null
+
+    results = []
+    page = 1
+    hasMore = false
+    searching = false
+    searchError = null
+    hasSearched = false
+  }
 
   async function search(pageNumber: number) {
     // Whatever is still in the air is stale now. Without this a slow earlier response could land
@@ -146,10 +212,18 @@
     searchError = null
 
     try {
-      const found = await CardSearchClient.searchByFilter(
-        toRequest(appliedSelection, pageNumber),
-        controller.signal,
-      )
+      // Which endpoint answers is the only thing the two modes disagree about — both reply with
+      // the same page shape, so everything past this line is shared.
+      const found =
+        mode === 'simple'
+          ? await CardSearchClient.searchSimple(
+              toSimpleRequest(appliedTerms, pageNumber),
+              controller.signal,
+            )
+          : await CardSearchClient.searchByFilter(
+              toRequest(appliedSelection, pageNumber),
+              controller.signal,
+            )
 
       results = pageNumber === 1 ? found.results : [...results, ...found.results]
       page = found.pageNumber
@@ -183,9 +257,32 @@
     }
   }
 
+  function toSimpleRequest(
+    typed: { cardName: string; cardNumber: string },
+    pageNumber: number,
+  ): SimpleCardSearchRequest {
+    // The field is labelled Card Identifier in the UI, but what the API matches it against is the
+    // card number printed on the card, so it travels under that name.
+    return {
+      cardName: typed.cardName,
+      cardNumber: typed.cardNumber,
+      pageNumber,
+    }
+  }
+
   function loadMore() {
     if (!searching && hasMore) void search(page + 1)
   }
+
+  /** What the results column says with nothing searched yet, which differs per mode. */
+  const promptMessage = $derived(
+    mode === 'simple' ? 'Type a card name or number to search' : 'Pick a filter to search',
+  )
+
+  /** What it says when the search came back empty. */
+  const noMatchMessage = $derived(
+    mode === 'simple' ? 'No cards match these terms' : 'No cards match these filters',
+  )
 
   // The card currently lifted to the front, or null for none. Holding the card rather than a bare
   // open flag is what lets the overlay show its details without a second copy of them.
@@ -235,7 +332,7 @@
     <!-- Results -->
     <section class="flex min-h-0 flex-col rounded-container border border-surface-200-800/50">
       {#if !hasSearched}
-        <p class="m-auto opacity-60">Pick a filter to search</p>
+        <p class="m-auto opacity-60">{promptMessage}</p>
       {:else if searchError}
         <div class="m-auto space-y-2 text-center">
           <p class="text-error-500">{searchError}</p>
@@ -245,7 +342,7 @@
         </div>
       {:else if results.length === 0}
         <p class="m-auto opacity-60">
-          {searching ? 'Searching…' : 'No cards match these filters'}
+          {searching ? 'Searching…' : noMatchMessage}
         </p>
       {:else}
         <!-- Fixed at five columns: the cards scale with the panel instead of the count changing. -->

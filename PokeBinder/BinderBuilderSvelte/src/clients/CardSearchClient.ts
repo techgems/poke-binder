@@ -68,6 +68,21 @@ export interface CardSearchRequest {
   pageSize?: number
 }
 
+/**
+ * Terms for a simple card search. Both fields are optional and independent; blank means the user
+ * did not narrow by it, and blank on both sides matches nothing rather than everything.
+ */
+export interface SimpleCardSearchRequest {
+  /** Matched anywhere in the card's name, case-insensitively. */
+  cardName?: string
+  /** Matched against the whole card number as printed on the card ("4", "SV49"), never part of it. */
+  cardNumber?: string
+  /** 1-based. Omit to get the first page. */
+  pageNumber?: number
+  /** Omit to take the server's default; the server caps it regardless. */
+  pageSize?: number
+}
+
 export interface CardSearchResult {
   id: number
   name: string | null
@@ -117,6 +132,33 @@ export const CardSearchClient = {
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(request),
+      signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Card search failed (${response.status} ${response.statusText}).`)
+    }
+
+    return (await response.json()) as CardSearchPage
+  },
+
+  async searchSimple(
+    request: SimpleCardSearchRequest,
+    signal?: AbortSignal,
+  ): Promise<CardSearchPage> {
+    // Two single-valued terms fit the query string, so this one is a GET. Empty fields are left
+    // out entirely rather than sent blank: the server reads absent and blank the same way, and a
+    // URL carrying only what was typed is the one that shows up readably in the network tab.
+    const query = new URLSearchParams()
+
+    if (request.cardName) query.set('cardName', request.cardName)
+    if (request.cardNumber) query.set('cardNumber', request.cardNumber)
+    if (request.pageNumber !== undefined) query.set('pageNumber', String(request.pageNumber))
+    if (request.pageSize !== undefined) query.set('pageSize', String(request.pageSize))
+
+    const response = await fetch(`/api/cardSearch/simpleSearch?${query}`, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
       signal,
     })
 
