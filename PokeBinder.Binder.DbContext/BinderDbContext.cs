@@ -27,13 +27,22 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.ToTable("binderSizes");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.CardCount).HasColumnName("cardCount");
+            entity.Property(e => e.Name).HasColumnName("name");
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.X).HasColumnName("x");
             entity.Property(e => e.Y).HasColumnName("y");
-            entity.Property(e => e.Pages)
-                .HasColumnName("pages")
-                .HasComputedColumnSql("[cardCount] / ([x] * [y])", stored: true);
+            entity.Property(e => e.DefaultPages).HasColumnName("defaultPages");
+
+            // Both are x * y arithmetic over columns that are already here, so they are computed in
+            // code rather than by the database: one definition, and no stored copy to drift.
+            entity.Ignore(e => e.CardsPerPage);
+            entity.Ignore(e => e.DefaultCardCount);
+
+            // A grid identifies the row; 4x5 and 5x4 stay distinct because a card lands in a
+            // different place on the page.
+            entity.HasIndex(e => new { e.X, e.Y })
+                .IsUnique()
+                .HasDatabaseName("IX_binderSizes_x_y");
 
             entity.HasMany(e => e.Binders)
                 .WithOne(b => b.BinderSize)
@@ -50,6 +59,12 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("createdAt");
             entity.Property(e => e.UserId).HasColumnName("userId");
             entity.Property(e => e.BinderSizeId).HasColumnName("binderSizeId");
+            entity.Property(e => e.Pages).HasColumnName("pages");
+
+            // Pockets per page times pages -- see BinderSize above.
+            entity.Ignore(e => e.CardCount);
+
+            entity.HasIndex(e => e.UserId).HasDatabaseName("IX_binder_userId");
 
             entity.HasMany(e => e.Cards)
                 .WithOne(c => c.Binder)
