@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Features.CardImages;
 using PokeBinder.Features.CardSearch.SearchCardWithSimpleSearch.Models;
+using PokeBinder.Features.Utils;
 using PokeBinder.TcgCatalog.DbContext;
 using PokeBinder.TcgCatalog.DbContext.Entities;
 using System.Linq.Expressions;
@@ -19,12 +20,6 @@ public static class SearchCardWithSimpleSearch
 
     /// <summary>Ceiling on page size, so one request can never ask for the whole catalog.</summary>
     public const int MaxPageSize = 200;
-
-    /// <summary>
-    /// Escape character for the LIKE patterns below. SQLite has no default one, so it is declared
-    /// on every LIKE this slice builds.
-    /// </summary>
-    private const string LikeEscape = "\\";
 
     /// <summary>
     /// Both terms are optional and independent. Supplying both narrows to cards that satisfy the
@@ -127,11 +122,8 @@ public static class SearchCardWithSimpleSearch
         string.IsNullOrWhiteSpace(term) ? null : term.Trim();
 
     /// <summary>
-    /// Adds whichever terms were actually typed. Both go through LIKE rather than through
-    /// <c>string.Contains</c> or <c>==</c>: those translate to <c>instr</c> and <c>=</c>, which are
-    /// case-sensitive in SQLite, and a search box that misses "charizard" because the catalog
-    /// stores "Charizard" is broken. LIKE is case-insensitive for ASCII, which covers card numbers
-    /// entirely and card names except for their accented letters.
+    /// Adds whichever terms were actually typed. Both match through LIKE, for the case-insensitive
+    /// comparison described on <see cref="SqlLiteLikePatterns"/>.
     /// </summary>
     private static IQueryable<Card> ApplyTerms(
         IQueryable<Card> cards,
@@ -140,32 +132,28 @@ public static class SearchCardWithSimpleSearch
     {
         if (cardName is not null)
         {
-            var pattern = $"%{EscapeLikeWildcards(cardName)}%";
+            var pattern = SqlLiteLikePatterns.Contains(cardName);
 
-            cards = cards.Where(card => EF.Functions.Like(card.Name, pattern, LikeEscape));
+            cards = cards.Where(card => EF.Functions.Like(
+                card.Name,
+                pattern,
+                SqlLiteLikePatterns.EscapeCharacter));
         }
 
-        // No wildcards in this pattern, so the LIKE is an exact match on the whole value; it is
-        // only a LIKE at all to get the case-insensitive comparison described above.
+        // The whole number, not part of it: numbers are short and repeat across sets, so a
+        // contains match on "12" would return most of the catalog.
         if (cardNumber is not null)
         {
-            var pattern = EscapeLikeWildcards(cardNumber);
+            var pattern = SqlLiteLikePatterns.Exact(cardNumber);
 
-            cards = cards.Where(card => EF.Functions.Like(card.CardNumber, pattern, LikeEscape));
+            cards = cards.Where(card => EF.Functions.Like(
+                card.CardNumber,
+                pattern,
+                SqlLiteLikePatterns.EscapeCharacter));
         }
 
         return cards;
     }
-
-    /// <summary>
-    /// Neutralizes the LIKE wildcards in a typed term. Without this, a card number containing an
-    /// underscore would match any single character in its place, and a lone "%" in the name box
-    /// would match the entire catalog.
-    /// </summary>
-    private static string EscapeLikeWildcards(string term) => term
-        .Replace(LikeEscape, LikeEscape + LikeEscape)
-        .Replace("%", LikeEscape + "%")
-        .Replace("_", LikeEscape + "_");
 
     private static readonly Expression<Func<Card, CardSearchResult>> MapResult =
         card => new CardSearchResult()

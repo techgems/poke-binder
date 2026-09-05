@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Features.CardImages;
 using PokeBinder.Features.CardSearch.SearchCardsByFilter.Models;
+using PokeBinder.Features.Utils;
 using PokeBinder.TcgCatalog.DbContext;
 using PokeBinder.TcgCatalog.DbContext.Entities;
 using System.Linq.Expressions;
@@ -19,11 +20,18 @@ public static class SearchCardsByFilter
     public const int MaxPageSize = 200;
 
     /// <summary>
-    /// Every filter field mirrors one multi-select filter field in the UI. An empty list means the
-    /// user narrowed nothing by that field, so it is left out of the query entirely.
+    /// Every filter field mirrors one filter field in the UI. An empty list — or a blank name —
+    /// means the user narrowed nothing by that field, so it is left out of the query entirely.
     /// </summary>
     public record Request
     {
+        /// <summary>
+        /// Matched anywhere in the card's name, case-insensitively. The one typed field among the
+        /// multi-selects, and the only one a user can narrow by without the catalog's filter
+        /// options having loaded.
+        /// </summary>
+        public string? CardName { get; init; }
+
         /// <summary>Super type names, as they are stored on the card.</summary>
         public IReadOnlyList<string> SuperTypes { get; init; } = [];
 
@@ -107,6 +115,18 @@ public static class SearchCardsByFilter
         Request request,
         TcgCatalogDbContext context)
     {
+        // Matched through LIKE for the case-insensitive comparison described on
+        // <see cref="LikePatterns"/>; the simple search matches names the same way.
+        if (!string.IsNullOrWhiteSpace(request.CardName))
+        {
+            var pattern = SqlLiteLikePatterns.Contains(request.CardName.Trim());
+
+            cards = cards.Where(card => EF.Functions.Like(
+                card.Name,
+                pattern,
+                SqlLiteLikePatterns.EscapeCharacter));
+        }
+
         if (request.SuperTypes.Count > 0)
         {
             cards = cards.Where(card => request.SuperTypes.Contains(card.CardType));

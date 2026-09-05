@@ -115,8 +115,8 @@
   /** How the effective selection looks while the user has still touched nothing. */
   const untouched = JSON.stringify(effectiveSelection(emptySelection()))
 
-  /** How long a simple search waits out typing before it goes to the server. */
-  const TERM_DEBOUNCE_MS = 300
+  /** How long both simple search and advanced filters wait out typing before it goes to the server. */
+  const SEARCH_DEBOUNCE_MS = 300
 
   // Plain variables on purpose: these steer when a search runs and are never rendered, so making
   // them reactive would only risk feeding the effect below back into itself.
@@ -141,44 +141,39 @@
 
         return
       }
-
-      // Every keystroke changes the key, so a typed name would otherwise be one request per
-      // character. The cleanup is the other half of that: it throws the pending wait away as soon
-      // as the next character — or a mode switch — makes it stale.
-      const timer = setTimeout(() => {
-        // Deliberately inside the wait rather than guarding the effect: the cleanup above cancels
-        // the pending search on every re-run, and a re-run can land on a key that has already
-        // been searched — typing a trailing space makes a new terms object out of the same terms.
-        // Skipping early there would cancel a search without ever scheduling its replacement.
-        if (key === lastSearched) return
-
-        lastSearched = key
-
-        void search(1)
-      }, TERM_DEBOUNCE_MS)
-
-      return () => clearTimeout(timer)
-    }
-
-    // The same filters can arrive twice: effectiveSelection() returns a fresh object whenever the
-    // raw selection changes — picking a generation while a non-Pokemon super type is zeroing it
-    // out, for one. Only a real change should cost a request.
-    if (key === lastSearched) return
-
-    // Advanced mode starts with nothing picked, and searching that would fetch page one of the
-    // whole catalog for nothing. The first real filter change arms the search; from then on every
-    // change re-runs it — including clearing the filters back to empty again.
-    if (!armed && advancedKey === untouched) {
-      // Anything a simple search left on screen still goes: it does not answer these filters.
+    } else if (!armed && advancedKey === untouched) {
+      // Advanced mode starts with nothing picked, and searching that would fetch page one of the
+      // whole catalog for nothing. The first real filter change arms the search; from then on
+      // every change re-runs it — including clearing the filters back to empty again. Anything a
+      // simple search left on screen still goes: it does not answer these filters.
       clearResults()
 
       return
     }
 
-    armed = true
-    lastSearched = key
+    // Both modes wait out a pause before asking the server. Every keystroke in a card name box
+    // changes the key, so without this a typed name would be one request per character; the same
+    // wait also collapses a burst of picks — three sets chosen in a row — into the single search
+    // the user meant. The cleanup is the other half of it: a pending wait is thrown away as soon
+    // as the next change makes it stale.
+    const timer = setTimeout(() => {
+      // Deliberately inside the wait rather than guarding the effect: the cleanup below cancels
+      // the pending search on every re-run, and a re-run can land on a key that has already been
+      // searched — a trailing space makes a new terms object out of the same terms, and
+      // effectiveSelection() returns a fresh object whenever the raw selection changes. Skipping
+      // early there would cancel a search without ever scheduling its replacement.
+      if (key === lastSearched) return
 
-    void search(1)
+      // Simple mode must not arm the advanced search: arriving at untouched filters afterwards
+      // would then fetch page one of the whole catalog.
+      if (mode === 'advanced') armed = true
+
+      lastSearched = key
+
+      void search(1)
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => clearTimeout(timer)
   })
 
   /** Empties the results pool and drops the request that was filling it. */
@@ -245,6 +240,8 @@
   function toRequest(selected: FilterSelection, pageNumber: number): CardSearchRequest {
     // The filter widgets are string-valued, so every id arrives as a string; the API takes numbers.
     return {
+      // Left out when the box is empty, the same way the simple search leaves it out of its URL.
+      cardName: selected.cardName || undefined,
       superTypes: [...selected.superTypes],
       generations: selected.generations.map(Number),
       series: selected.series.map(Number),

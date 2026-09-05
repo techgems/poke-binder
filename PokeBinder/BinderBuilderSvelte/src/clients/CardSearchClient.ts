@@ -54,6 +54,8 @@ export interface StarterFilters {
 
 /** Filters for a card search. Ids go over the wire as numbers, unlike the string-valued UI state. */
 export interface CardSearchRequest {
+  /** Matched anywhere in the card's name, case-insensitively. Omit when the box is empty. */
+  cardName?: string
   superTypes: string[]
   generations: number[]
   series: number[]

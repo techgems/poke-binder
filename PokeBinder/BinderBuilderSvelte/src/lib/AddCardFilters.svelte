@@ -7,6 +7,8 @@
 
   /** The current state of every filter field, keyed by field. */
   export interface FilterSelection {
+    /** Matched anywhere in the card's name. The one typed field; everything else is a pick. */
+    cardName: string
     superTypes: string[]
     generations: string[]
     series: string[]
@@ -19,6 +21,7 @@
 
   export function emptySelection(): FilterSelection {
     return {
+      cardName: '',
       superTypes: [],
       generations: [],
       series: [],
@@ -55,7 +58,9 @@
    * the server must not narrow by filters the user can no longer see.
    */
   export function effectiveSelection(selection: FilterSelection): FilterSelection {
-    const applied = { ...selection }
+    // Trimmed here rather than at the request, so that adding a trailing space to a name is not a
+    // different search as far as the workspace is concerned.
+    const applied = { ...selection, cardName: selection.cardName.trim() }
 
     if (!pokemonFieldsApply(selection.superTypes)) {
       applied.generations = []
@@ -237,6 +242,19 @@
       Reset
     </button>
   </header>
+
+  <!-- Above the option-driven fields, and outside the loading branch below: matching a name asks
+       nothing of the catalog's filter options, so this one stays usable while they are still on
+       their way. -->
+  <label class="label">
+    <span class="label-text">Card Name</span>
+    <input
+      class="input"
+      type="text"
+      placeholder="Type a card name"
+      bind:value={selection.cardName}
+    />
+  </label>
 
   <!-- No error branch: a failed load takes the whole workspace, so this only ever sees the fetch
        succeed or still be running. -->
