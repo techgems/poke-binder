@@ -1,0 +1,42 @@
+@model BinderCard
+@{
+    // Guard the division: a binder with no pockets is not reachable through the form, but a card
+    // that divides by zero would take the whole list down with it.
+    var filled = Model.CardCount > 0
+        ? (int)Math.Round(100.0 * Model.CardsAdded / Model.CardCount)
+        : 0;
+}
+
+<a asp-page="/Binder" asp-route-binderId="@Model.BinderId"
+   class="card preset-glass-surface border border-surface-200-800/50 block space-y-1.5 p-3 transition hover:border-primary-500/50">
+    <div class="flex items-baseline justify-between gap-2">
+        @* min-w-0 lets the title shrink so a long name ellipses instead of pushing the size badge
+           out of the card. *@
+        <h2 class="min-w-0 truncate text-base font-semibold">@Model.Name</h2>
+        <span class="badge preset-tonal-primary shrink-0">@Model.SizeName</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        @* One line: the description is context on a list entry, not the entry itself, and a card
+           that grows with it makes the shelf uneven. *@
+        <p class="line-clamp-1 text-xs opacity-75">@Model.Description</p>
+    }
+
+    <div class="flex items-center gap-1.5 text-xs opacity-75">
+        <span>@Model.CardsAdded of @Model.CardCount cards</span>
+        <span aria-hidden="true">&middot;</span>
+        <span>@Model.Pages @(Model.Pages == 1 ? "page" : "pages")</span>
+        @if (Model.CardsMissing > 0)
+        {
+            <span aria-hidden="true">&middot;</span>
+            <span class="text-warning-600-400">@Model.CardsMissing missing</span>
+        }
+    </div>
+
+    @* Not a <progress>: this is decoration for the numbers stated above it, and a progress element
+       would announce the same fact a second time to a screen reader. *@
+    <div aria-hidden="true" class="h-1 w-full overflow-hidden rounded-full bg-surface-200-800">
+        <div class="h-full rounded-full bg-primary-500" style="width: @(filled)%"></div>
+    </div>
+</a>

@@ -1,0 +1,29 @@
+@using PokeBinder.Features.Binder.GetBinderList.Models
+@model IReadOnlyList<BinderListItem>
+
+@* The create handler swaps this whole element, so the empty state has to live inside it -- the
+   first binder a user makes replaces the "no binders yet" message with the grid. *@
+<div id="binder-list" class="mt-6">
+    @if (Model.Count == 0)
+    {
+        <p class="card preset-glass-surface border-surface-200-800/50 border p-6 text-center opacity-75">
+            No binders yet. The first one takes about ten seconds.
+        </p>
+    }
+    else
+    {
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            @foreach (var binder in Model)
+            {
+                <binder-card binder-id="@binder.Id"
+                             name="@binder.Name"
+                             description="@binder.Description"
+                             size-name="@binder.SizeName"
+                             pages="@binder.Pages"
+                             cards-added="@binder.CardsAdded"
+                             card-count="@binder.CardCount"
+                             cards-missing="@binder.CardsMissing"></binder-card>
+            }
+        </div>
+    }
+</div>

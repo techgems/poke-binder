@@ -1,0 +1,27 @@
+@model BinderAppBar
+
+@* Taken out of flow so a sticky sidebar underneath can span the full viewport height; pages allow
+   for it with their own top padding. The 1fr_2fr_1fr grid is what keeps the title centred on the
+   viewport rather than on whatever the two ends happen to contain. *@
+<header data-scope="app-bar" data-part="root" class="fixed inset-x-0 top-0 z-10">
+    <div data-scope="app-bar" data-part="toolbar" class="grid-cols-[1fr_2fr_1fr]">
+        <nav data-scope="app-bar" data-part="lead">
+            @if (Model.IsSlotContentNullOrEmpty(BinderAppBar.BrandSlot))
+            {
+                <span class="text-xl font-bold">PokeBinder</span>
+            }
+            else
+            {
+                @Model.RenderSlot(BinderAppBar.BrandSlot)
+            }
+        </nav>
+
+        <div data-scope="app-bar" data-part="headline" class="flex justify-center">
+            <span class="opacity-75">@Model.Title</span>
+        </div>
+
+        <nav data-scope="app-bar" data-part="trail" class="justify-end">
+            @Model.RenderSlot(BinderAppBar.OptionsSlot)
+        </nav>
+    </div>
+</header>

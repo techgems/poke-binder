@@ -1,0 +1,38 @@
+@model BinderModal
+@{
+    // The heading is referenced by aria-labelledby, so it needs an id that stays unique even if a
+    // page ever shows two of these.
+    var headingId = $"modal-title-{Guid.NewGuid():N}";
+}
+
+@* x-cloak keeps the panel hidden between page load and Alpine booting; app.css defines the rule.
+   The @@ is Razor's escape for a literal @, which is how Alpine's shorthands are written. *@
+<div x-cloak x-show="@Model.OpenState" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+     role="dialog" aria-modal="true" aria-labelledby="@headingId"
+     @@keydown.escape.window="@(Model.OpenState) = false">
+
+    @* Backdrop first so the panel paints over it; clicking it is the same as cancelling. *@
+    <div x-show="@Model.OpenState" x-transition.opacity
+         class="absolute inset-0 bg-surface-950/70"
+         @@click="@(Model.OpenState) = false" aria-hidden="true"></div>
+
+    @* Opaque, and no wider than the form inside it: a dialog this size holds a handful of fields,
+       so the glass treatment the workspace panels use only made it harder to read against the
+       blobs behind it. max-w-md keeps the two-column row stacked, which suits a short form. *@
+    <div x-show="@Model.OpenState" x-transition
+         class="card bg-surface-100-900 border-surface-200-800 relative w-full max-w-md space-y-4 border p-5 shadow-xl">
+        <header class="flex items-start justify-between gap-4">
+            <div>
+                <h2 id="@headingId" class="text-xl font-bold">@Model.Title</h2>
+                @if (!string.IsNullOrWhiteSpace(Model.Subtitle))
+                {
+                    <p class="text-sm opacity-75">@Model.Subtitle</p>
+                }
+            </div>
+            <button type="button" class="btn-icon hover:preset-tonal" aria-label="Close"
+                    @@click="@(Model.OpenState) = false">&times;</button>
+        </header>
+
+        @Model.ChildContent
+    </div>
+</div>

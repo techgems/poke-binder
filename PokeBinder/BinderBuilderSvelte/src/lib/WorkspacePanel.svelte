@@ -2,13 +2,13 @@
   /** The panels the workspace can show. Exactly one is ever selected. */
   export type WorkspaceTab = 'add' | 'binder'
 
-  /** Add Cards is the only panel that is actually built, so it is where the workspace starts. */
+  /** The Card Tray panel is the only one that is actually built, so it is where the workspace starts. */
   export const DEFAULT_WORKSPACE_TAB: WorkspaceTab = 'add'
 </script>
 
 <script lang="ts">
   import BookOpenIcon from '@lucide/svelte/icons/book-open'
-  import SearchIcon from '@lucide/svelte/icons/search'
+  import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
   import { Tabs } from '@skeletonlabs/skeleton-svelte'
 
   import AddCardsWorkspace from './AddCardsWorkspace.svelte'
@@ -36,8 +36,8 @@
       value="add"
       class="btn hover:preset-tonal data-[selected]:preset-filled-primary-500"
     >
-      <SearchIcon class="size-4" />
-      <span>Add Cards</span>
+      <ShoppingBasketIcon class="size-4" />
+      <span>Card Tray</span>
     </Tabs.Trigger>
     <Tabs.Trigger
       value="binder"

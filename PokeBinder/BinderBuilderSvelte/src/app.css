@@ -5,6 +5,15 @@
 
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
 
+/*
+  The Razor host owns the page chrome now -- layout, app bar, background layer -- so the classes
+  used there have to be scanned as well. Vite's own scan stops at this project's root, and a class
+  that only appears in a .cshtml would otherwise never make it into the bundle. Both trees: pages
+  and layouts under Pages/, Static Components under Components/.
+*/
+@source '../../Pages/**/*.cshtml';
+@source '../../Components/**/*.cshtml';
+
 @import './poke-binder.css';
 
 /* Dark mode is driven by the `.dark` class, which main.ts sets on <html> by default. */
@@ -24,4 +33,12 @@
 */
 [data-part='positioner'] > [data-part='content'] {
   z-index: 60;
+}
+
+/*
+  Alpine hides elements marked [x-cloak] only once it has booted; until then the browser has no
+  reason to. Without this rule the new-binder modal is painted open on every page load.
+*/
+[x-cloak] {
+  display: none !important;
 }

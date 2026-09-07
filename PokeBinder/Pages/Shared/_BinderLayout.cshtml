@@ -1,0 +1,66 @@
+@*
+    The chrome for the binder workspace: page background, colour theme and the top bar. All of it
+    came out of App.svelte, so that Razor owns the shell and the Svelte app owns only what happens
+    inside it -- a Razor page in this section gets the same frame without booting the SPA.
+
+    The theme and the dark-mode class sit on <html> deliberately. Skeleton paints the page from
+    `html { background-color: light-dark(--color-root-bg-light, --color-root-bg-dark) }` and reads
+    both custom properties from the [data-theme] element, so anything short of the root element
+    leaves that rule with nothing to resolve.
+
+    binder-shell.css is the same Tailwind + Skeleton sheet the SPA compiles, built to a plain file
+    by `npm run build:shell-css` so that a Razor page on this layout is styled without booting the
+    SPA. Rerun that script after adding classes to a .cshtml; the page that does boot the SPA ends
+    up with the sheet twice, which costs a download and changes nothing.
+*@
+@using PokeBinder.Components.Binder
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="PokeBinder">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - PokeBinder</title>
+    <link rel="icon" type="image/svg+xml" href="~/BinderBuilderSvelte/favicon.svg" />
+    <link rel="stylesheet" href="~/css/binder-shell.css" asp-append-version="true" />
+
+    @* HTMX before Alpine, and Alpine deferred: Alpine walks the DOM as soon as it loads, so it has
+       to run after the document is parsed, while htmx only needs to exist before the first
+       interaction. Pinned rather than floating -- an unattended major bump would land silently. *@
+    <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
+            integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+            crossorigin="anonymous"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"
+            integrity="sha384-9Ax3MmS9AClxJyd5/zafcXXjxmwFhZCdsT6HJoJjarvCaAkJlk5QDzjLJm+Wdx5F"
+            crossorigin="anonymous"></script>
+
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body class="min-h-dvh antialiased">
+
+    @* Decorative, diffused colour blobs behind the page content. Fixed and -z-10 so they stay put
+       while the workspace scrolls, and glow through the sidebar's glass. *@
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        @* Centred on the left edge so it glows through the action sidebar's glass. *@
+        <div class="absolute top-1/2 left-[-16rem] size-[44rem] -translate-y-1/2 rounded-full bg-primary-500/30 blur-3xl"></div>
+        <div class="absolute top-1/4 -right-64 size-[60rem] rounded-full bg-secondary-500/20 blur-3xl"></div>
+        <div class="absolute -bottom-56 left-1/3 size-[32rem] rounded-full bg-tertiary-500/20 blur-3xl"></div>
+    </div>
+
+    @* The bar itself is a component; the layout only says what goes at either end of it. *@
+    <binder-app-bar title="@ViewData["Title"]">
+        <slot name="@BinderAppBar.BrandSlot">
+            <span class="text-xl font-bold">PokeBinder</span>
+        </slot>
+        <slot name="@BinderAppBar.OptionsSlot">
+            <button type="button" class="btn preset-tonal-primary">Binders</button>
+        </slot>
+    </binder-app-bar>
+
+    @RenderBody()
+
+    @await RenderSectionAsync("Scripts", required: false)
+
+    @* Where Static Components' teleported scripts land. *@
+    <render-static-scripts />
+</body>
+</html>

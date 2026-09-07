@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PlusIcon from '@lucide/svelte/icons/plus'
   import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert'
 
   import {
@@ -21,6 +22,9 @@
     emptyTerms,
     type SimpleSearchTerms,
   } from './SimpleSearchFilters.svelte'
+  import AddToTrayButton from './AddToTrayButton.svelte'
+  import CardTray from './CardTray.svelte'
+  import { tray } from './tray.svelte'
   import CardSpotlight from './tilt/CardSpotlight.svelte'
   import TiltCard from './tilt/TiltCard.svelte'
 
@@ -287,10 +291,12 @@
 </script>
 
 <!-- The two side columns are fixed and only the middle one flexes, so whatever extra room the host
-     hands this grid all goes to the results. -->
+     hands this grid all goes to the results. The tray column is the wider of the two: each of its
+     rows carries art, a card name, a set name and a stepper, and at the filter column's width the
+     names were cut to three characters. -->
 <!-- relative so the spotlight below covers exactly this workspace: the tab strip above it stays
      reachable, and nothing has to stack a second dialog to get a card to the front. -->
-<div class="relative grid min-h-0 flex-1 grid-cols-[18rem_1fr_16rem] gap-4 {classes}">
+<div class="relative grid min-h-0 flex-1 grid-cols-[18rem_1fr_20rem] gap-4 {classes}">
   <!-- Filters. The mode selector sits in this column because all it does is choose which filter
        set is shown; the rows are auto/minmax(0,1fr) so the filters below can shrink and scroll. -->
   <div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
@@ -353,22 +359,34 @@
                 <!-- TiltCard stands in for a plain <img> and reserves the same 719:1000 box, so
                      taking the effect back out is a one-line swap. Cards with no art fall back to
                      the card back, which keeps every tile the same shape instead of leaving a hole
-                     in the grid. The scale stays small deliberately: this list scrolls, and a tile
-                     that grew past the gap between columns would be clipped at the container edge
-                     rather than overlapping its neighbour. -->
+                     in the grid.
+
+                     The effect is deliberately faint here. Tilt is a transform, so a tile paints
+                     outside its own box: rotation swings the near corners down over the name
+                     underneath, and growing on hover did the same from every edge at once. A
+                     quarter of the library's default rotation still reads as a lift at this size,
+                     and scaleFactor 1 keeps the card exactly as large as it was — it just stops
+                     growing into its own caption. -->
                 <TiltCard
                   src={card.imageUrl ?? CARD_BACK_URL}
                   alt={card.imageUrl ? (card.name ?? 'Card') : 'No image available'}
                   label={card.name ?? 'Card'}
                   class="w-full rounded-container"
-                  scaleFactor={1.06}
+                  tiltFactor={0.25}
+                  scaleFactor={1}
                   onclick={() => (spotlit = card)}
                 />
-                <figcaption class="space-y-0.5">
-                  <p class="truncate text-xs">{card.name}</p>
-                  <p class="truncate text-[0.625rem] opacity-60">
-                    {[card.setName, card.cardNumber].filter(Boolean).join(' · ')}
-                  </p>
+                <!-- The control keeps to the right and drops to the foot of the caption, level
+                     with the set line rather than the title. min-w-0 on the text column is what
+                     lets a long name ellipse against it instead of pushing it out of the tile. -->
+                <figcaption class="flex items-end justify-between gap-1">
+                  <div class="min-w-0 space-y-0.5">
+                    <p class="truncate text-xs">{card.name}</p>
+                    <p class="truncate text-[0.625rem] opacity-60">
+                      {[card.setName, card.cardNumber].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                  <AddToTrayButton {card} />
                 </figcaption>
               </figure>
             </li>
@@ -395,11 +413,7 @@
     </section>
 
     <!-- Selected -->
-    <aside
-      class="grid min-h-0 place-items-center rounded-container border border-surface-200-800/50"
-    >
-      <p class="opacity-60">Selected cards will appear here</p>
-    </aside>
+    <CardTray />
   {/if}
 
   <!-- A card with no art still gets lifted — its details are worth reading either way — but it is
@@ -425,10 +439,24 @@
     {/snippet}
 
     {#snippet actions()}
-      <!-- Placeholder alongside the one action that works: the selection this would add to is
-           still the empty column on the right. -->
-      <button type="button" class="btn preset-filled-primary-500" disabled>Add to binder</button>
-      <button type="button" class="btn preset-tonal" onclick={() => (spotlit = null)}>Close</button>
+      <!-- The reason to lift a card is to decide whether you want it, so the button that acts on
+           that answer is the widest thing on the row. Placing a card on a page of the binder is
+           still unbuilt; the tray is where a wanted card goes for now. -->
+      <button
+        type="button"
+        class="btn btn-lg preset-filled-primary-500 min-w-64 shadow-lg shadow-primary-500/30"
+        onclick={() => spotlit && tray.add(spotlit)}
+      >
+        <PlusIcon class="size-5" />
+        <span>
+          {spotlit && tray.quantityOf(spotlit.id) > 0
+            ? `Add another — ${tray.quantityOf(spotlit.id)} in the tray`
+            : 'Add to tray'}
+        </span>
+      </button>
+      <button type="button" class="btn btn-lg preset-tonal" onclick={() => (spotlit = null)}>
+        Close
+      </button>
     {/snippet}
   </CardSpotlight>
 </div>

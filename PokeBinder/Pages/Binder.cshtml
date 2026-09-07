@@ -2,10 +2,12 @@
 @model PokeBinder.Pages.SvelteAppModel
 @inject IWebHostEnvironment Env
 @{
-    ViewData["Title"] = "Svelte App";
-    Layout = null;
+    ViewData["Title"] = "Binder Builder";
+    Layout = "_BinderLayout";
 }
 
+@* Both helpers render the SPA's mount element and its assets, nothing else -- the page frame
+   around them is the layout's. *@
 @if (Env.IsDevelopment())
 {
     <dev-vite-scripts app-name="BinderBuilderSvelte" />

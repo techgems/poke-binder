@@ -1,0 +1,84 @@
+@using SaveBinderSlice = PokeBinder.Features.Binder.SaveBinder.SaveBinder
+@model PokeBinder.Pages.BindersModel.NewBinderForm
+@{
+    var nameErrors = Model.ErrorsFor(nameof(Model.Name));
+    var descriptionErrors = Model.ErrorsFor(nameof(Model.Description));
+    var sizeErrors = Model.ErrorsFor(nameof(Model.BinderSizeId));
+    var pagesErrors = Model.ErrorsFor(nameof(Model.Pages));
+}
+
+@*
+    Posts itself and is replaced by whatever comes back. A refusal returns this form again, with
+    the messages and the typed values still in it; a save returns the list instead and says so with
+    HX-Retarget, so the form needs no idea which happened.
+
+    method="post" is what makes Razor emit the antiforgery field, which htmx then serialises along
+    with everything else -- without it every post here would be a 400.
+*@
+<form id="new-binder-form" method="post" asp-page="/Binders" asp-page-handler="Create"
+      hx-post="/Binders?handler=Create" hx-target="#new-binder-form" hx-swap="outerHTML"
+      class="space-y-4"
+      x-data="{ pages: @Model.Pages }">
+
+    <label class="label">
+        <span class="label-text">Name</span>
+        <input class="input" type="text" name="Input.Name" value="@Model.Name"
+               maxlength="@SaveBinderSlice.MaxNameLength" placeholder="Master set, birthday pulls, ..."
+               aria-invalid="@(nameErrors.Count > 0 ? "true" : null)" />
+    </label>
+    @foreach (var message in nameErrors)
+    {
+        <p class="text-error-500 text-sm">@message</p>
+    }
+
+    <label class="label">
+        <span class="label-text">Description <span class="opacity-60">(optional)</span></span>
+        <textarea class="textarea" name="Input.Description" rows="2"
+                  maxlength="@SaveBinderSlice.MaxDescriptionLength">@Model.Description</textarea>
+    </label>
+    @foreach (var message in descriptionErrors)
+    {
+        <p class="text-error-500 text-sm">@message</p>
+    }
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <label class="label">
+            <span class="label-text">Size</span>
+            @* Each option carries its recommended length, so switching grids can refill the page
+               count without asking the server what that grid is usually sold with. *@
+            <select class="select" name="Input.BinderSizeId"
+                    @@change="pages = Number($event.target.selectedOptions[0].dataset.defaultPages)">
+                @foreach (var size in Model.Sizes)
+                {
+                    <option value="@size.Id" data-default-pages="@size.DefaultPages"
+                            selected="@(size.Id == Model.BinderSizeId)">
+                        @size.Name &mdash; @size.Description
+                    </option>
+                }
+            </select>
+        </label>
+
+        <label class="label">
+            <span class="label-text">Pages</span>
+            <input class="input" type="number" name="Input.Pages" x-model="pages"
+                   min="1" max="@SaveBinderSlice.MaxPages" />
+        </label>
+    </div>
+    @foreach (var message in sizeErrors.Concat(pagesErrors))
+    {
+        <p class="text-error-500 text-sm">@message</p>
+    }
+
+    @* Rules that are not about one field land on the request itself. *@
+    @foreach (var message in Model.ErrorsFor("Id"))
+    {
+        <p class="text-error-500 text-sm">@message</p>
+    }
+
+    <footer class="flex justify-end gap-2 pt-2">
+        <button type="button" class="btn hover:preset-tonal" @@click="newBinderOpen = false">Cancel</button>
+        <button type="submit" class="btn preset-filled-primary-500">
+            Create binder
+        </button>
+    </footer>
+</form>

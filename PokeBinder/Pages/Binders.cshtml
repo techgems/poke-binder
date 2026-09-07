@@ -1,0 +1,37 @@
+@page
+@model PokeBinder.Pages.BindersModel
+@{
+    ViewData["Title"] = "Your Binders";
+    Layout = "_BinderLayout";
+}
+
+@*
+    One Alpine scope for the whole page: the button opens the modal, the modal closes itself, and
+    binder-saved -- the event the create handler sends back on the HX-Trigger header -- closes it
+    from the server side without the page having to know whether the save succeeded.
+*@
+<main class="mx-auto w-full max-w-5xl px-4 pt-24 pb-12"
+      x-data="{ newBinderOpen: false }"
+      @@binder-saved.window="newBinderOpen = false; $refs.newBinder?.querySelector('form')?.reset()">
+
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Your binders</h1>
+            <p class="opacity-75">Pick one to open it, or start another.</p>
+        </div>
+
+        <button type="button" class="btn preset-filled-primary-500" @@click="newBinderOpen = true">
+            New binder
+        </button>
+    </div>
+
+    <partial name="_BinderList" model="Model.Binders" />
+
+    <div x-ref="newBinder">
+        <binder-modal open-state="newBinderOpen"
+                      title="New binder"
+                      subtitle="Pick a grid and how long the binder runs. Both can be changed later.">
+            <partial name="_NewBinderForm" model="Model.Input" />
+        </binder-modal>
+    </div>
+</main>
