@@ -1,7 +1,9 @@
-@page
-@model PokeBinder.Pages.BindersModel
+@* An explicit route rather than the file-name default: /my-binders reads as a place of your own,
+   and it keeps the shelf a word apart from /Binder, which is one binder open in the builder. *@
+@page "/my-binders"
+@model PokeBinder.Pages.MyBindersModel
 @{
-    ViewData["Title"] = "Your Binders";
+    ViewData["Title"] = "My Binders";
     Layout = "_BinderLayout";
 }
 
@@ -16,7 +18,7 @@
 
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold">Your binders</h1>
+            <h1 class="text-2xl font-bold">My binders</h1>
             <p class="opacity-75">Pick one to open it, or start another.</p>
         </div>
 

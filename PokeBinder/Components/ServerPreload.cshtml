@@ -1,0 +1,14 @@
+@model ServerPreload
+
+@*
+    Deliberately a classic script, not a module, and deliberately rendered where it is placed rather
+    than teleported to the foot of the page: a module is deferred, so this has to be an ordinary
+    script that runs the moment the parser reaches it. Put the tag above the SPA's own scripts and
+    the payload is in place before a line of the app has run.
+
+    Html.Raw on both values because they are already JavaScript literals -- Razor's HTML encoding
+    would turn the quotes in them into entities and the script would not parse.
+*@
+<script static-script type="text/javascript">
+    (window.pokeBinder = window.pokeBinder || {})[@Html.Raw(Model.KeyLiteral)] = @Html.Raw(Model.DataLiteral);
+</script>

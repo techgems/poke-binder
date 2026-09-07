@@ -17,11 +17,11 @@ namespace PokeBinder.Pages;
 /// validator refuses it -- which is all the page needs from HTMX.
 /// </summary>
 [Authorize]
-public class BindersModel : PageModel
+public class MyBindersModel : PageModel
 {
     private readonly BinderDbContext _db;
 
-    public BindersModel(BinderDbContext db)
+    public MyBindersModel(BinderDbContext db)
     {
         _db = db;
     }

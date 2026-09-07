@@ -1,18 +1,44 @@
 @page
-@model PokeBinder.Pages.SvelteAppModel
+@model PokeBinder.Pages.BinderModel
 @inject IWebHostEnvironment Env
 @{
-    ViewData["Title"] = "Binder Builder";
+    var binder = Model.Binder?.Binder;
+
+    ViewData["Title"] = binder?.Name ?? "Binder not found";
     Layout = "_BinderLayout";
 }
 
-@* Both helpers render the SPA's mount element and its assets, nothing else -- the page frame
-   around them is the layout's. *@
-@if (Env.IsDevelopment())
+@if (Model.Binder is null)
 {
-    <dev-vite-scripts app-name="BinderBuilderSvelte" />
+    <main class="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
+        <binder-icon icon="Search" size="size-10 opacity-40" />
+
+        <div class="space-y-1">
+            <p class="text-sm font-semibold tracking-wide uppercase opacity-60">404</p>
+            <h1 class="text-2xl font-bold">Binder not found</h1>
+            <p class="opacity-75">
+                This link does not point at a valid binder. It may have been deleted, or the
+                address may be wrong.
+            </p>
+        </div>
+
+        <a asp-page="/MyBinders" class="btn preset-filled-primary-500">My binders</a>
+    </main>
 }
 else
 {
-    <prod-vite-scripts app-name="BinderBuilderSvelte" />
+    @* Above the SPA's scripts, so the payload is on the page before the app boots and the app never
+       has to wait -- or ask -- for the binder it was opened on. *@
+    <server-preload key="binder" data="@Model.Binder" />
+
+    @* Both helpers render the SPA's mount element and its assets, nothing else -- the page frame
+       around them is the layout's. *@
+    @if (Env.IsDevelopment())
+    {
+        <dev-vite-scripts app-name="BinderBuilderSvelte" />
+    }
+    else
+    {
+        <prod-vite-scripts app-name="BinderBuilderSvelte" />
+    }
 }

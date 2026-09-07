@@ -1,5 +1,5 @@
 @using SaveBinderSlice = PokeBinder.Features.Binder.SaveBinder.SaveBinder
-@model PokeBinder.Pages.BindersModel.NewBinderForm
+@model PokeBinder.Pages.MyBindersModel.NewBinderForm
 @{
     var nameErrors = Model.ErrorsFor(nameof(Model.Name));
     var descriptionErrors = Model.ErrorsFor(nameof(Model.Description));
@@ -15,8 +15,8 @@
     method="post" is what makes Razor emit the antiforgery field, which htmx then serialises along
     with everything else -- without it every post here would be a 400.
 *@
-<form id="new-binder-form" method="post" asp-page="/Binders" asp-page-handler="Create"
-      hx-post="/Binders?handler=Create" hx-target="#new-binder-form" hx-swap="outerHTML"
+<form id="new-binder-form" method="post" asp-page="/MyBinders" asp-page-handler="Create"
+      hx-post="/my-binders?handler=Create" hx-target="#new-binder-form" hx-swap="outerHTML"
       class="space-y-4"
       x-data="{ pages: @Model.Pages }">
 

@@ -60,6 +60,20 @@ export const tray = {
     return entries.length >= MAX_CARDS
   },
 
+  /**
+   * Replaces the tray with what the server sent. Called once at startup from the preloaded binder,
+   * before anything is rendered -- not merged with what is already here, because at that point
+   * there is nothing here and a merge would only invent a rule for a case that cannot happen.
+   */
+  load(loaded: TrayEntry[]): void {
+    // Named `loaded` rather than `entries`: the parameter would shadow the state this is meant to
+    // replace, and every assignment would land back on the argument.
+    entries = loaded
+      .slice(0, MAX_CARDS)
+      .map((entry) => ({ card: entry.card, quantity: clamp(entry.quantity) }))
+      .filter((entry) => entry.quantity > 0)
+  },
+
   /** Copies of this card in the tray, or zero when it is not in it. */
   quantityOf(cardId: number): number {
     return entries[indexOf(cardId)]?.quantity ?? 0
