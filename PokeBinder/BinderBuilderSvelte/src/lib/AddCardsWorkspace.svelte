@@ -7,8 +7,8 @@
     type CardSearchRequest,
     type CardSearchResult,
     type SimpleCardSearchRequest,
-    type StarterFilters,
   } from '../clients/CardSearchClient'
+  import { preloadedSearchFilters } from '../clients/preload'
   import AddCardFilters, {
     effectiveSelection,
     emptySelection,
@@ -32,59 +32,19 @@
   const CARD_BACK_URL = '/images/TcgImages/card-back.png'
 
   interface Props {
-    /** Load the filter options once this turns true — lets the host defer the request. */
-    active?: boolean
     /** Additional classes for the workspace grid. */
     class?: string
   }
 
-  let { active = true, class: classes = '' }: Props = $props()
+  let { class: classes = '' }: Props = $props()
 
   // Which filtering system is driving the search. Only the active one is rendered, so its state is
   // the only state the results can be built from; the others keep theirs for when they come back.
   let mode = $state<SearchMode>(DEFAULT_SEARCH_MODE)
 
-  // The catalog's filter options. Advanced filters are built entirely out of them, so advanced mode
-  // cannot open without this fetch — which is why it is owned here and its failure takes the whole
-  // workspace rather than one column of it.
-  let starterFilters = $state<StarterFilters | null>(null)
-  let filtersLoading = $state(false)
-  let filtersError = $state<string | null>(null)
-
-  // Deliberately not $state. It records that the request has been made at all, and the effect below
-  // must not depend on it: reading a piece of state that loadStarterFilters() also writes is what
-  // turns a failed load into an unbounded retry loop, since clearing `loading` re-runs the effect,
-  // which fetches again, forever. A plain variable is invisible to the effect, so the only way back
-  // in is retryStarterFilters() — a person clicking a button.
-  let filtersRequested = false
-
-  // Scoped to advanced mode on purpose. Simple search has its own endpoint and shares nothing with
-  // these options, so it must neither pay for the request nor be held up by it failing.
-  $effect(() => {
-    if (active && mode === 'advanced') void loadStarterFilters()
-  })
-
-  async function loadStarterFilters() {
-    if (filtersRequested) return
-
-    filtersRequested = true
-    filtersLoading = true
-    filtersError = null
-
-    try {
-      starterFilters = await CardSearchClient.getStarterFilters()
-    } catch (error) {
-      filtersError = error instanceof Error ? error.message : String(error)
-    } finally {
-      filtersLoading = false
-    }
-  }
-
-  function retryStarterFilters() {
-    filtersRequested = false
-
-    void loadStarterFilters()
-  }
+  // The catalog's filter options, handed over by the Razor page before this app started. They are
+  // read once: the page embeds one snapshot, and nothing here can change it.
+  const starterFilters = preloadedSearchFilters()
 
   // Advanced filters: what the user has picked, including choices the current super type has hidden.
   let selection = $state<FilterSelection>(emptySelection())
@@ -303,31 +263,33 @@
     <SearchModeSelector bind:mode />
     {#if mode === 'simple'}
       <SimpleSearchFilters bind:terms />
-    {:else if !filtersError}
-      <AddCardFilters filters={starterFilters} loading={filtersLoading} bind:selection />
+    {:else if starterFilters}
+      <AddCardFilters filters={starterFilters} loading={false} bind:selection />
     {/if}
   </div>
 
-  {#if mode === 'advanced' && filtersError}
+  {#if mode === 'advanced' && !starterFilters}
     <!-- Promoted across the results and selected columns rather than tucked into the filter column:
          with no options to pick there is nothing to filter by and nothing to search, so those two
          columns would only be separate ways of showing an empty box. The mode selector stays
-         outside it deliberately — this failure says nothing about simple search, which calls its
-         own endpoint, and hiding the selector behind the error would strand the user in the one
-         mode that is actually broken. -->
+         outside it deliberately — this says nothing about simple search, which has its own
+         endpoint, and hiding the selector behind it would strand the user in the one mode that is
+         actually broken.
+
+         There is nothing to retry: the options arrive with the page, so a missing set means the
+         page itself was served without them and only a fresh one can fix it. -->
     <div
       class="col-span-2 grid min-h-0 place-items-center rounded-container border border-error-500/40 bg-error-500/5 p-6"
     >
       <div class="max-w-md space-y-3 text-center">
         <TriangleAlertIcon class="mx-auto size-8 text-error-500" />
-        <h3 class="h4">Card filters could not be loaded</h3>
+        <h3 class="h4">Card filters were not sent with this page</h3>
         <p class="text-sm opacity-75">
-          Advanced filters are built from these options, so there is nothing to filter by until the
-          request goes through.
+          Advanced filters are built from options the server embeds when the page loads, so there is
+          nothing here to filter by. Reloading should bring them back.
         </p>
-        <p class="text-xs opacity-60">{filtersError}</p>
-        <button type="button" class="btn preset-filled-primary-500" onclick={retryStarterFilters}>
-          Try again
+        <button type="button" class="btn preset-filled-primary-500" onclick={() => location.reload()}>
+          Reload
         </button>
       </div>
     </div>

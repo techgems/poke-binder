@@ -56,7 +56,7 @@
   -->
   <Tabs.Content value="add" class="min-h-0 flex-1">
     <div class="flex h-full flex-col">
-      <AddCardsWorkspace active={tab === 'add'} />
+      <AddCardsWorkspace />
     </div>
   </Tabs.Content>
 

@@ -108,21 +108,6 @@ export interface CardSearchPage {
 }
 
 export const CardSearchClient = {
-  async getStarterFilters(signal?: AbortSignal): Promise<StarterFilters> {
-    const response = await fetch('/api/cardFilters/starterFilters', {
-      // The SPA is served by the same host as the API, so cookies are sent by default.
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-      signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to load starter filters (${response.status} ${response.statusText}).`)
-    }
-
-    return (await response.json()) as StarterFilters
-  },
-
   async searchByFilter(
     request: CardSearchRequest,
     signal?: AbortSignal,

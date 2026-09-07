@@ -1,3 +1,5 @@
+import type { StarterFilters } from './CardSearchClient'
+
 // Data the Razor page put on the document before the app booted.
 //
 // The page writes each payload into window.pokeBinder under a key (see Components/ServerPreload).
@@ -5,7 +7,7 @@
 // `any` — so the cast lives here, once, next to the types it claims to produce. Everywhere else
 // reads a typed value and never touches window.
 //
-// These interfaces mirror the projection GetFullBinder returns, in the camelCase the serializer
+// These interfaces mirror the projections the slices return, in the camelCase the serializer
 // writes. They are the same shapes the API would return for the same slice, which is the point:
 // preloaded and fetched data are interchangeable.
 
@@ -67,6 +69,7 @@ export interface PreloadedBinder {
 /** The namespace the page writes into. One object, so pages add keys rather than globals. */
 interface PreloadNamespace {
   binder?: unknown
+  searchFilters?: unknown
 }
 
 declare global {
@@ -95,4 +98,21 @@ export function preloadedBinder(): PreloadedBinder | null {
   const binder = payload as PreloadedBinder
 
   return binder.found && binder.binder ? binder : null
+}
+
+/**
+ * The options the advanced search is built from, or null when the page did not send them.
+ *
+ * These used to be fetched after the app booted, which meant the first click on Advanced Filters
+ * waited on a request for a list that changes about as often as the card catalog does. The page
+ * embeds them now, so the filters are ready before the app is.
+ */
+export function preloadedSearchFilters(): StarterFilters | null {
+  const payload = window.pokeBinder?.searchFilters
+
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  return payload as StarterFilters
 }

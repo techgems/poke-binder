@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
 using PokeBinder.Auth;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Features.Binder.GetFullBinder;
 using PokeBinder.Features.CardImages;
+using PokeBinder.Features.CardSearch.GetSearchStarterFilters;
 using PokeBinder.TcgCatalog.DbContext;
 
 namespace PokeBinder.Pages;
@@ -24,15 +26,18 @@ public class BinderModel : PageModel
     private readonly BinderDbContext _binderContext;
     private readonly TcgCatalogDbContext _catalogContext;
     private readonly CardImageUrls _imageUrls;
+    private readonly IMemoryCache _cache;
 
     public BinderModel(
         BinderDbContext binderContext,
         TcgCatalogDbContext catalogContext,
-        CardImageUrls imageUrls)
+        CardImageUrls imageUrls,
+        IMemoryCache cache)
     {
         _binderContext = binderContext;
         _catalogContext = catalogContext;
         _imageUrls = imageUrls;
+        _cache = cache;
     }
 
     /// <summary>
@@ -49,6 +54,13 @@ public class BinderModel : PageModel
     /// </summary>
     public GetFullBinder.Response? Binder { get; private set; }
 
+    /// <summary>
+    /// The options the advanced card search is built from, handed over with the page. The slice
+    /// caches them for a day, so this costs a dictionary lookup per page load rather than the seven
+    /// queries it looks like.
+    /// </summary>
+    public GetSearchStarterFilters.Response? SearchFilters { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
         if (BinderId is not null)
@@ -64,6 +76,14 @@ public class BinderModel : PageModel
             if (binder.Found)
             {
                 Binder = binder;
+
+                // Only alongside a binder: these are for the workspace, and the 404 below boots no
+                // workspace to use them.
+                SearchFilters = await GetSearchStarterFilters.Handler(
+                    new GetSearchStarterFilters.Request(),
+                    _catalogContext,
+                    _cache,
+                    ct);
 
                 return Page();
             }

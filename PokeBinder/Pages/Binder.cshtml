@@ -30,6 +30,7 @@ else
     @* Above the SPA's scripts, so the payload is on the page before the app boots and the app never
        has to wait -- or ask -- for the binder it was opened on. *@
     <server-preload key="binder" data="@Model.Binder" />
+    <server-preload key="searchFilters" data="@Model.SearchFilters" />
 
     @* Both helpers render the SPA's mount element and its assets, nothing else -- the page frame
        around them is the layout's. *@
