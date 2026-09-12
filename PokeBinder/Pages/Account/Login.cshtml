@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model PokeBinder.Pages.Account.LoginModel
 @{
     Layout = "_LandingLayout";
@@ -86,7 +86,7 @@
                            page's near-white text. Label and field are coloured explicitly here instead. *@
                         <label asp-for="Input.Email" class="mb-2 block text-sm font-medium text-neutral-200"></label>
                         <div class="text-neutral-900">
-                            <pines-input show-label="false" asp-for="Input.Email"></pines-input>
+                            <pines-input show-label="false" asp-for="Input.Email" autocomplete="email" placeholder="Email"></pines-input>
                         </div>
                         <span asp-validation-for="Input.Email" class="mt-1 block text-xs text-rose-300"></span>
                     </div>
