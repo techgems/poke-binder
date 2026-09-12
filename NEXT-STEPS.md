@@ -86,15 +86,7 @@ to both actions, or the feature becomes mouse-only.
 
 ---
 
-## 4. The tray heading should collapse the strip
-
-In `BinderTrayStrip.svelte` only the Hide/Show button toggles the panel. Clicking anywhere in the
-section heading should do the same. Keep the button — it is what announces the state to a screen
-reader — and make the surrounding header a click target for the same action.
-
----
-
-## 5. Third tab: binder settings
+## 4. Third tab: binder settings
 
 A third tab beside Card Tray and Binder (`WorkspacePanel.svelte`), for the binder's own properties:
 name, dimensions (grid size), page count, and whatever else belongs to the binder rather than its

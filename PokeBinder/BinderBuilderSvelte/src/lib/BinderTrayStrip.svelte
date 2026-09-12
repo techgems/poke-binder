@@ -78,18 +78,18 @@
   a tile that swung under the pointer would fight the drag it is about to be part of.
 -->
 <section class="shrink-0 rounded-container border border-surface-200-800/50">
-  <header class="flex items-center justify-between gap-2 px-3 py-2">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <header
+    class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 select-none"
+    onclick={() => (collapsed = !collapsed)}
+  >
     <h3 class="text-sm font-semibold">
       Cards in Tray
       <span class="opacity-60">({tray.totalQuantity})</span>
     </h3>
 
-    <button
-      type="button"
-      class="btn btn-sm hover:preset-tonal"
-      aria-expanded={!collapsed}
-      onclick={() => (collapsed = !collapsed)}
-    >
+    <button type="button" class="btn btn-sm hover:preset-tonal" aria-expanded={!collapsed}>
       <span>{collapsed ? 'Show' : 'Hide'}</span>
       <ChevronDownIcon class="size-4 transition-transform {collapsed ? 'rotate-180' : ''}" />
     </button>

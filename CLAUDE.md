@@ -1,7 +1,8 @@
 # PokeBinder — agent instructions
 
-Scoped to the styling pipeline for now. Everything below is load-bearing for the app's visual
-identity; get it wrong and pages render unstyled rather than failing loudly.
+Two things so far: the styling pipeline, which is load-bearing for the app's visual identity — get
+it wrong and pages render unstyled rather than failing loudly — and how to get the app running and
+signed in locally, which is the only way to look at the binder workspace at all.
 
 ## Two stylesheets, two design systems
 
@@ -62,3 +63,45 @@ download and changes nothing else.
   put it on `_BinderLayout` and rebuild the shell sheet.
 - Production also needs `npm run build` for the SPA bundle. That build and the shell stylesheet are
   separate artifacts — building one does not refresh the other.
+
+
+## Running the app locally
+
+`.claude/launch.json` holds the one configuration, `pokebinder`: `dotnet run` on
+**http://localhost:5076** with the Development environment. Start it from there rather than by hand
+— `Program.cs` calls `RunViteDevServer()` in Development, so the same command also brings up Vite
+for the SPA and the two stay in step. Vite picks whatever port is free (5173 upward) and the tag
+helpers resolve it, so the port it prints is not one to hard-code anywhere.
+
+### Signing in
+
+Every binder page is behind auth, and the sign-in is passwordless — there is no password to type,
+and in Development there is no mail server either. The loop is:
+
+1. Submit an email address on `/Account/Login`. An unknown address registers an account on the spot,
+   which is intended: dev accounts are meant to be cheap.
+2. `LoginModel.GenerateTokenAndLink` writes the one-time link to **`PokeBinder/passwordless.txt`**
+   instead of sending it. The file is gitignored and is overwritten on every attempt, so the link in
+   it is always the most recent one.
+3. Open that URL. It lands on `/Account/AuthCallback`, which sets the cookie and drops you on the
+   site signed in.
+
+The token is single-use and short-lived; a stale `passwordless.txt` from an earlier session will not
+work, so re-submit the email rather than reusing what is already on disk.
+
+### Finding a binder
+
+`/Binder` with no id renders the 404 page — the route needs a specific binder. `/my-binders` lists
+the signed-in account's binders and links to each; go through it rather than guessing an id.
+
+### Looking at the workspace
+
+The workspace is the SPA: the Card Tray and Binder tabs both live inside it, and the tray strip is
+on the Binder tab. Panels there open and close on a 200ms `slide` transition, so a screenshot taken
+the instant after a click can still show the previous state. Give it a beat, or read the state out
+of the DOM instead of the pixels — the latter is the more reliable check anyway.
+
+One caveat when driving the page with browser automation: synthesised `Enter`/`Space` keypresses
+arrive with an empty `event.key` and so never produce the activation click a real key press would.
+A keyboard path that looks broken under automation is worth confirming with `element.click()`, which
+is exactly what the browser does on activation, before believing it.
