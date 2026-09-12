@@ -65,28 +65,7 @@ arrows' `disabled` before changing anything.
 
 ---
 
-## 3. "Click-add mode"
-
-Today a click always moves cards: a tray tile goes to the first free pocket
-(`binderPage.placeInFirstFreeSlot`), and a placed card returns to the tray
-(`binderPage.returnToTray`). Good behaviour, wrong default — it should be something the user turns
-on deliberately.
-
-- Add a **click-add mode** toggle to the floating action sidebar (`ActionSidebar.svelte`), which is
-  currently inert and is the natural home for it.
-- **Mode on:** today's behaviour, unchanged.
-- **Mode off:** clicking a card opens the spotlight (`CardSpotlight`) instead of moving anything.
-- **Mode off, tray cards:** a hover overlay on the tile offering two explicit actions — *add to the
-  next open slot* and *remove from the tray*. So the click-move behaviour is still reachable without
-  the mode, just never by accident.
-
-Note that the click handlers currently double as the keyboard-reachable path for drag and drop
-(`BinderPage.svelte`, `BinderTrayStrip.svelte`). Whatever replaces them must keep a non-drag route
-to both actions, or the feature becomes mouse-only.
-
----
-
-## 4. Third tab: binder settings
+## 3. Third tab: binder settings
 
 A third tab beside Card Tray and Binder (`WorkspacePanel.svelte`), for the binder's own properties:
 name, dimensions (grid size), page count, and whatever else belongs to the binder rather than its

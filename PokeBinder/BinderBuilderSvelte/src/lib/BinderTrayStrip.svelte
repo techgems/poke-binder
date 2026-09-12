@@ -1,15 +1,26 @@
 <script lang="ts">
+  import BetweenHorizontalStartIcon from '@lucide/svelte/icons/between-horizontal-start'
   import ChevronDownIcon from '@lucide/svelte/icons/chevron-down'
   import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left'
   import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
+  import Trash2Icon from '@lucide/svelte/icons/trash-2'
 
   import { tick } from 'svelte'
   import { cubicInOut } from 'svelte/easing'
   import { slide } from 'svelte/transition'
 
-  import { binderPage } from './binder-page.svelte'
+  import type { CardSearchResult } from '../clients/CardSearchClient'
+  import { binderPage, type DragSource } from './binder-page.svelte'
+  import { clickAdd } from './click-add.svelte'
   import { prefersReducedMotion } from './tilt/prefers-reduced-motion.svelte'
   import { tray } from './tray.svelte'
+
+  interface Props {
+    /** A tile was clicked with click-add mode off, which lifts the card rather than moving it. */
+    onspotlight?: (source: DragSource) => void
+  }
+
+  let { onspotlight }: Props = $props()
 
   /** Stand-in art for cards the catalog has no image for. */
   const CARD_BACK_URL = '/images/TcgImages/card-back.png'
@@ -60,6 +71,29 @@
   let overTray = $state(false)
 
   const acceptsDrop = $derived(binderPage.isDraggingFromSlot)
+
+  // Whether the place action has anywhere to put a card. placeInFirstFreeSlot only ever looks at
+  // the open spread, so a full spread means the button does nothing -- better to say so than to
+  // offer a press that goes nowhere.
+  const hasFreePocket = $derived(binderPage.visibleSlots.some((slot) => slot.card === null))
+
+  function tileTitle(card: CardSearchResult) {
+    const name = [card.name, card.setName].filter(Boolean).join(' · ')
+
+    return clickAdd.enabled
+      ? `${name} — drag onto a pocket, or click to use the first free one`
+      : `${name} — drag onto a pocket, or click to take a closer look`
+  }
+
+  // Removing takes the whole tile with it, copies and all, so the label counts them rather than
+  // letting one press quietly discard four cards.
+  function removeLabel(entry: { card: CardSearchResult; quantity: number }) {
+    const name = entry.card.name ?? 'card'
+
+    return entry.quantity > 1
+      ? `Remove all ${entry.quantity} copies of ${name} from the tray`
+      : `Remove ${name} from the tray`
+  }
 
   function scrollBy(direction: -1 | 1) {
     if (!scroller) return
@@ -152,14 +186,20 @@
                  seventh of 1920px is a 232px card, and a row of those is a third of the workspace
                  tall, stealing from the page the tray exists to serve. Past that width the cards
                  hold still and an eighth simply fits. -->
-            <li class="relative shrink-0 grow-0 basis-[calc((100%-3.36rem)/7)] min-w-20 max-w-32">
-              <!-- A button as well as a drag source: clicking drops the card into the first free
-                   pocket, which is the same transfer without needing a mouse to complete it. -->
+            <li
+              class="group relative shrink-0 grow-0 basis-[calc((100%-3.36rem)/7)] min-w-20 max-w-32"
+            >
+              <!-- A button as well as a drag source: with click-add mode on, clicking drops the
+                   card into the first free pocket, which is the same transfer without needing a
+                   mouse to complete it. With the mode off it lifts the card instead, and the
+                   transfer moves to the overlay below. -->
               <button
                 type="button"
                 class="block w-full cursor-grab active:cursor-grabbing"
-                title="{[card.name, card.setName].filter(Boolean).join(' · ')} — drag onto a pocket, or click to use the first free one"
-                aria-label="Place {card.name ?? 'card'} in the first free pocket"
+                title={tileTitle(card)}
+                aria-label={clickAdd.enabled
+                  ? `Place ${card.name ?? 'card'} in the first free pocket`
+                  : `Take a closer look at ${card.name ?? 'card'}`}
                 draggable="true"
                 ondragstart={(event) => {
                   // Firefox will not start a drag without something on the DataTransfer, even
@@ -168,7 +208,15 @@
                   binderPage.startDrag({ kind: 'tray', card })
                 }}
                 ondragend={() => binderPage.endDrag()}
-                onclick={() => binderPage.placeInFirstFreeSlot(card)}
+                onclick={() => {
+                  if (clickAdd.enabled) {
+                    binderPage.placeInFirstFreeSlot(card)
+
+                    return
+                  }
+
+                  onspotlight?.({ kind: 'tray', card })
+                }}
               >
                 <img
                   src={card.imageUrl ?? CARD_BACK_URL}
@@ -177,6 +225,43 @@
                   class="w-full rounded bg-surface-200-800/40"
                 />
               </button>
+
+              {#if !clickAdd.enabled}
+                <!-- What the click used to do, said out loud instead: the two transfers a tile has,
+                     as buttons you have to aim at. Revealed on hover and on focus-within both --
+                     the second is what keeps them off the mouse, since a button at opacity 0 is
+                     still in the tab order and tabbing to one brings the pair into view. A touch
+                     screen has no hover at all, and reaches the same two actions under the lifted
+                     card instead.
+
+                     pointer-events-none on the wrapper so the gaps around the buttons still belong
+                     to the tile underneath, which is the drag handle. -->
+                <div
+                  class="pointer-events-none absolute inset-0 flex items-end justify-center gap-1 rounded bg-surface-50-950/70 p-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                >
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-sm pointer-events-auto preset-filled-primary-500"
+                    title={hasFreePocket
+                      ? `Place ${card.name ?? 'card'} in the first free pocket`
+                      : 'Every pocket on this spread is full'}
+                    aria-label="Place {card.name ?? 'card'} in the first free pocket"
+                    disabled={!hasFreePocket}
+                    onclick={() => binderPage.placeInFirstFreeSlot(card)}
+                  >
+                    <BetweenHorizontalStartIcon class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-sm pointer-events-auto preset-filled-error-500"
+                    title={removeLabel(entry)}
+                    aria-label={removeLabel(entry)}
+                    onclick={() => tray.remove(card.id)}
+                  >
+                    <Trash2Icon class="size-4" />
+                  </button>
+                </div>
+              {/if}
 
               <!-- How many of this card are still waiting, sitting on the art so the strip stays one
                    tile tall. -->

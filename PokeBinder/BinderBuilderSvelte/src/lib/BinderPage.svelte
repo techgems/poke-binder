@@ -1,5 +1,16 @@
 <script lang="ts">
-  import { binderPage } from './binder-page.svelte'
+  import { binderPage, type DragSource } from './binder-page.svelte'
+  import { clickAdd } from './click-add.svelte'
+
+  interface Props {
+    /**
+     * A placed card was clicked with click-add mode off. Nothing has moved: the caller decides what
+     * looking at a card means, which here is lifting it into the spotlight.
+     */
+    onspotlight?: (source: DragSource) => void
+  }
+
+  let { onspotlight }: Props = $props()
 
   /** Stand-in art for cards the catalog has no image for. */
   const CARD_BACK_URL = '/images/TcgImages/card-back.png'
@@ -38,12 +49,15 @@
     return `min(${byWidth}, ${byHeight})`
   })
 
+  // Says what a click will actually do, which is the whole point of the mode being a mode.
   function slotLabel(index: number) {
     const card = binderPage.slots[index]
 
-    return card
+    if (!card) return `Empty pocket ${index + 1}`
+
+    return clickAdd.enabled
       ? `${card.name ?? 'Card'} in pocket ${index + 1}. Click to send it back to the tray.`
-      : `Empty pocket ${index + 1}`
+      : `${card.name ?? 'Card'} in pocket ${index + 1}. Click to take a closer look.`
   }
 </script>
 
@@ -77,7 +91,8 @@
           {@const card = slot.card}
           {@const isTarget = over === index}
           <!-- A button, so a pocket is reachable and operable without a drag: clicking a full one
-               sends its card back to the tray. p-0 because a native button carries its own padding,
+               sends its card back to the tray, or lifts it for a look with click-add mode off.
+               p-0 because a native button carries its own padding,
                which on a pocket this size leaves the card floating in the middle of its own slot.
                dragover has to preventDefault on every pass or the browser refuses the drop -- that
                is the API's way of asking whether this element accepts it. -->
@@ -105,7 +120,17 @@
               over = null
               binderPage.dropOnSlot(index)
             }}
-            onclick={() => binderPage.returnToTray(index)}
+            onclick={() => {
+              if (clickAdd.enabled) {
+                binderPage.returnToTray(index)
+
+                return
+              }
+
+              // Off, a click is a look. The way back to the tray is a button under the lifted
+              // card, so the keyboard route this click used to be survives the mode being off.
+              if (card) onspotlight?.({ kind: 'slot', card, index })
+            }}
           >
             {#if card}
               <img

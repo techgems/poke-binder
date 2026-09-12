@@ -73,6 +73,12 @@ download and changes nothing else.
 for the SPA and the two stay in step. Vite picks whatever port is free (5173 upward) and the tag
 helpers resolve it, so the port it prints is not one to hard-code anywhere.
 
+**Stop it again before the turn is over.** Any prompt an agent started the server for is a prompt
+that ends by killing it — no leaving it up for the next one. It holds port 5076 and a Vite port, so
+a server left behind is what makes the next `dotnet run` bind somewhere else or fail outright, and
+its Vite child keeps rebuilding against a session nobody is watching. The Ctrl+C equivalent depends
+on how it was started; a preview server is stopped by the same tool that launched it.
+
 ### Signing in
 
 Every binder page is behind auth, and the sign-in is passwordless — there is no password to type,

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MousePointerClickIcon from '@lucide/svelte/icons/mouse-pointer-click'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import RedoIcon from '@lucide/svelte/icons/redo-2'
   import SearchIcon from '@lucide/svelte/icons/search'
@@ -6,6 +7,7 @@
   import UndoIcon from '@lucide/svelte/icons/undo-2'
 
   import ActionSidebar from './lib/ActionSidebar.svelte'
+  import { clickAdd } from './lib/click-add.svelte'
   import Modal from './lib/Modal.svelte'
   import WorkspacePanel, {
     DEFAULT_WORKSPACE_TAB,
@@ -41,6 +43,21 @@
       onclick={() => (searchOpen = true)}
     >
       <SearchIcon class="size-6" />
+    </button>
+    <!-- A switch, not an action: aria-pressed is what says so, and the filled state is the same
+         claim made in colour. It sits with the other rail buttons rather than in the binder view
+         because it governs both halves of that view -- the pockets and the tray strip. -->
+    <button
+      type="button"
+      class="btn-icon btn-icon-lg {clickAdd.enabled ? 'preset-tonal-primary' : 'hover:preset-tonal'}"
+      title={clickAdd.enabled
+        ? 'Click-add mode is on — clicking a card moves it'
+        : 'Click-add mode is off — clicking a card opens it for a look'}
+      aria-label="Click-add mode"
+      aria-pressed={clickAdd.enabled}
+      onclick={() => clickAdd.toggle()}
+    >
+      <MousePointerClickIcon class="size-6" />
     </button>
     <button type="button" class="btn-icon btn-icon-lg hover:preset-tonal" title="Undo" aria-label="Undo">
       <UndoIcon class="size-6" />
