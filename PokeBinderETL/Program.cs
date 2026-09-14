@@ -1,6 +1,6 @@
-﻿//#define IS_DATA_LOAD
+﻿#define IS_DATA_LOAD
 //#define IS_IMAGE_DOWNLOAD
-#define IS_VALIDATE
+//#define IS_VALIDATE
 
 using PokeBinder.ETL.Config;
 using PokeBinder.ETL.CsvLoader;
@@ -102,7 +102,7 @@ namespace PokeBinder.ETL
 #endif
 
 #if IS_IMAGE_DOWNLOAD
-            await cardRepository.SyncImagesForAllCards();
+            await cardUpsertService.SyncImagesForAllCards();
 #endif
 
 #if IS_VALIDATE

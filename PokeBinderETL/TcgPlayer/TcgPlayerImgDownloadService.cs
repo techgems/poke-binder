@@ -71,13 +71,11 @@ public class TcgPlayerImgDownloadService
     {
         var imageSizeTermination = isFallback ? W200 : W1000;
 
-        string cDriveRoot = @"C:\";
-        Directory.SetCurrentDirectory(cDriveRoot);
         Directory.CreateDirectory(directorySet);
 
         using Stream downloadStreamSmallImg = await _client.GetStreamAsync($"product/{tcgPlayerId}{imageSizeTermination}");
 
-        var filePath = $"/{directorySet}/{tcgPlayerId}{imageSizeTermination}";
+        var filePath = $"{directorySet}/{tcgPlayerId}{imageSizeTermination}";
 
         // Create a FileStream to write the data to the destination file
         using FileStream fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
