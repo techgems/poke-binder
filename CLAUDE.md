@@ -17,6 +17,41 @@ The app runs two separate Tailwind builds. They are not interchangeable and must
 and a `bg-neutral-900` in the binder area both produce an element with no styling at all, because
 the class does not exist in the stylesheet that page loads.
 
+## Rebuilding the site stylesheet
+
+**This sheet is built by the standalone Tailwind CLI installed on the machine, not by npm.** It is
+on `PATH` as `tailwindcss` (here: `C:\Tailwind\tailwindcss.exe`), and it is a self-contained
+binary: it carries its own copy of Tailwind, so nothing next to `input.css` has to be installed and
+the version it reports is the version that built the sheet.
+
+```bash
+tailwindcss --cwd PokeBinder -i wwwroot/input.css -o wwwroot/css/site.tailwind.css
+```
+
+Run it **whenever a class is added or changed in a file `_Layout`, `_AdminLayout` or
+`_LandingLayout` serves**. `-w` adds a watcher. Same silent failure as the shell sheet below, same
+cure.
+
+Three things about that command are load-bearing:
+
+- **`--cwd PokeBinder`, not the repo root.** Tailwind scans the working directory on top of the
+  `@source` globs, and what that sweeps in changes the output. From the app project it reaches
+  `Components/Binder/BinderIcon.cshtml.cs` — icon sizes like `h-5` live in a `.cs` file, which the
+  `*.cshtml` globs do not match and which nothing else would generate. From the repo root it also
+  sweeps `.claude/skills/**/*.md`, which pads the sheet with several hundred utilities out of
+  library documentation. Both builds succeed and neither says anything.
+- **`@import "tailwindcss";` has to stay in `input.css`.** The `@apply` rules at the foot of that
+  file cannot resolve a utility without it, so a build missing the line fails outright. It was
+  dropped once already, in `0e6e0c8`, which left the sheet unbuildable by any route until it came
+  back.
+- **Do not add a `package.json` to `PokeBinder/`** to get an npm CLI for this. There is no npm
+  project for the app and this sheet does not want one; an npm-installed CLI is also a different
+  Tailwind version from the standalone binary, which rewrites the whole artifact.
+
+The binder shell sheet below is the other way round -- it *is* an npm script, because it needs the
+Skeleton packages from the SPA's `node_modules`, which a standalone binary cannot resolve. Two
+sheets, two build tools, and neither command works for the other file.
+
 ## Rebuilding the binder shell stylesheet
 
 ```bash
@@ -64,6 +99,19 @@ download and changes nothing else.
 - Production also needs `npm run build` for the SPA bundle. That build and the shell stylesheet are
   separate artifacts — building one does not refresh the other.
 
+
+## Rules for the admin pages
+
+**The admin pages are never used on a phone, so do not design them mobile first.** Anything on
+`_AdminLayout` is a desktop tool for the person running the catalog. Lay it out for a wide screen
+and stop there: a table may be as wide as it needs to be without a scrolling container, a row of
+controls need not wrap, and a narrow-screen variant of an admin screen is work nobody will ever
+see. Responsive classes are not banned -- they are simply not a requirement, and a layout that
+only reads well above `lg` is finished.
+
+What is already in the layout is not an argument against this. `<pines-sidebar>` ships a drawer
+and a toggle for small screens, and the bar keeps that toggle, because removing it would mean
+rewriting Pines' sidebar rather than saving anybody anything.
 
 ## Running the app locally
 

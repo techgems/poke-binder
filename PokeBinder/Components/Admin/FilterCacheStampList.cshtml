@@ -1,0 +1,65 @@
+@model FilterCacheStampList
+
+@*
+    Both bump handlers answer with this element, so the swap target and the rows inside it are one
+    component: a bump lands as the same table with the new values in it, which is also why the
+    "never stamped" state lives in here rather than around it.
+
+    The buttons carry no antiforgery token of their own. They are rendered inside the page's
+    <form method="post">, and htmx serialises the enclosing form's fields alongside hx-vals, so the
+    token comes from there -- this component is only usable inside such a form.
+*@
+
+<div id="@FilterCacheStampList.SwapTargetId" class="overflow-hidden rounded-lg border border-neutral-200">
+    <table class="w-full text-left text-sm">
+        <thead class="bg-neutral-50 text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+            <tr>
+                <th scope="col" class="px-4 py-3">Group</th>
+                <th scope="col" class="px-4 py-3">Stamp</th>
+                <th scope="col" class="px-4 py-3">Last bumped</th>
+                <th scope="col" class="px-4 py-3"><span class="sr-only">Bump</span></th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-200">
+            @foreach (var status in Model.Stamps)
+            {
+                <tr>
+                    <th scope="row" class="px-4 py-3 text-left font-medium text-neutral-900">@status.Group</th>
+
+                    <td class="px-4 py-3">
+                        @if (status.IsStamped)
+                        {
+                            <span class="code-cell">@status.Stamp</span>
+                        }
+                        else
+                        {
+                            @* No row in the table. Nothing is broken -- the group has simply never
+                               been stamped, and the Bump beside it is what creates the row. *@
+                            <span class="text-neutral-400">not stamped yet</span>
+                        }
+                    </td>
+
+                    <td class="px-4 py-3 whitespace-nowrap text-neutral-600">
+                        @FilterCacheStampList.LastBumped(status.LastBumpedUnix)
+                        @if (status.IsStamped)
+                        {
+                            <span class="block text-xs text-neutral-400">@FilterCacheStampList.Elapsed(status.LastBumpedUnix)</span>
+                        }
+                    </td>
+
+                    <td class="px-4 py-3 text-right">
+                        <button type="button"
+                                class="inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:opacity-50"
+                                hx-post="@Url.Page("/Admin/FilterCache", "Bump")"
+                                hx-vals='{"group": "@status.Group"}'
+                                hx-target="#@FilterCacheStampList.SwapTargetId"
+                                hx-swap="outerHTML"
+                                hx-disabled-elt="this">
+                            Bump
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

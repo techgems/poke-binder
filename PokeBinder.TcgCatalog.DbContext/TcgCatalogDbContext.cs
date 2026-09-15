@@ -19,6 +19,7 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<CardTag> CardTags => Set<CardTag>();
     public DbSet<PokemonCardText> PokemonCardTexts => Set<PokemonCardText>();
     public DbSet<NonPokemonCardText> NonPokemonCardTexts => Set<NonPokemonCardText>();
+    public DbSet<FilterCacheStamp> FilterCacheStamps => Set<FilterCacheStamp>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -112,6 +113,18 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(63);
             entity.Property(e => e.ImageUrl).HasColumnName("imageUrl").HasMaxLength(255);
+        });
+
+        modelBuilder.Entity<FilterCacheStamp>(entity =>
+        {
+            entity.ToTable("filterCacheStamps");
+
+            // The group is the key: a group has exactly one current stamp, and there is nothing to
+            // say about a second row for the same group.
+            entity.HasKey(e => e.Group);
+            entity.Property(e => e.Group).HasColumnName("groupName").HasConversion<string>().HasMaxLength(63);
+            entity.Property(e => e.Stamp).HasColumnName("stamp").HasMaxLength(63);
+            entity.Property(e => e.LastBumpedUnix).HasColumnName("lastBumpedUnix");
         });
 
         modelBuilder.Entity<Tag>(entity =>

@@ -1,0 +1,46 @@
+@page
+@using PokeBinder.Components.Admin
+@model PokeBinder.Pages.Admin.FilterCacheModel
+@{
+    ViewData["Title"] = "Filter cache";
+    Layout = "_AdminLayout";
+}
+
+<div class="max-w-4xl">
+    <h1 class="text-2xl font-bold text-neutral-900">Filter cache</h1>
+
+    <p class="mt-3 text-sm text-neutral-600">
+        The advanced-search filters are cached in the browser. Each group carries a stamp; a client
+        keeps the stamp it stored alongside its copy and re-fetches that group -- and only that
+        group -- once the two stop matching.
+    </p>
+    <p class="mt-2 text-sm text-neutral-600">
+        Nothing bumps these by itself. After loading or correcting catalog data, bump the groups it
+        touched. A bump nobody needed costs one re-fetch of one group, so err towards bumping.
+    </p>
+
+    @*
+        One form around the whole table: method="post" is what makes Razor emit the antiforgery
+        field, and every button below posts through htmx, which sends that field along with its own
+        hx-vals. Without the form each bump would be a 400.
+    *@
+    <form method="post" class="mt-8">
+        <filter-cache-stamp-list stamps="Model.Stamps" />
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-neutral-500">
+                Card types and super types are not listed: they stay embedded in the page and are
+                never cached, so there is nothing to invalidate.
+            </p>
+
+            <button type="button"
+                    class="inline-flex items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:opacity-50"
+                    hx-post="@Url.Page("/Admin/FilterCache", "BumpAll")"
+                    hx-target="#@FilterCacheStampList.SwapTargetId"
+                    hx-swap="outerHTML"
+                    hx-disabled-elt="this">
+                Bump all
+            </button>
+        </div>
+    </form>
+</div>

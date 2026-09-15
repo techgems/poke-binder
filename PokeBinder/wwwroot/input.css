@@ -1,6 +1,11 @@
 @source "../Pages/**/*.cshtml";
 @source "../Components/**/*.cshtml";
 
+/* Required, and not only for the utilities: the @apply rules at the foot of this file cannot
+   resolve a class without it, so a build without this line fails outright rather than quietly
+   emitting less. */
+@import "tailwindcss";
+
 @theme {
     --animate-card-scroll-left: card-scroll-left 80s linear infinite;
     --animate-card-scroll-right: card-scroll-right 80s linear infinite;
