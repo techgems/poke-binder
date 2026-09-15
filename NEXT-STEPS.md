@@ -41,31 +41,7 @@ string-only; IndexedDB handles the size comfortably and is async.
 
 ---
 
-## 2. Bug: the tray strip does not scroll when it is full
-
-In the binder view, `BinderTrayStrip.svelte` should scroll horizontally once the tiles overflow, via
-the left/right arrows. It does not.
-
-What was verified earlier, and so is probably not the cause: the `<ul>` does overflow (scrollWidth
-4489 against clientWidth 1047 with 30 tiles), a real mouse click on the right arrow did scroll it,
-and the disabled states were correct at both ends.
-
-Things worth suspecting:
-
-- `[scrollbar-width:none]` hides the scrollbar deliberately, so a strip that *is* scrollable looks
-  exactly like one that is not. Check whether the arrows are the only affordance and whether they
-  are actually reachable/enabled in the failing case.
-- `syncEnds()` runs on `scroll` and from an `$effect` via `tick()`. If it runs before layout settles
-  the arrows can come back disabled and stay that way — which reads as "does not scroll".
-- The tiles size from `basis-[calc((100%-3.36rem)/7)]` with `min-w-20 max-w-32`. Percentage bases
-  inside a scroll container are worth re-measuring after the spread work changed the panel's height.
-
-Reproduce first with enough cards to overflow, and check `scrollWidth`, `clientWidth`, and both
-arrows' `disabled` before changing anything.
-
----
-
-## 3. Third tab: binder settings
+## 2. Third tab: binder settings
 
 A third tab beside Card Tray and Binder (`WorkspacePanel.svelte`), for the binder's own properties:
 name, dimensions (grid size), page count, and whatever else belongs to the binder rather than its

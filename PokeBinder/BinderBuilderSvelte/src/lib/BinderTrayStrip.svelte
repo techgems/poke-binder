@@ -58,6 +58,26 @@
     void tick().then(syncEnds)
   })
 
+  // That effect only ever fires on a change this component can see, and a measurement is worth
+  // nothing unless the strip has a box to measure. The workspace keeps both tabs mounted and hides
+  // the unselected one with `hidden` (see WorkspacePanel), so every card added from the Card Tray
+  // tab measures a strip that is display:none -- and 0 + 0 >= 0 - 1 reads as "already at the end",
+  // which disables both arrows and leaves them that way, since coming back to the Binder tab
+  // invalidates nothing. A full strip that will not scroll is that, not a scrolling fault.
+  //
+  // A ResizeObserver is what notices it: a hidden element is reported as 0x0 and reported again at
+  // its real size when it comes back, so the strip is re-measured the moment it is on screen
+  // again. Resizing the window lands here too, which nothing was watching before.
+  $effect(() => {
+    if (!scroller) return
+
+    const observer = new ResizeObserver(syncEnds)
+
+    observer.observe(scroller)
+
+    return () => observer.disconnect()
+  })
+
   // Long enough to read as the panel folding rather than vanishing, short enough not to be in the
   // way of someone toggling it to get at the page. Zero when the OS asks for less motion, which
   // keeps the same markup and just removes the travel.
@@ -157,14 +177,18 @@
             : 'Cards you add in the Card Tray tab wait here. Drag one onto a pocket to place it.'}
         </p>
       {:else}
+        <!-- Same xl as the buttons on a tile, for the same reason and to keep the one row of
+             controls reading as one size. These are shrink-0 against a flex-1 strip, so the extra
+             width comes out of the tiles' share rather than the row's height, which the tiles need.
+             No size class on the chevrons: btn-icon sizes its own svg -- see the tile overlay. -->
         <button
           type="button"
-          class="btn-icon btn-icon-sm shrink-0 hover:preset-tonal"
+          class="btn-icon btn-icon-xl shrink-0 hover:preset-tonal"
           aria-label="Scroll the tray left"
           disabled={atStart}
           onclick={() => scrollBy(-1)}
         >
-          <ChevronLeftIcon class="size-4" />
+          <ChevronLeftIcon />
         </button>
 
         <!-- scrollbar-none: the arrows are the control, and a scrollbar under a single row of small
@@ -235,13 +259,27 @@
                      card instead.
 
                      pointer-events-none on the wrapper so the gaps around the buttons still belong
-                     to the tile underneath, which is the drag handle. -->
+                     to the tile underneath, which is the drag handle.
+
+                     Sized xl rather than sm: at 26px these were smaller than the art you aim past
+                     to reach them, and the tile has the room. The pair takes 80px of the 134px a
+                     tile at its 143px ceiling offers. At the 90px floor that same 80px only just
+                     clears the 81px there is, so the row is allowed to wrap rather than squash --
+                     flex would otherwise shave the width off two buttons whose height is fixed and
+                     leave a pair of oblongs. Wrapped, the two stack 80px into a tile about 125px
+                     tall, so both still land on the art.
+
+                     No size class on these two glyphs, unlike every other icon here: btn-icon
+                     already sizes its own svg from --btn-size, and this theme's spacing step is
+                     4.48px, so the nearest size-* lands 2px off and sets the height fighting a
+                     width the button has already set. Left alone it is square and follows the
+                     button. -->
                 <div
-                  class="pointer-events-none absolute inset-0 flex items-end justify-center gap-1 rounded bg-surface-50-950/70 p-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                  class="pointer-events-none absolute inset-0 flex flex-wrap content-end items-end justify-center gap-1 rounded bg-surface-50-950/70 p-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
                 >
                   <button
                     type="button"
-                    class="btn-icon btn-icon-sm pointer-events-auto preset-filled-primary-500"
+                    class="btn-icon btn-icon-xl pointer-events-auto preset-filled-primary-500"
                     title={hasFreePocket
                       ? `Place ${card.name ?? 'card'} in the first free pocket`
                       : 'Every pocket on this spread is full'}
@@ -249,16 +287,16 @@
                     disabled={!hasFreePocket}
                     onclick={() => binderPage.placeInFirstFreeSlot(card)}
                   >
-                    <BetweenHorizontalStartIcon class="size-4" />
+                    <BetweenHorizontalStartIcon />
                   </button>
                   <button
                     type="button"
-                    class="btn-icon btn-icon-sm pointer-events-auto preset-filled-error-500"
+                    class="btn-icon btn-icon-xl pointer-events-auto preset-filled-error-500"
                     title={removeLabel(entry)}
                     aria-label={removeLabel(entry)}
                     onclick={() => tray.remove(card.id)}
                   >
-                    <Trash2Icon class="size-4" />
+                    <Trash2Icon />
                   </button>
                 </div>
               {/if}
@@ -277,12 +315,12 @@
 
         <button
           type="button"
-          class="btn-icon btn-icon-sm shrink-0 hover:preset-tonal"
+          class="btn-icon btn-icon-xl shrink-0 hover:preset-tonal"
           aria-label="Scroll the tray right"
           disabled={atEnd}
           onclick={() => scrollBy(1)}
         >
-          <ChevronRightIcon class="size-4" />
+          <ChevronRightIcon />
         </button>
       {/if}
     </div>
