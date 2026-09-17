@@ -8,52 +8,6 @@ without re-deriving it. Open questions are called out rather than answered.
 
 ---
 
-## 1. Make the filter-cache code readable
-
-The filter cache works, end to end, and `GetSearchStarterFilters` reads like something to be decoded
-rather than something to be followed. This is the pass that fixes that, and nothing is blocking it:
-the admin screen, the endpoint and the Svelte side are all in, so the request shape has stopped
-moving.
-
-**Nothing about the behaviour changes.** The stamp stays in the cache key, a group with no stamp row
-stays uncached, every response still carries the full stamp map, and a group that is not being sent
-is still null rather than empty. This is about the shape of the code, and the shape that wins here
-is the one the remaining slices should follow.
-
-`PokeBinder.Features.Tests` exists for this refactor: fifteen tests go through `Handler` with a
-`Request` and assert on the `Response`, touching none of the slice's internals. Each one was
-checked against a deliberately broken slice, so a green run afterwards means something. Start by
-running them, and treat a test that has to change to accommodate the new shape as a behaviour change
-that needs deciding on rather than editing away.
-
-What is actually tangled, all of it in `PokeBinder.Features/CardSearch/GetSearchStarterFilters`:
-
-- **The handler says the same thing five times.** Each group is a six-argument `ReadAsync` call that
-  names its group three times over — once for `Stale`, once for the cache key, once in the request
-  property it reads — and carries the stamps dictionary, the cache and a lambda for its own query.
-  Five lines that differ in two words each are a list wearing a disguise.
-- **`ReadAsync` does three jobs**: honours a decision already made (`bool wanted`), looks the group
-  up under a stamped key, and runs the query. The `wanted` parameter is the tell — it exists because
-  the decision could not be expressed where the reading happens.
-- **The rule for what comes back is spread across three places**: `Request.IsCold`, the `Stale`
-  local function, and the ternaries inside `new Response(...)`. Answering "when do super types come
-  back?" means holding all three in your head at once.
-- **The response is built positionally** out of seven nullable lists in an order that does not match
-  the order the groups are read in. It is the same hazard the old seven-argument constructor had.
-- **The request's property names have drifted apart**: `SuperTypesCacheByPass` against
-  `CardTypesCacheBypass`. Whatever else happens, those two should agree.
-
-Shapes worth weighing, none of them chosen: one descriptor per group — the group, the stamp the
-caller sent, the query — walked once; splitting "which groups does this request entitle you to" from
-"read one group, cached"; a named builder in place of the positional response. The five mapping
-expressions at the foot of the file are fine as they are and predate this work.
-
-The rest of the filter-cache code is small enough to leave alone: `BumpFilterCacheStamps`,
-`GetFilterCacheStamps`, `CardFiltersController`, the admin page and the client's `filter-cache.ts`
-are each one thing.
-
----
-
 ## 2. Organise the Svelte app
 
 `src/lib` holds twenty files in one folder — sixteen components and four modules that are not

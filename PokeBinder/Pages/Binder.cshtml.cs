@@ -88,7 +88,7 @@ public class BinderModel : PageModel
                 // send everything", which is the cold client's call to the endpoint and the
                 // opposite of what a page embed should carry. The stamp map comes back either way.
                 SearchFilters = await GetSearchStarterFilters.Handler(
-                    new GetSearchStarterFilters.Request { SuperTypesCacheByPass = true, CardTypesCacheBypass = true },
+                    new GetSearchStarterFilters.Request { SuperTypesCacheBypass = true, CardTypesCacheBypass = true },
                     _catalogContext,
                     _cache,
                     ct);

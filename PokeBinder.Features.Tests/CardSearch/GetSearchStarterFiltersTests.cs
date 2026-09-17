@@ -30,7 +30,7 @@ public class GetSearchStarterFiltersTests
             SeriesCacheStamp = series,
             SetsCacheStamp = sets,
             RarityBySetCacheStamp = rarityBySet,
-            SuperTypesCacheByPass = superTypes,
+            SuperTypesCacheBypass = superTypes,
             CardTypesCacheBypass = cardTypes,
         };
 

@@ -17,4 +17,8 @@
     <ProjectReference Include="..\PokeBinder.TcgCatalog.DbContext\PokeBinder.TcgCatalog.DbContext.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="CardSearch\GetSearchStarterFilters\Utils\" />
+  </ItemGroup>
+
 </Project>

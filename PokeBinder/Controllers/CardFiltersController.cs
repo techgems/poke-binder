@@ -30,7 +30,8 @@ public class CardFiltersController(
     /// <c>?</c> with no stamp at all is the first visit and answers with the whole object, card
     /// types and super types included, so a cold start is one request rather than two. Those two
     /// groups have no stamp to send -- they are asked for by name with
-    /// <c>?superTypes=true&amp;cardTypes=true</c>, which is what the page itself does.
+    /// <c>?superTypesCacheBypass=true&amp;cardTypesCacheBypass=true</c>, which is what the page
+    /// itself does.
     /// </para>
     ///
     /// <para>
