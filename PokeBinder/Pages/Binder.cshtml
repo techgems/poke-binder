@@ -30,6 +30,10 @@ else
     @* Above the SPA's scripts, so the payload is on the page before the app boots and the app never
        has to wait -- or ask -- for the binder it was opened on. *@
     <server-preload key="binder" data="@Model.Binder" />
+
+    @* The filters response, exactly as the endpoint would return it: the two groups that are never
+       cached in the browser, the five big ones left out, and the stamp map the app compares against
+       its own storage to decide what -- if anything -- to fetch. One shape, preloaded or fetched. *@
     <server-preload key="searchFilters" data="@Model.SearchFilters" />
 
     @* Both helpers render the SPA's mount element and its assets, nothing else -- the page frame

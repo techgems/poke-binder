@@ -1,4 +1,4 @@
-import type { StarterFilters } from './CardSearchClient'
+import type { StarterFiltersResponse } from './CardSearchClient'
 
 // Data the Razor page put on the document before the app booted.
 //
@@ -101,18 +101,20 @@ export function preloadedBinder(): PreloadedBinder | null {
 }
 
 /**
- * The options the advanced search is built from, or null when the page did not send them.
+ * The page's half of the advanced search, or null when the page did not send it.
  *
- * These used to be fetched after the app booted, which meant the first click on Advanced Filters
- * waited on a request for a list that changes about as often as the card catalog does. The page
- * embeds them now, so the filters are ready before the app is.
+ * Two things in one payload, and the same shape the filters endpoint returns. The groups it
+ * carries -- card types and super types -- are the two the browser never caches, so they are ready
+ * before the app is, as they have been since they stopped being fetched. The five big groups are
+ * not here: what the page sends for those is `stamps`, which is how the app decides whether the
+ * copy in its own storage is still good. See clients/filter-cache.
  */
-export function preloadedSearchFilters(): StarterFilters | null {
+export function preloadedSearchFilters(): StarterFiltersResponse | null {
   const payload = window.pokeBinder?.searchFilters
 
   if (!payload || typeof payload !== 'object') {
     return null
   }
 
-  return payload as StarterFilters
+  return payload as StarterFiltersResponse
 }

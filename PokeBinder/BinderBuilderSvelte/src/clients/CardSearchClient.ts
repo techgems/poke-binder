@@ -42,6 +42,11 @@ export interface CardTypeFilter {
   imageUrl: string | null
 }
 
+/**
+ * The filter options the advanced search is built from, complete. This is what the UI takes: every
+ * group present, however it was assembled -- some of it embedded in the page, some read out of
+ * localStorage, some just fetched.
+ */
 export interface StarterFilters {
   superTypes: SuperTypeFilter[]
   generations: GenerationsFilter[]
@@ -50,6 +55,42 @@ export interface StarterFilters {
   pokemon: PokemonFilter[]
   rarityBySet: RarityBySetFilter[]
   cardType: CardTypeFilter[]
+}
+
+/** The groups this browser caches, in the order they are compared and stored. */
+export const CACHED_FILTER_GROUPS = [
+  'pokemon',
+  'generations',
+  'series',
+  'sets',
+  'rarityBySet',
+] as const
+
+export type CachedFilterGroup = (typeof CACHED_FILTER_GROUPS)[number]
+
+/**
+ * The catalog's current stamp for each cached group: an opaque value compared for equality and
+ * nothing else. Null means the catalog has no stamp for that group, which makes it uncacheable --
+ * nothing could ever tell this browser the copy had gone stale -- so it is used and not stored.
+ */
+export type FilterStamps = Record<CachedFilterGroup, string | null>
+
+/**
+ * What the filters endpoint returns, and -- deliberately -- the same shape the page embeds. A group
+ * is null when it was not sent, which is not the same as an empty array: "you already have this"
+ * against "there are none of these", and overwriting a good cached copy with the second would be a
+ * bug that only shows up a release later.
+ */
+export interface StarterFiltersResponse {
+  superTypes: SuperTypeFilter[] | null
+  generations: GenerationsFilter[] | null
+  series: SeriesFilter[] | null
+  sets: SetsFilter[] | null
+  pokemon: PokemonFilter[] | null
+  rarityBySet: RarityBySetFilter[] | null
+  cardType: CardTypeFilter[] | null
+  /** Always complete, whatever groups the response carries. */
+  stamps: FilterStamps
 }
 
 /** Filters for a card search. Ids go over the wire as numbers, unlike the string-valued UI state. */
@@ -107,7 +148,56 @@ export interface CardSearchPage {
   hasMore: boolean
 }
 
+/** Query-string name for each group's stamp, matching GetSearchStarterFilters.Request. */
+const STAMP_PARAMETERS: Record<CachedFilterGroup, string> = {
+  pokemon: 'pokemonCacheStamp',
+  generations: 'generationsCacheStamp',
+  series: 'seriesCacheStamp',
+  sets: 'setsCacheStamp',
+  rarityBySet: 'rarityBySetCacheStamp',
+}
+
 export const CardSearchClient = {
+  /**
+   * Asks for the filter groups this browser's stamps no longer buy it.
+   *
+   * What travels is what the browser holds, not what it concluded: the server compares and decides,
+   * so a stamp it still recognises costs nothing to send and a stamp it has retired brings the
+   * group back. Send a stamp only for a group whose rows are actually in hand -- claiming a copy
+   * that is not there is how a client ends up with an empty list it believes is current.
+   *
+   * @param held Stamps for the groups this browser has rows for, or null for "nothing at all",
+   * which asks for everything including the two groups that are never cached.
+   */
+  async getStarterFilters(
+    held: Partial<FilterStamps> | null,
+    signal?: AbortSignal,
+  ): Promise<StarterFiltersResponse> {
+    const query = new URLSearchParams()
+
+    if (held) {
+      for (const group of CACHED_FILTER_GROUPS) {
+        const stamp = held[group]
+
+        if (stamp) query.set(STAMP_PARAMETERS[group], stamp)
+      }
+    }
+
+    // An empty query is the first visit and is answered with the whole catalog of options, so this
+    // is one request either way -- never a probe followed by a fetch.
+    const response = await fetch(`/api/cardFilters/starterFilters?${query}`, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to load card filters (${response.status} ${response.statusText}).`)
+    }
+
+    return (await response.json()) as StarterFiltersResponse
+  },
+
   async searchByFilter(
     request: CardSearchRequest,
     signal?: AbortSignal,

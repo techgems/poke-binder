@@ -12,6 +12,7 @@
     <Project Path="PokeBinderETL/PokeBinder.ETL.csproj" />
   </Folder>
   <Project Path="PokeBinder.Features/PokeBinder.Features.csproj" Id="6550c5da-f2bf-481c-bdde-66808ac44a83" />
+  <Project Path="PokeBinder.Features.Tests/PokeBinder.Features.Tests.csproj" />
   <Project Path="PokeBinder.Migrations/PokeBinder.Migrations.csproj" />
   <Project Path="PokeBinder/PokeBinder.csproj" />
 </Solution>

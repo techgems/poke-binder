@@ -3,12 +3,14 @@
   import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert'
 
   import {
+    CACHED_FILTER_GROUPS,
     CardSearchClient,
     type CardSearchRequest,
     type CardSearchResult,
     type SimpleCardSearchRequest,
+    type StarterFilters,
   } from '../clients/CardSearchClient'
-  import { preloadedSearchFilters } from '../clients/preload'
+  import { loadCachedSearchFilters, refreshSearchFilters } from '../clients/filter-cache'
   import AddCardFilters, {
     effectiveSelection,
     emptySelection,
@@ -42,9 +44,34 @@
   // the only state the results can be built from; the others keep theirs for when they come back.
   let mode = $state<SearchMode>(DEFAULT_SEARCH_MODE)
 
-  // The catalog's filter options, handed over by the Razor page before this app started. They are
-  // read once: the page embeds one snapshot, and nothing here can change it.
-  const starterFilters = preloadedSearchFilters()
+  // The catalog's filter options, assembled before the first paint from the two groups the page
+  // embeds and whatever this browser already has in storage. Nothing is awaited to get here.
+  const cached = loadCachedSearchFilters()
+
+  let starterFilters = $state<StarterFilters | null>(cached.hasPageFilters ? cached.filters : null)
+
+  // Only while every one of the five cached groups is on its way -- a first visit, or storage this
+  // browser will not let us read. With four of five in hand the panel is usable now and the fifth
+  // list fills itself in, which beats hiding the lot behind a spinner.
+  let filtersLoading = $state(cached.stale.length === CACHED_FILTER_GROUPS.length)
+
+  // A refresh that failed with a usable panel: the groups that did not arrive stay empty, and this
+  // is what says so rather than leaving the user to wonder why a set is missing.
+  let filtersError = $state<string | null>(null)
+
+  if (cached.stale.length > 0) {
+    refreshSearchFilters(cached)
+      .then((filters) => {
+        starterFilters = filters
+        filtersError = null
+      })
+      .catch(() => {
+        filtersError = 'Some filter options could not be loaded.'
+      })
+      .finally(() => {
+        filtersLoading = false
+      })
+  }
 
   // Advanced filters: what the user has picked, including choices the current super type has hidden.
   let selection = $state<FilterSelection>(emptySelection())
@@ -264,11 +291,20 @@
     {#if mode === 'simple'}
       <SimpleSearchFilters bind:terms />
     {:else if starterFilters}
-      <AddCardFilters filters={starterFilters} loading={false} bind:selection />
+      {#if filtersError}
+        <!-- The panel still works: super types and card types came with the page, and any group
+             that was already in storage is in it. This says which part is missing rather than
+             replacing a usable panel with an error. -->
+        <p class="text-warning-500 text-xs">
+          {filtersError}
+          <button type="button" class="underline" onclick={() => location.reload()}>Reload</button>
+        </p>
+      {/if}
+      <AddCardFilters filters={starterFilters} loading={filtersLoading} bind:selection />
     {/if}
   </div>
 
-  {#if mode === 'advanced' && !starterFilters}
+  {#if mode === 'advanced' && !starterFilters && !filtersLoading}
     <!-- Promoted across the results and selected columns rather than tucked into the filter column:
          with no options to pick there is nothing to filter by and nothing to search, so those two
          columns would only be separate ways of showing an empty box. The mode selector stays
@@ -276,17 +312,17 @@
          endpoint, and hiding the selector behind it would strand the user in the one mode that is
          actually broken.
 
-         There is nothing to retry: the options arrive with the page, so a missing set means the
-         page itself was served without them and only a fresh one can fix it. -->
+         Reached only when the page carried no filters of its own and the fetch that would have
+         replaced them also failed, so there is nothing to show and nothing partial to salvage. -->
     <div
       class="col-span-2 grid min-h-0 place-items-center rounded-container border border-error-500/40 bg-error-500/5 p-6"
     >
       <div class="max-w-md space-y-3 text-center">
         <TriangleAlertIcon class="mx-auto size-8 text-error-500" />
-        <h3 class="h4">Card filters were not sent with this page</h3>
+        <h3 class="h4">Card filters could not be loaded</h3>
         <p class="text-sm opacity-75">
-          Advanced filters are built from options the server embeds when the page loads, so there is
-          nothing here to filter by. Reloading should bring them back.
+          Advanced filters are built from options this page did not carry and the server did not
+          answer for, so there is nothing here to filter by. Reloading should bring them back.
         </p>
         <button type="button" class="btn preset-filled-primary-500" onclick={() => location.reload()}>
           Reload

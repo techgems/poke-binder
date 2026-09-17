@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+﻿@using TechGems.PinesUI.Views.Components.PinesNavbar
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -18,47 +19,17 @@
 </head>
 <body class="bg-white antialiased">
 
-    @*
-        The bar is written out here rather than taken from <pines-navbar>, and the reason is the
-        brand. Pines' navbar hardcodes its own logo in a desktop-only <a>, and the one slot near it
-        -- logo-area -- renders inside the lg:hidden sidebar toggle, so a brand put there replaces
-        the toggle's icon on phones and shows nothing at all on a desktop. Everything else about
-        this bar is Pines' own markup, geometry included: h-16 against the content's mt-16, and the
-        same toggle calling the same Alpine store <pines-sidebar> listens to.
-    *@
-    <header class="fixed top-0 z-40 flex h-16 w-full items-center justify-center border-b border-stone-200/20 bg-white/90 backdrop-blur-md">
-        <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 2xl:px-0">
-
-            <div class="relative z-10 flex w-auto items-center">
-
-                @* Phones only: the sidebar is a drawer there, and this is what opens it. *@
-                <button x-data
-                        @@click="$store.pinesLayout.toggleSidebar()"
-                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-800 hover:bg-neutral-100 hover:text-black active:bg-white lg:hidden"
-                        type="button"
-                        aria-label="Toggle sidebar">
-                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M2.74902 6.75C2.74902 5.09315 4.09217 3.75 5.74902 3.75H18.2507C19.9075 3.75 21.2507 5.09315 21.2507 6.75V17.25C21.2507 18.9069 19.9075 20.25 18.2507 20.25H5.74902C4.09217 20.25 2.74902 18.9069 2.74902 17.25V6.75Z" />
-                            <path d="M13.75 3.75V20.25" />
-                            <path d="M16.75 7.75L18.25 7.75" />
-                            <path d="M16.75 11L18.25 11" />
-                            <path d="M16.75 14.25L18.25 14.25" />
-                        </g>
-                    </svg>
-                </button>
-
-                @* Still a link home, which is what the logo it replaces was. *@
-                <a asp-page="/Index" class="text-xl font-bold text-black no-underline">
-                    PokeBinder <strong class="font-extrabold">Admin</strong>
-                </a>
-            </div>
-
-            <div class="relative">
-                <partial name="_LoginPartial" />
-            </div>
-        </div>
-    </header>
+    @* Slot names come from the component's own constants rather than the strings behind them --
+       PinesNavbar.LogoSlot is what RenderSlot is called with, so a rename in the library shows up
+       here as a compile error instead of as an empty bar. *@
+    <pines-navbar home-route="/">
+        <slot name="@PinesNavbar.LogoSlot">
+            <span class="text-xl font-bold whitespace-nowrap">PokeBinder <strong class="font-extrabold">Admin</strong></span>
+        </slot>
+        <slot name="@PinesNavbar.UserAreaSlot">
+            <partial name="_LoginPartial" />
+        </slot>
+    </pines-navbar>
 
     @* Page body: sidebar + main content *@
     <div class="relative flex items-start min-h-screen px-4 pt-0 pb-0 mx-auto mt-16 max-w-7xl">

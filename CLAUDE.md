@@ -113,6 +113,43 @@ What is already in the layout is not an argument against this. `<pines-sidebar>`
 and a toggle for small screens, and the bar keeps that toggle, because removing it would mean
 rewriting Pines' sidebar rather than saving anybody anything.
 
+## Rules for tests
+
+`PokeBinder.Features.Tests` (xUnit) covers the slices. Run it with:
+
+```bash
+dotnet test PokeBinder.Features.Tests/PokeBinder.Features.Tests.csproj
+```
+
+**A test never touches a real database.** Build the context on the EF Core in-memory provider, with
+a database name unique to the fixture:
+
+```csharp
+var options = new DbContextOptionsBuilder<TcgCatalogDbContext>()
+    .UseInMemoryDatabase($"catalog-{Guid.NewGuid()}")
+    .Options;
+```
+
+**Not Sqlite, and that includes `Data Source=:memory:`.** The point is not only where the bytes end
+up — it is that a test with a connection string in it is one careless edit away from naming
+`Databases/TcgCatalog.db`, and a test suite that can write to the real catalog is one that will,
+eventually, on the run nobody was watching. The in-memory provider has no connection string to get
+wrong.
+
+Two things follow from it:
+
+- **Query translation is not covered.** The in-memory provider is not relational, so a LINQ query
+  that no provider could turn into SQL still passes here. Anything SQL-shaped -- a new `EF.Functions`
+  call, a group-by, a projection that leans on the database -- has to be confirmed by running the
+  app, not by a green test run.
+- **Give every fixture its own database name and its own `IMemoryCache`.** Shared state between
+  tests is what makes a suite order-dependent, and a cached filter group leaking into the next test
+  is exactly the kind of failure that only appears in CI.
+
+Tests state behaviour, not implementation: go through the slice's `Handler` with a `Request` and
+assert on the `Response`. That is what lets a slice be rewritten -- and one is due, see
+NEXT-STEPS.md -- without the tests having to be rewritten with it.
+
 ## Running the app locally
 
 `.claude/launch.json` holds the one configuration, `pokebinder`: `dotnet run` on

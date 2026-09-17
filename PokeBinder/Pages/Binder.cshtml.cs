@@ -55,9 +55,14 @@ public class BinderModel : PageModel
     public GetFullBinder.Response? Binder { get; private set; }
 
     /// <summary>
-    /// The options the advanced card search is built from, handed over with the page. The slice
-    /// caches them for a day, so this costs a dictionary lookup per page load rather than the seven
-    /// queries it looks like.
+    /// What the page hands the workspace about the advanced search: the two filter groups that are
+    /// never cached in the browser -- card types and super types -- and the stamp of every group
+    /// that is.
+    /// <para>
+    /// This is what replaced 141 KB of embedded filters. The five big groups are not here; their
+    /// stamps are, and the app asks the filters endpoint only for the ones that disagree with what
+    /// it has in storage, which on most loads is none of them.
+    /// </para>
     /// </summary>
     public GetSearchStarterFilters.Response? SearchFilters { get; private set; }
 
@@ -79,8 +84,11 @@ public class BinderModel : PageModel
 
                 // Only alongside a binder: these are for the workspace, and the 404 below boots no
                 // workspace to use them.
+                // Named groups rather than an empty request: an empty one means "I have nothing,
+                // send everything", which is the cold client's call to the endpoint and the
+                // opposite of what a page embed should carry. The stamp map comes back either way.
                 SearchFilters = await GetSearchStarterFilters.Handler(
-                    new GetSearchStarterFilters.Request(),
+                    new GetSearchStarterFilters.Request { SuperTypesCacheByPass = true, CardTypesCacheBypass = true },
                     _catalogContext,
                     _cache,
                     ct);
