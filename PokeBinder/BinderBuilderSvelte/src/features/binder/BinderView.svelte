@@ -8,15 +8,13 @@
   import CornerUpLeftIcon from '@lucide/svelte/icons/corner-up-left'
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
 
+  import { CARD_BACK_URL } from '../../card-art'
   import BinderPage from './BinderPage.svelte'
   import BinderPageNav from './BinderPageNav.svelte'
   import BinderTrayStrip from './BinderTrayStrip.svelte'
-  import { binderPage, type DragSource } from './binder-page.svelte'
-  import CardSpotlight from './tilt/CardSpotlight.svelte'
-  import { tray } from './tray.svelte'
-
-  /** Stand-in art for cards the catalog has no image for. */
-  const CARD_BACK_URL = '/images/TcgImages/card-back.png'
+  import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
+  import CardSpotlight from '../../components/tilt/CardSpotlight.svelte'
+  import { tray } from '../../stores/tray.svelte'
 
   // The card being looked at, and which end of the transfer it sits at. A card alone would not be
   // enough: "return this to the tray" and "put this on a page" are the same button in two places,

@@ -7,7 +7,7 @@
     type ComboboxRootProps,
   } from '@skeletonlabs/skeleton-svelte'
 
-  import type { FilterOption } from './filter-option'
+  import type { FilterOption } from '../types/filter-option'
 
   interface Props {
     /** Field label. */

@@ -2,7 +2,7 @@
   import MinusIcon from '@lucide/svelte/icons/minus'
   import PlusIcon from '@lucide/svelte/icons/plus'
 
-  import { MAX_QUANTITY } from './tray.svelte'
+  import { MAX_QUANTITY } from '../../../stores/tray.svelte'
 
   interface Props {
     /** Copies currently held. */

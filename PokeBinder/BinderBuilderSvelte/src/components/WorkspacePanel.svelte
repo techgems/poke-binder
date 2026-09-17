@@ -1,18 +1,11 @@
-<script lang="ts" module>
-  /** The panels the workspace can show. Exactly one is ever selected. */
-  export type WorkspaceTab = 'add' | 'binder'
-
-  /** The Card Tray panel is the only one that is actually built, so it is where the workspace starts. */
-  export const DEFAULT_WORKSPACE_TAB: WorkspaceTab = 'add'
-</script>
-
 <script lang="ts">
   import BookOpenIcon from '@lucide/svelte/icons/book-open'
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
   import { Tabs } from '@skeletonlabs/skeleton-svelte'
 
-  import AddCardsWorkspace from './AddCardsWorkspace.svelte'
-  import BinderView from './BinderView.svelte'
+  import BinderView from '../features/binder/BinderView.svelte'
+  import SearchTab from '../features/search/SearchTab.svelte'
+  import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './workspace-tab'
 
   interface Props {
     /** The selected panel. Bindable, so the sidebar can steer it too. */
@@ -56,7 +49,7 @@
   -->
   <Tabs.Content value="add" class="min-h-0 flex-1">
     <div class="flex h-full flex-col">
-      <AddCardsWorkspace />
+      <SearchTab />
     </div>
   </Tabs.Content>
 

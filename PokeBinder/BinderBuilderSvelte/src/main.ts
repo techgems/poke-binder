@@ -1,8 +1,8 @@
 import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
-import { preloadedBinder } from './clients/preload'
-import { binderPage } from './lib/binder-page.svelte'
+import { preloadedBinder } from './preloads/preload'
+import { binderPage } from './stores/binder-page.svelte'
 
 // Before the mount, not after: the Razor page embedded this binder above the app's own scripts, so
 // it is already here, and seeding first means the first paint is the real binder rather than an

@@ -8,123 +8,6 @@ without re-deriving it. Open questions are called out rather than answered.
 
 ---
 
-## 2. Organise the Svelte app
-
-`src/lib` holds twenty files in one folder — sixteen components and four modules that are not
-components at all — and nothing in the folder says which part of the app any of them belongs to.
-`AddCardFilters.svelte` and `BinderPageNav.svelte` are neighbours despite belonging to different
-tabs, and `tray.svelte.ts` sits between them despite belonging to both.
-
-**Components split three ways by where they are used**: general, the Card Tray tab, the Binder tab.
-**Stores get a directory of their own**, because crossing tabs is what they are for and filing them
-under either one would be a lie. **Preloads get a directory of their own too** — a loader for data
-the page embedded is not a client, and neither belongs next to components. There are three kinds of
-module on that side and they are worth naming: a **client**, which knows how to call an endpoint; a
-**preload**, which reads what the page already embedded; and a **dynamic preload**, which fills the
-same role as a preload but has to go and get it.
-
-**The scale of this step is deliberate: moves, and small extractions that follow from them.** It is
-not a rewrite of the front end. Where a file is doing two jobs and one of them plainly belongs
-somewhere else, that job moves with it — the `filter-cache.ts` split below is the size meant.
-Anything larger gets its own step and its own brief rather than being smuggled in here, because a
-reorganisation that also rewrote behaviour would be unreviewable: nobody could tell a move from a
-change in the diff.
-
-The map below is what the imports actually say today, not a guess at intent:
-
-| Now | Belongs to | Because |
-| --- | --- | --- |
-| `AddCardsWorkspace`, `AddCardFilters`, `FilterCombobox`, `CardTypeFilterGroup`, `SearchModeSelector`, `SimpleSearchFilters`, `AddToTrayButton`, `CardTray`, `QuantityStepper` | Card Tray tab | every one of them is reached only through `AddCardsWorkspace` |
-| `filter-option.ts` | Card Tray tab | imported by `AddCardFilters`, `CardTypeFilterGroup`, `FilterCombobox`, and nothing else |
-| `BinderView`, `BinderPage`, `BinderPageNav`, `BinderTrayStrip` | Binder tab | reached only through `BinderView` |
-| `WorkspacePanel`, `ActionSidebar`, `Modal` | general | `App.svelte` renders them around both tabs |
-| `tilt/CardSpotlight`, `tilt/TiltCard`, `tilt/prefers-reduced-motion` | general | `CardSpotlight` is used by `AddCardsWorkspace` and `BinderView`, and the other two back it |
-| `tray.svelte.ts`, `binder-page.svelte.ts`, `click-add.svelte.ts` | stores | `tray` alone is imported by seven files across both tabs and by `binder-page` |
-| `clients/preload.ts` | preloads | it is not a client: nothing is requested, it reads what the Razor page already put on the document |
-| `clients/filter-cache.ts` | splits in two — see below | it is doing storage and orchestration at once |
-| `clients/CardSearchClient.ts` | stays the client | it is the one module here that talks to the API |
-
-### The rules that settle it, and what is left open
-
-- **Components file by where they are used, not by what they could be reused for.**
-  `QuantityStepper` is a plain number control that anything might want, and it goes under the Card
-  Tray tab because that is the only place using it. A component that grows a second caller in
-  another tab moves to general on the day it does, which is a two-line change, and until then the
-  folder tells the truth about the app rather than about an intention.
-- **A client and a preload loader are different things, and they stop sharing a folder.**
-  `CardSearchClient` requests something; `preload.ts` requests nothing at all -- it reads what the
-  Razor page wrote onto the document before the app booted. Preloads get their own directory.
-- **`filter-cache.ts` is doing two jobs and keeps one.** It should be the storage layer and nothing
-  more: take what the preload carried, put it in `localStorage`, and read back what is there.
-  Deciding whether anything is stale, calling the client and merging what comes back is the other
-  job, and it moves to a **dynamic preload** — the file that executes the client, reading storage to
-  find out whether it has to. That is the third classification, and it is why the preload directory
-  is not just for the static one: both exist to hand the app data it can use, one off the document
-  and one off the network.
-
-  This is the one part of this step that is a rewrite rather than a move: `AddCardsWorkspace` calls
-  `loadCachedSearchFilters` and `refreshSearchFilters` today, and both of those names belong to the
-  job that is leaving.
-- **Naming.** Something like `lib/common`, `lib/search`, `lib/binder`, plus `src/stores` and
-  `src/preloads`, but the names are worth agreeing before twenty files move rather than after.
-- **Barrels.** No `index.ts` re-exports anywhere in the app today. Adding them would shorten the
-  imports this step is about to rewrite; leaving them out keeps every import pointing at a real file.
-
-### Code worth moving, not just files
-
-Found by reading the imports rather than by taste. Ordered by what they cost, and the first three
-are the same size as the moves around them:
-
-- **`CARD_BACK_URL` is declared five times** — `AddCardsWorkspace`, `BinderPage`, `BinderTrayStrip`,
-  `BinderView` and `CardTray` each carry their own `const CARD_BACK_URL =
-  '/images/TcgImages/card-back.png'`. It is a path the server serves; one module, five imports, and
-  the next person to move that file changes one line instead of finding five.
-- **Domain rules are being exported out of components.** `AddCardFilters.svelte` opens with seventy
-  lines of `<script module>` before the component starts: `FilterSelection`, `emptySelection`,
-  `pokemonFieldsApply`, `cardTypeFieldApplies`, `effectiveSelection` and the two super-type
-  constants. `AddCardsWorkspace` imports four of them — which is to say the rule about *which
-  filters still apply* is reachable only through a UI file, cannot be read without opening one, and
-  cannot be tested without mounting one. The same shape, smaller, in four more components:
-  `SimpleSearchFilters` (`SimpleSearchTerms`, `emptyTerms`), `SearchModeSelector` (`SearchMode`,
-  `SEARCH_MODES`, `DEFAULT_SEARCH_MODE`), `WorkspacePanel` (`WorkspaceTab`,
-  `DEFAULT_WORKSPACE_TAB`) and `CardTypeFilterGroup` (`CardTypeOption`). A component should be
-  imported for what it renders.
-- **`toRequest` and `toSimpleRequest`** sit privately inside `AddCardsWorkspace` and do one thing:
-  turn the string-valued UI selection into the number-valued shape the API takes. Pure functions,
-  no reactivity, and they belong with the selection model they translate — or beside the client
-  whose contract they satisfy.
-
-And one that is bigger than this step, listed so it is not rediscovered later:
-
-- **The search runner inside `AddCardsWorkspace`.** Of that file's 460 lines, 278 are script, and
-  most of the script is search policy rather than rendering: the debounced `$effect`, the arming
-  rule that stops an untouched advanced filter fetching page one of the catalog, the key that
-  dedupes repeat searches, the `AbortController` bookkeeping that keeps a slow response from landing
-  on top of a fast one, plus `search()`, `clearResults()` and the paging state. That is a coherent
-  thing — "run a card search, and keep the results honest" — living inside a component that also
-  lays out three columns and renders a spotlight. Extracting it is the largest single-responsibility
-  win in the app and the one most likely to change behaviour by accident, so it wants its own step.
-
-Possibly, and only worth it if a third caller appears: both tabs keep their own `spotlit` state and
-build a near-identical `<CardSpotlight>` — same `src`/`alt`/`label`/`tilt`/`onclose` wiring, same
-fallback art, different payload type and different buttons underneath. The differences are real, so
-this is a "twice is a coincidence" case rather than an extraction that pays for itself now.
-
-### Doing it safely
-
-Every import in the app is a relative path, so this rewrites import lines in every file that moves
-and every file that referred to one. `npm run check` in `PokeBinder/BinderBuilderSvelte` is the
-proof — `svelte-check` reports unresolved imports as errors, and it currently runs clean.
-
-The stylesheet does not care: `app.css` names the two Razor trees and the Skeleton package in
-`@source`, and the SPA's own files are found by Tailwind's scan of this project, so moving files
-inside `src/` changes nothing about what is generated.
-
-**This is why it comes before the undo step.** That step adds another store, and the first thing it
-needs is somewhere to put it.
-
----
-
 ## 3. A history of what the user did, to drive undo and redo
 
 The two buttons already exist and do nothing: `App.svelte` renders Undo and Redo with no `onclick`,
@@ -135,7 +18,7 @@ step is what puts something behind them.
 
 | Action | The call | Reached from |
 | --- | --- | --- |
-| Add a card to the tray | `tray.add` | `AddToTrayButton`, and the spotlight in `AddCardsWorkspace` |
+| Add a card to the tray | `tray.add` | `AddToTrayButton`, and the spotlight in `SearchTab` |
 | Add a card to the binder | `binderPage.dropOnSlot` with a tray source, `binderPage.placeInFirstFreeSlot` | a drop on a pocket; the place buttons in `BinderTrayStrip` and `BinderView` |
 | Remove a card from the tray | `tray.remove` | `BinderTrayStrip`, and the spotlight in `BinderView` |
 | Move a card between pockets | `binderPage.dropOnSlot` with a slot source | a drop on another pocket |

@@ -1,9 +1,9 @@
 <script lang="ts">
   import PlusIcon from '@lucide/svelte/icons/plus'
 
-  import type { CardSearchResult } from '../clients/CardSearchClient'
-  import QuantityStepper from './QuantityStepper.svelte'
-  import { tray } from './tray.svelte'
+  import type { CardSearchResult } from '../../../clients/CardSearchClient'
+  import QuantityStepper from '../common/QuantityStepper.svelte'
+  import { tray } from '../../../stores/tray.svelte'
 
   interface Props {
     card: CardSearchResult

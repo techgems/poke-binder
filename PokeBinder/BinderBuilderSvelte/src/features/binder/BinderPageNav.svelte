@@ -2,7 +2,7 @@
   import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left'
   import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
 
-  import { binderPage } from './binder-page.svelte'
+  import { binderPage } from '../../stores/binder-page.svelte'
 </script>
 
 <!-- Under the pages rather than over them: the top of this panel was reclaimed for the binder, and

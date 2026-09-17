@@ -1,4 +1,4 @@
-import type { StarterFiltersResponse } from './CardSearchClient'
+import type { StarterFiltersResponse } from '../clients/CardSearchClient'
 
 // Data the Razor page put on the document before the app booted.
 //
@@ -107,7 +107,7 @@ export function preloadedBinder(): PreloadedBinder | null {
  * carries -- card types and super types -- are the two the browser never caches, so they are ready
  * before the app is, as they have been since they stopped being fetched. The five big groups are
  * not here: what the page sends for those is `stamps`, which is how the app decides whether the
- * copy in its own storage is still good. See clients/filter-cache.
+ * copy in its own storage is still good. See preloads/search-filters, which is where those stamps are compared.
  */
 export function preloadedSearchFilters(): StarterFiltersResponse | null {
   const payload = window.pokeBinder?.searchFilters

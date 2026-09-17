@@ -2,39 +2,29 @@
   import PlusIcon from '@lucide/svelte/icons/plus'
   import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert'
 
+  import { CARD_BACK_URL } from '../../card-art'
   import {
     CACHED_FILTER_GROUPS,
     CardSearchClient,
-    type CardSearchRequest,
     type CardSearchResult,
-    type SimpleCardSearchRequest,
     type StarterFilters,
-  } from '../clients/CardSearchClient'
-  import { loadCachedSearchFilters, refreshSearchFilters } from '../clients/filter-cache'
-  import AddCardFilters, {
-    effectiveSelection,
-    emptySelection,
-    type FilterSelection,
-  } from './AddCardFilters.svelte'
-  import SearchModeSelector, {
-    DEFAULT_SEARCH_MODE,
-    type SearchMode,
-  } from './SearchModeSelector.svelte'
-  import SimpleSearchFilters, {
-    emptyTerms,
-    type SimpleSearchTerms,
-  } from './SimpleSearchFilters.svelte'
-  import AddToTrayButton from './AddToTrayButton.svelte'
-  import CardTray from './CardTray.svelte'
-  import { tray } from './tray.svelte'
-  import CardSpotlight from './tilt/CardSpotlight.svelte'
-  import TiltCard from './tilt/TiltCard.svelte'
-
-  /** Stand-in art for cards the catalog has no image for. */
-  const CARD_BACK_URL = '/images/TcgImages/card-back.png'
+  } from '../../clients/CardSearchClient'
+  import CardSpotlight from '../../components/tilt/CardSpotlight.svelte'
+  import TiltCard from '../../components/tilt/TiltCard.svelte'
+  import { fetchStaleSearchFilters, preloadSearchFilters } from '../../preloads/search-filters'
+  import { tray } from '../../stores/tray.svelte'
+  import { effectiveSelection, emptySelection, type FilterSelection } from './utils/filter-selection'
+  import AddCardFilters from './filter/AddCardFilters.svelte'
+  import SearchModeSelector from './filter/SearchModeSelector.svelte'
+  import SimpleSearchFilters from './filter/SimpleSearchFilters.svelte'
+  import AddToTrayButton from './results/AddToTrayButton.svelte'
+  import { DEFAULT_SEARCH_MODE, type SearchMode } from './utils/search-mode'
+  import { toRequest, toSimpleRequest } from './utils/search-request'
+  import { emptyTerms, type SimpleSearchTerms } from './utils/simple-search-terms'
+  import CardTray from './tray/CardTray.svelte'
 
   interface Props {
-    /** Additional classes for the workspace grid. */
+    /** Additional classes for the search grid. */
     class?: string
   }
 
@@ -46,21 +36,23 @@
 
   // The catalog's filter options, assembled before the first paint from the two groups the page
   // embeds and whatever this browser already has in storage. Nothing is awaited to get here.
-  const cached = loadCachedSearchFilters()
+  const preloaded = preloadSearchFilters()
 
-  let starterFilters = $state<StarterFilters | null>(cached.hasPageFilters ? cached.filters : null)
+  let starterFilters = $state<StarterFilters | null>(
+    preloaded.hasPageFilters ? preloaded.filters : null,
+  )
 
   // Only while every one of the five cached groups is on its way -- a first visit, or storage this
   // browser will not let us read. With four of five in hand the panel is usable now and the fifth
   // list fills itself in, which beats hiding the lot behind a spinner.
-  let filtersLoading = $state(cached.stale.length === CACHED_FILTER_GROUPS.length)
+  let filtersLoading = $state(preloaded.stale.length === CACHED_FILTER_GROUPS.length)
 
   // A refresh that failed with a usable panel: the groups that did not arrive stay empty, and this
   // is what says so rather than leaving the user to wonder why a set is missing.
   let filtersError = $state<string | null>(null)
 
-  if (cached.stale.length > 0) {
-    refreshSearchFilters(cached)
+  if (preloaded.stale.length > 0) {
+    fetchStaleSearchFilters(preloaded)
       .then((filters) => {
         starterFilters = filters
         filtersError = null
@@ -228,36 +220,6 @@
     }
   }
 
-  function toRequest(selected: FilterSelection, pageNumber: number): CardSearchRequest {
-    // The filter widgets are string-valued, so every id arrives as a string; the API takes numbers.
-    return {
-      // Left out when the box is empty, the same way the simple search leaves it out of its URL.
-      cardName: selected.cardName || undefined,
-      superTypes: [...selected.superTypes],
-      generations: selected.generations.map(Number),
-      series: selected.series.map(Number),
-      sets: selected.sets.map(Number),
-      pokemon: selected.pokemon.map(Number),
-      // Rarities travel as names, not ids; the rest of the fields are ids.
-      rarities: [...selected.rarities],
-      cardTypes: selected.cardTypes.map(Number),
-      pageNumber,
-    }
-  }
-
-  function toSimpleRequest(
-    typed: { cardName: string; cardNumber: string },
-    pageNumber: number,
-  ): SimpleCardSearchRequest {
-    // The field is labelled Card Identifier in the UI, but what the API matches it against is the
-    // card number printed on the card, so it travels under that name.
-    return {
-      cardName: typed.cardName,
-      cardNumber: typed.cardNumber,
-      pageNumber,
-    }
-  }
-
   function loadMore() {
     if (!searching && hasMore) void search(page + 1)
   }
@@ -281,7 +243,7 @@
      hands this grid all goes to the results. The tray column is the wider of the two: each of its
      rows carries art, a card name, a set name and a stepper, and at the filter column's width the
      names were cut to three characters. -->
-<!-- relative so the spotlight below covers exactly this workspace: the tab strip above it stays
+<!-- relative so the spotlight below covers exactly this tab: the tab strip above it stays
      reachable, and nothing has to stack a second dialog to get a card to the front. -->
 <div class="relative grid min-h-0 flex-1 grid-cols-[18rem_1fr_20rem] gap-4 {classes}">
   <!-- Filters. The mode selector sits in this column because all it does is choose which filter

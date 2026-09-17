@@ -1,11 +1,9 @@
 <script lang="ts">
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
 
-  import QuantityStepper from './QuantityStepper.svelte'
-  import { tray } from './tray.svelte'
-
-  /** Stand-in art for cards the catalog has no image for. */
-  const CARD_BACK_URL = '/images/TcgImages/card-back.png'
+  import { CARD_BACK_URL } from '../../../card-art'
+  import QuantityStepper from '../common/QuantityStepper.svelte'
+  import { tray } from '../../../stores/tray.svelte'
 
   interface Props {
     /** Additional classes for the panel. */

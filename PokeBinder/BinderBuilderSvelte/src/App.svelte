@@ -6,13 +6,11 @@
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
   import UndoIcon from '@lucide/svelte/icons/undo-2'
 
-  import ActionSidebar from './lib/ActionSidebar.svelte'
-  import { clickAdd } from './lib/click-add.svelte'
-  import Modal from './lib/Modal.svelte'
-  import WorkspacePanel, {
-    DEFAULT_WORKSPACE_TAB,
-    type WorkspaceTab,
-  } from './lib/WorkspacePanel.svelte'
+  import ActionSidebar from './components/ActionSidebar.svelte'
+  import Modal from './components/Modal.svelte'
+  import WorkspacePanel from './components/WorkspacePanel.svelte'
+  import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './components/workspace-tab'
+  import { clickAdd } from './stores/click-add.svelte'
 
   let searchOpen = $state(false)
 

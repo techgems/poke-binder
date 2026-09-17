@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { binderPage, type DragSource } from './binder-page.svelte'
-  import { clickAdd } from './click-add.svelte'
+  import { CARD_BACK_URL } from '../../card-art'
+  import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
+  import { clickAdd } from '../../stores/click-add.svelte'
 
   interface Props {
     /**
@@ -11,9 +12,6 @@
   }
 
   let { onspotlight }: Props = $props()
-
-  /** Stand-in art for cards the catalog has no image for. */
-  const CARD_BACK_URL = '/images/TcgImages/card-back.png'
 
   /** Between pockets on a page, and between the two pages of a spread. Both in rem. */
   const POCKET_GAP = 0.75

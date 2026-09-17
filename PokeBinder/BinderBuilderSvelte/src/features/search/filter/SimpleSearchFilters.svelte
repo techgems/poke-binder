@@ -1,16 +1,6 @@
-<script lang="ts" module>
-  /** The current state of every simple search field, keyed by field. */
-  export interface SimpleSearchTerms {
-    cardName: string
-    cardIdentifier: string
-  }
-
-  export function emptyTerms(): SimpleSearchTerms {
-    return { cardName: '', cardIdentifier: '' }
-  }
-</script>
-
 <script lang="ts">
+  import { emptyTerms, type SimpleSearchTerms } from '../utils/simple-search-terms'
+
   interface Props {
     /** The current search terms. Bindable. */
     terms?: SimpleSearchTerms

@@ -1,5 +1,5 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
-import type { PreloadedBinder } from '../clients/preload'
+import type { PreloadedBinder } from '../preloads/preload'
 import { tray } from './tray.svelte'
 
 /**

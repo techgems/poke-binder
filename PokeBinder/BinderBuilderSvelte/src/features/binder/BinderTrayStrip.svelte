@@ -9,11 +9,12 @@
   import { cubicInOut } from 'svelte/easing'
   import { slide } from 'svelte/transition'
 
-  import type { CardSearchResult } from '../clients/CardSearchClient'
-  import { binderPage, type DragSource } from './binder-page.svelte'
-  import { clickAdd } from './click-add.svelte'
-  import { prefersReducedMotion } from './tilt/prefers-reduced-motion.svelte'
-  import { tray } from './tray.svelte'
+  import { CARD_BACK_URL } from '../../card-art'
+  import type { CardSearchResult } from '../../clients/CardSearchClient'
+  import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
+  import { clickAdd } from '../../stores/click-add.svelte'
+  import { prefersReducedMotion } from '../../components/tilt/prefers-reduced-motion.svelte'
+  import { tray } from '../../stores/tray.svelte'
 
   interface Props {
     /** A tile was clicked with click-add mode off, which lifts the card rather than moving it. */
@@ -21,9 +22,6 @@
   }
 
   let { onspotlight }: Props = $props()
-
-  /** Stand-in art for cards the catalog has no image for. */
-  const CARD_BACK_URL = '/images/TcgImages/card-back.png'
 
   /** How far an arrow press travels, as a share of the visible strip. */
   const SCROLL_STEP = 0.8

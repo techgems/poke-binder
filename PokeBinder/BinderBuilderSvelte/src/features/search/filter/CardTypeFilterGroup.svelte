@@ -1,15 +1,7 @@
-<script lang="ts" module>
-  import type { FilterOption } from './filter-option'
-
-  /** A card type option, shown as its energy symbol rather than its name. */
-  export interface CardTypeOption extends FilterOption {
-    /** Symbol art for the type, or null when there is none and the name is shown instead. */
-    imageUrl: string | null
-  }
-</script>
-
 <script lang="ts">
   import { ToggleGroup } from '@skeletonlabs/skeleton-svelte'
+
+  import type { CardTypeOption } from '../types/filter-option'
 
   interface Props {
     /** Field label. */
