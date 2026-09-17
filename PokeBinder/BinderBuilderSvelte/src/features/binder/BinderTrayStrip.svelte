@@ -90,6 +90,17 @@
 
   const acceptsDrop = $derived(binderPage.isDraggingFromSlot)
 
+  // An empty tray folds itself away, exactly as pressing Hide folds it: the header stays where it
+  // was -- the count, the border, the toggle -- and only the row of tiles goes. The page above is
+  // what the room is for, and a strip whose whole content is a sentence about being empty is
+  // charging the page for height it gives nothing back for. Folding rather than disappearing is
+  // also what keeps the binder from jumping every time the last card leaves the tray.
+  //
+  // It opens again for a card dragged off a pocket. Dropping on the strip is the only way a drag
+  // takes a card out of the binder, so the target has to be there to be dropped on -- and that is
+  // the one moment the empty message has something worth saying.
+  const expanded = $derived(!collapsed && (!tray.isEmpty || acceptsDrop))
+
   // Whether the place action has anywhere to put a card. placeInFirstFreeSlot only ever looks at
   // the open spread, so a full spread means the button does nothing -- better to say so than to
   // offer a press that goes nowhere.
@@ -132,22 +143,33 @@
 <section class="shrink-0 rounded-container border border-surface-200-800/50">
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <!-- Inert while the tray is empty: there is nothing behind the fold to show, so a toggle that
+       opened an empty box would be a control that does nothing. -->
   <header
-    class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 select-none"
-    onclick={() => (collapsed = !collapsed)}
+    class="flex items-center justify-between gap-2 px-3 py-2 select-none {tray.isEmpty
+      ? ''
+      : 'cursor-pointer'}"
+    onclick={() => {
+      if (!tray.isEmpty) collapsed = !collapsed
+    }}
   >
     <h3 class="text-sm font-semibold">
       Cards in Tray
       <span class="opacity-60">({tray.totalQuantity})</span>
     </h3>
 
-    <button type="button" class="btn btn-sm hover:preset-tonal" aria-expanded={!collapsed}>
-      <span>{collapsed ? 'Show' : 'Hide'}</span>
-      <ChevronDownIcon class="size-4 transition-transform {collapsed ? 'rotate-180' : ''}" />
+    <button
+      type="button"
+      class="btn btn-sm hover:preset-tonal"
+      aria-expanded={expanded}
+      disabled={tray.isEmpty}
+    >
+      <span>{expanded ? 'Hide' : 'Show'}</span>
+      <ChevronDownIcon class="size-4 transition-transform {expanded ? '' : 'rotate-180'}" />
     </button>
   </header>
 
-  {#if !collapsed}
+  {#if expanded}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       transition:slide={slideOptions}
@@ -169,10 +191,12 @@
         : ''}"
     >
       {#if tray.isEmpty}
+        <!-- One sentence, not two: an empty tray is only unfolded for a card being dragged off a
+             pocket, so the invitation to go and add some in the Card Tray tab has nowhere left to
+             be read. Keeping it would also mean the text changed under the fold on the way out,
+             the moment the drag ended. -->
         <p class="w-full py-4 text-center text-sm opacity-60">
-          {acceptsDrop
-            ? 'Drop the card here to take it off the page.'
-            : 'Cards you add in the Card Tray tab wait here. Drag one onto a pocket to place it.'}
+          Drop the card here to take it off the page.
         </p>
       {:else}
         <!-- Same xl as the buttons on a tile, for the same reason and to keep the one row of
