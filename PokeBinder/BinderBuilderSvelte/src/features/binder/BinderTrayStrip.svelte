@@ -90,16 +90,45 @@
 
   const acceptsDrop = $derived(binderPage.isDraggingFromSlot)
 
+  // Whether the card being dragged off a pocket has been brought down here. Set when it reaches
+  // the strip and never cleared until the drag ends, because the fold opens *below* the header
+  // that opened it -- clearing this on the way out of the header would fold the strip away again
+  // the moment the pointer moved into the row it just opened.
+  let dragReachedStrip = $state(false)
+
+  $effect(() => {
+    if (!acceptsDrop) dragReachedStrip = false
+  })
+
+  /**
+   * The strip as a whole is the drop zone, header included. The fold is what the card ends up
+   * over, but it is the header the pointer crosses first and the only thing there at all while the
+   * tray is empty or the user has pressed Hide -- a drop landing on it has to mean the same thing
+   * as a drop on the row below, or the target moves out from under the person aiming at it.
+   */
+  function onDragOverStrip(event: DragEvent): void {
+    if (!acceptsDrop) return
+
+    // Every pass, or the browser refuses the drop.
+    event.preventDefault()
+
+    dragReachedStrip = true
+    overTray = true
+  }
+
   // An empty tray folds itself away, exactly as pressing Hide folds it: the header stays where it
   // was -- the count, the border, the toggle -- and only the row of tiles goes. The page above is
   // what the room is for, and a strip whose whole content is a sentence about being empty is
   // charging the page for height it gives nothing back for. Folding rather than disappearing is
   // also what keeps the binder from jumping every time the last card leaves the tray.
   //
-  // It opens again for a card dragged off a pocket. Dropping on the strip is the only way a drag
-  // takes a card out of the binder, so the target has to be there to be dropped on -- and that is
-  // the one moment the empty message has something worth saying.
-  const expanded = $derived(!collapsed && (!tray.isEmpty || acceptsDrop))
+  // It opens again for a card dragged off a pocket, but only once that card has been brought down
+  // to the strip. Dropping on the strip is the only way a drag takes a card out of the binder, so
+  // the target has to be there to be dropped on -- and that is the one moment the empty message
+  // has something worth saying. Opening on the dragstart instead would answer a question the user
+  // has not asked: most drags off a pocket are a card moving to another pocket, and the tray
+  // unfolding under every one of them shoves the page the user is rearranging.
+  const expanded = $derived(!collapsed && (!tray.isEmpty || (acceptsDrop && dragReachedStrip)))
 
   // Whether the place action has anywhere to put a card. placeInFirstFreeSlot only ever looks at
   // the open spread, so a full spread means the button does nothing -- better to say so than to
@@ -140,7 +169,27 @@
   does not say in a quarter of the space. No tilt either: these are pieces waiting to be placed, and
   a tile that swung under the pointer would fight the drag it is about to be part of.
 -->
-<section class="shrink-0 rounded-container border border-surface-200-800/50">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<section
+  class="shrink-0 rounded-container border border-surface-200-800/50 transition-colors {overTray
+    ? 'bg-primary-500/15'
+    : ''}"
+  ondragenter={onDragOverStrip}
+  ondragover={onDragOverStrip}
+  ondragleave={(event) => {
+    // dragleave fires crossing between the header and the fold as well as leaving the strip, and
+    // relatedTarget is what tells the two apart: only a pointer that has left the strip
+    // altogether puts the highlight out.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+
+    overTray = false
+  }}
+  ondrop={(event) => {
+    event.preventDefault()
+    overTray = false
+    binderPage.dropOnTray()
+  }}
+>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <!-- Inert while the tray is empty: there is nothing behind the fold to show, so a toggle that
@@ -170,25 +219,9 @@
   </header>
 
   {#if expanded}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       transition:slide={slideOptions}
-      ondragover={(event) => {
-        if (!acceptsDrop) return
-
-        // Every pass, or the browser refuses the drop.
-        event.preventDefault()
-        overTray = true
-      }}
-      ondragleave={() => (overTray = false)}
-      ondrop={(event) => {
-        event.preventDefault()
-        overTray = false
-        binderPage.dropOnTray()
-      }}
-      class="flex items-center gap-1 border-t border-surface-200-800/50 p-2 transition-colors {overTray
-        ? 'bg-primary-500/15'
-        : ''}"
+      class="flex items-center gap-1 border-t border-surface-200-800/50 p-2"
     >
       {#if tray.isEmpty}
         <!-- One sentence, not two: an empty tray is only unfolded for a card being dragged off a

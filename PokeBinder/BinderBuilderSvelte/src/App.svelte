@@ -11,12 +11,42 @@
   import WorkspacePanel from './components/WorkspacePanel.svelte'
   import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './components/workspace-tab'
   import { clickAdd } from './stores/click-add.svelte'
+  import { history } from './stores/history.svelte'
 
   let searchOpen = $state(false)
 
   // Held here rather than inside the panel so the sidebar can switch tabs as well as the tab strip.
   let tab = $state<WorkspaceTab>(DEFAULT_WORKSPACE_TAB)
+
+  /**
+   * Ctrl/Cmd+Z and its redo pair, bound to the window because what they undo is the binder rather
+   * than whatever has focus -- but not while focus is in a field, where the browser's own undo is
+   * the one the user means.
+   */
+  function onKeyDown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+
+    const key = event.key.toLowerCase()
+
+    if (key !== 'z' && key !== 'y') return
+
+    // instanceof rather than a cast: a keydown can be dispatched at the window itself, which has no
+    // closest() and would throw out of the handler.
+    if (
+      event.target instanceof Element &&
+      event.target.closest('input, textarea, select, [contenteditable]')
+    ) {
+      return
+    }
+
+    event.preventDefault()
+
+    if (key === 'y' || event.shiftKey) history.redo()
+    else history.undo()
+  }
 </script>
+
+<svelte:window onkeydown={onKeyDown} />
 
 <!-- The page frame -- theme, background, blobs and app bar -- belongs to the Razor layout
      (Pages/Shared/_BinderLayout.cshtml). What is left here is the workspace itself. -->
@@ -57,10 +87,24 @@
     >
       <MousePointerClickIcon class="size-6" />
     </button>
-    <button type="button" class="btn-icon btn-icon-lg hover:preset-tonal" title="Undo" aria-label="Undo">
+    <button
+      type="button"
+      class="btn-icon btn-icon-lg hover:preset-tonal"
+      title="Undo"
+      aria-label="Undo"
+      disabled={!history.canUndo}
+      onclick={() => history.undo()}
+    >
       <UndoIcon class="size-6" />
     </button>
-    <button type="button" class="btn-icon btn-icon-lg hover:preset-tonal" title="Redo" aria-label="Redo">
+    <button
+      type="button"
+      class="btn-icon btn-icon-lg hover:preset-tonal"
+      title="Redo"
+      aria-label="Redo"
+      disabled={!history.canRedo}
+      onclick={() => history.redo()}
+    >
       <RedoIcon class="size-6" />
     </button>
 

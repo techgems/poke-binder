@@ -1,5 +1,6 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import type { PreloadedBinder } from '../preloads/preload'
+import { history } from './history.svelte'
 import { tray } from './tray.svelte'
 
 /**
@@ -48,6 +49,26 @@ let spread = $state(0)
 // The drag lives here rather than in the DataTransfer because dragover has to decide whether a
 // drop is allowed, and the payload cannot be read until the drop itself.
 let dragged = $state<DragSource | null>(null)
+
+/**
+ * Puts a card in a pocket, or empties it.
+ *
+ * The one write every change to the slots goes through, whether it is an action the user took or
+ * an undo replaying one.
+ */
+export function applySlotCard(index: number, card: CardSearchResult | null): void {
+  slots[index] = card
+}
+
+/** The same write, recorded. Nothing changed is nothing to record. */
+function changeSlot(index: number, to: CardSearchResult | null): void {
+  const from = slots[index] ?? null
+
+  if (from === to) return
+
+  history.record({ store: 'slot', index, from, to })
+  applySlotCard(index, to)
+}
 
 export const binderPage = {
   /** Pockets across a page. */
@@ -143,6 +164,19 @@ export const binderPage = {
     if (this.canGoForward) spread += 1
   },
 
+  /**
+   * Opens the spread holding a pocket. What undo uses to bring a change it is about to make onto
+   * the screen, since a pocket changing on a page nobody is looking at reads as a press that did
+   * nothing.
+   */
+  showIndex(index: number): void {
+    if (index < 0) return
+
+    const page = Math.floor(index / this.cardsPerPage) + 1
+
+    spread = page <= 1 ? 0 : Math.floor(page / 2)
+  },
+
   get dragged(): DragSource | null {
     return dragged
   },
@@ -184,6 +218,10 @@ export const binderPage = {
         .filter((entry) => entry.card !== null)
         .map((entry) => ({ card: entry.card as CardSearchResult, quantity: entry.quantity })),
     )
+
+    // The baseline the first undo stops at, and the one event undo cannot reach back across: what
+    // the server sent is where this session starts.
+    history.clear()
   },
 
   startDrag(source: DragSource): void {
@@ -208,29 +246,32 @@ export const binderPage = {
 
     if (!source || index < 0 || index >= slots.length) return
 
-    if (source.kind === 'slot') {
-      if (source.index === index) return
+    history.act(() => {
+      if (source.kind === 'slot') {
+        if (source.index === index) return
 
-      // A straight exchange: whatever was in the target lands where the dragged card came from,
-      // which for an empty target is the same as moving it.
+        // A straight exchange: whatever was in the target lands where the dragged card came from,
+        // which for an empty target is the same as moving it.
+        const displaced = slots[index] ?? null
+
+        changeSlot(index, source.card)
+        changeSlot(source.index, displaced)
+
+        return
+      }
+
       const displaced = slots[index]
-      slots[index] = source.card
-      slots[source.index] = displaced
 
-      return
-    }
+      if (displaced) {
+        tray.add(displaced)
+      }
 
-    const displaced = slots[index]
+      changeSlot(index, source.card)
 
-    if (displaced) {
-      tray.add(displaced)
-    }
-
-    slots[index] = source.card
-
-    // Placing spends one of the copies waiting in the tray; setQuantity drops the entry when the
-    // last one leaves.
-    tray.setQuantity(source.card.id, tray.quantityOf(source.card.id) - 1)
+      // Placing spends one of the copies waiting in the tray; setQuantity drops the entry when the
+      // last one leaves.
+      tray.setQuantity(source.card.id, tray.quantityOf(source.card.id) - 1)
+    })
   },
 
   /** Drops the card being dragged back into the tray. Only a card from a pocket has anywhere to go. */
@@ -241,9 +282,13 @@ export const binderPage = {
 
     if (source?.kind !== 'slot') return
 
-    slots[source.index] = null
+    const { index, card } = source
 
-    tray.add(source.card)
+    history.act(() => {
+      changeSlot(index, null)
+
+      tray.add(card)
+    })
   },
 
   /**
@@ -255,9 +300,11 @@ export const binderPage = {
 
     if (!card) return
 
-    slots[index] = null
+    history.act(() => {
+      changeSlot(index, null)
 
-    tray.add(card)
+      tray.add(card)
+    })
   },
 
   /**
@@ -270,8 +317,10 @@ export const binderPage = {
 
     if (!free) return false
 
-    slots[free.index] = card
-    tray.setQuantity(card.id, tray.quantityOf(card.id) - 1)
+    history.act(() => {
+      changeSlot(free.index, card)
+      tray.setQuantity(card.id, tray.quantityOf(card.id) - 1)
+    })
 
     return true
   },

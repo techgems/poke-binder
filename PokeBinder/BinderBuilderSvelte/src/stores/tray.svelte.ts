@@ -1,4 +1,5 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
+import { history } from './history.svelte'
 
 /**
  * The binder's card tray: what the user has picked out but not yet placed on a page.
@@ -33,6 +34,38 @@ function indexOf(cardId: number): number {
 
 function clamp(quantity: number): number {
   return Math.min(Math.max(Math.round(quantity), 0), MAX_QUANTITY)
+}
+
+/**
+ * Sets one row's count, inserting the row when it is coming back and dropping it when the count
+ * reaches zero -- a tray entry of nothing is not a thing.
+ *
+ * The one write every change to the tray goes through, whether it is an action the user took or an
+ * undo replaying one. History passes values the tray was already in, which is why this clamps
+ * nothing: `clamp` and `MAX_CARDS` guard what the user can reach for, not what they already had.
+ */
+export function applyTrayQuantity(at: number, card: CardSearchResult, quantity: number): void {
+  if (quantity === 0) {
+    entries = entries.filter((_, index) => index !== at)
+
+    return
+  }
+
+  if (entries[at]?.card.id === card.id) {
+    entries = entries.map((entry, index) => (index === at ? { ...entry, quantity } : entry))
+
+    return
+  }
+
+  entries = [...entries.slice(0, at), { card, quantity }, ...entries.slice(at)]
+}
+
+/** The same write, recorded. Nothing changed is nothing to record. */
+function change(at: number, card: CardSearchResult, from: number, to: number): void {
+  if (from === to) return
+
+  history.record({ store: 'tray', card, at, from, to })
+  applyTrayQuantity(at, card, to)
 }
 
 export const tray = {
@@ -85,41 +118,49 @@ export const tray = {
    * user may well have replaced by then.
    */
   add(card: CardSearchResult, quantity = 1): void {
-    const index = indexOf(card.id)
+    history.act(() => {
+      const index = indexOf(card.id)
 
-    if (index === -1) {
-      if (this.isFull) return
+      if (index === -1) {
+        if (this.isFull) return
 
-      entries = [...entries, { card, quantity: clamp(quantity) || 1 }]
+        change(entries.length, card, 0, clamp(quantity) || 1)
 
-      return
-    }
+        return
+      }
 
-    this.setQuantity(card.id, entries[index].quantity + quantity)
+      this.setQuantity(card.id, entries[index].quantity + quantity)
+    })
   },
 
   /** Sets the count outright. Zero removes the card: a tray entry of nothing is not a thing. */
   setQuantity(cardId: number, quantity: number): void {
-    const index = indexOf(cardId)
+    history.act(() => {
+      const index = indexOf(cardId)
 
-    if (index === -1) return
+      if (index === -1) return
 
-    const next = clamp(quantity)
-
-    if (next === 0) {
-      this.remove(cardId)
-
-      return
-    }
-
-    entries = entries.map((entry, at) => (at === index ? { ...entry, quantity: next } : entry))
+      change(index, entries[index].card, entries[index].quantity, clamp(quantity))
+    })
   },
 
   remove(cardId: number): void {
-    entries = entries.filter((entry) => entry.card.id !== cardId)
+    history.act(() => {
+      const index = indexOf(cardId)
+
+      if (index === -1) return
+
+      change(index, entries[index].card, entries[index].quantity, 0)
+    })
   },
 
   clear(): void {
-    entries = []
+    history.act(() => {
+      // Backwards, so each row is still where its delta says it is when the deltas before it are
+      // applied -- and so undo puts them back from the top down.
+      for (let at = entries.length - 1; at >= 0; at -= 1) {
+        change(at, entries[at].card, entries[at].quantity, 0)
+      }
+    })
   },
 }
