@@ -10,9 +10,10 @@ import { tray } from './tray.svelte'
  * about what a copy costs live in one place instead of being restated by whichever component
  * happens to be handling the drop.
  *
- * Slots cover the *whole* binder, not the spread on screen. SaveBinderCards takes a snapshot of the
- * whole binder — a payload holding one page tells it every other page is empty — so the client has
- * to hold the whole thing to be able to save at all.
+ * Slots cover the *whole* binder, not the spread on screen, because the user pages through the
+ * whole binder and every pocket has to be there to turn to. Saving does not need it: a save names
+ * the pages it covers and carries only those, so the rest of this array is state the client holds
+ * for its own sake and never posts.
  */
 
 /** The grid used before a binder is loaded: a plain 3x3 sheet of one page. */

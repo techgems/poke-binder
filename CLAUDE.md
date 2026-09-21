@@ -113,6 +113,40 @@ What is already in the layout is not an argument against this. `<pines-sidebar>`
 and a toggle for small screens, and the bar keeps that toggle, because removing it would mean
 rewriting Pines' sidebar rather than saving anybody anything.
 
+## Rules for controllers
+
+**A slice's `Request` is also the body its controller receives.** Bind it straight off the wire and
+hand it to the validator:
+
+```csharp
+public async Task<ActionResult<SaveBinderCards.Response>> SaveCards(
+    int binderId,
+    [FromBody] SaveBinderCards.Request body,
+    CancellationToken ct)
+{
+    var request = body with { BinderId = binderId };
+```
+
+Do not define a per-endpoint body type beside it. One shape means the endpoint, the slice, the
+validator and the tests are all talking about the same object, and a field added to the contract
+cannot reach the slice while the controller's own copy of the shape quietly ignores it.
+
+- **The route still owns any id in it.** The `Request` carries `BinderId` and the URL carries it
+  too, so the URL wins: `body with { BinderId = binderId }`, before anything reads the request.
+  What the caller put in that field is not part of what the endpoint asks for, and saying so in the
+  `<param>` doc is worth the line.
+- **Normalise nothing else.** No `?? []` on the lists. The request that reaches the validator is
+  exactly what was deserialised, which is the point of binding it directly, and a coalesce turns
+  "the client sent nonsense" into a save of an empty page.
+- **Which puts the null on the validator**, and it is not free: FluentValidation's default cascade
+  is `Continue`, so `.NotNull()` records its failure and the next rule in the chain dereferences
+  the null anyway. A non-nullable `IReadOnlyList<T>` with an `= []` default does not save you --
+  `System.Text.Json` will write a null over it. So **every list rule gets
+  `.Cascade(CascadeMode.Stop)` before its `NotNull`**, and **every `CustomAsync` that reads a list
+  returns early when it is null**, leaving the message to the rule that owns it. Without both, a
+  body carrying `"cards": null` is a 500 instead of the 400 the validator had already decided on.
+  There is a test per list for this in `SaveBinderChangesTests`; copy it for a new slice.
+
 ## Rules for tests
 
 `PokeBinder.Features.Tests` (xUnit) covers the slices. Run it with:

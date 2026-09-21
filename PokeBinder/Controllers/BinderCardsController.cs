@@ -4,8 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using PokeBinder.Auth;
 using PokeBinder.Binders.DbContext;
-using PokeBinder.Features.Binder.SaveBinderCards;
-using PokeBinder.Features.Binder.SaveBinderCards.Models;
+using PokeBinder.Features.Binder.SaveBinderChanges;
 using PokeBinder.TcgCatalog.DbContext;
 
 namespace PokeBinder.Controllers;
@@ -18,35 +17,47 @@ public class BinderCardsController(
     TcgCatalogDbContext catalogContext) : ControllerBase
 {
     /// <summary>
-    /// Stores where the cards sit in a binder. The body is every placed card, not the ones that
-    /// moved: sending it again unchanged writes nothing, which is what lets the client debounce
-    /// this call and retry it without tracking what it has already sent.
+    /// Stores one edit to a binder: the pages the user is looking at and the whole tray, both
+    /// halves in one body, so one debounce tick is one request and one transaction. Two calls
+    /// could half-fail, and placing a card spends a copy out of the tray -- a committed page write
+    /// with a failed tray write leaves that copy both placed and still waiting.
     /// <para>
-    /// That also makes it a whole-binder call. A body carrying only the page on screen says every
-    /// other page is empty, and the save will believe it — load with GetFullBinder and send back
-    /// what it gave you. PUT rather than POST for the same reason: the request replaces the cards
-    /// at this URL and says so. An empty array is valid and empties the binder.
+    /// The pages are the request's scope and are not optional. Within them the cards are a
+    /// snapshot, so a pocket left out is one the user emptied; outside them nothing is touched.
+    /// That is what makes this call cheap enough to repeat -- page two of a fifty-page binder costs
+    /// one page, not fifty -- and what separates it from BindersController's whole-binder write,
+    /// which replaces the lot.
+    /// </para>
+    /// <para>
+    /// PUT rather than POST because the request replaces what is at the pages it names: sending it
+    /// again unchanged writes nothing, which is what lets the client debounce it, abort it and
+    /// retry it without keeping a ledger of what it has already sent. It is also what makes it safe
+    /// for a closing tab to fire one with <c>keepalive</c> and never read the answer.
     /// </para>
     /// </summary>
-    /// <param name="binderId">Whose cards to replace. Must be one of the caller's own binders.</param>
+    /// <param name="binderId">Whose binder to edit. Must be one of the caller's own.</param>
+    /// <param name="body">
+    /// The slice's own request. Its <see cref="SaveBinderChanges.Request.BinderId"/> is whatever
+    /// the caller happened to send and is overwritten below, so the field is not part of what this
+    /// endpoint asks for.
+    /// </param>
     [HttpPut("{binderId:int}")]
-    public async Task<ActionResult<SaveBinderCards.Response>> Save(
+    public async Task<ActionResult<SaveBinderChanges.Response>> Save(
         int binderId,
-        [FromBody] IReadOnlyList<PlacedCard> cards,
+        [FromBody] SaveBinderChanges.Request body,
         CancellationToken ct)
     {
         var userId = User.GetUserId();
 
-        // The binder comes from the route and the cards from the body, so the request the slice
-        // sees is assembled here rather than posted whole. One id, from one place: a body that
-        // named a different binder than the URL could not disagree with it.
-        var request = new SaveBinderCards.Request
-        {
-            BinderId = binderId,
-            Cards = cards ?? [],
-        };
+        // One id, from one place: the route's. A body that named a different binder cannot disagree
+        // with the URL because the URL wins here, before anything reads the request.
+        //
+        // Nothing else is normalised. A body that sent null for a list arrives as null, and the
+        // validator refuses it -- it has NotNull rules that would otherwise never fire, and a
+        // coalesce here would turn "the client sent nonsense" into a save of an empty page.
+        var request = body with { BinderId = binderId };
 
-        var validation = await new SaveBinderCardsValidator(binderContext, catalogContext, userId)
+        var validation = await new SaveBinderChangesValidator(binderContext, catalogContext, userId)
             .ValidateAsync(request, ct);
 
         if (!validation.IsValid)
@@ -54,7 +65,7 @@ public class BinderCardsController(
             return ValidationProblem(ToModelState(validation.Errors));
         }
 
-        var response = await SaveBinderCards.Handler(request, userId, binderContext, ct);
+        var response = await SaveBinderChanges.Handler(request, userId, binderContext, ct);
 
         return Ok(response);
     }

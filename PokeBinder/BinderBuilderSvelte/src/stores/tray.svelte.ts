@@ -7,7 +7,8 @@ import { history } from './history.svelte'
  * Held here rather than inside a component because two places need the same answer — the tray
  * panel lists it, and every result tile asks whether the card it shows is already in it. Nothing
  * is sent to the server yet; this is the client's copy, and the shape it keeps (a card and a
- * count, keyed by card) is the shape SaveBinderTray takes when it is wired up.
+ * count, keyed by card) is the shape SaveBinderChanges takes when it is wired up — the tray
+ * travels whole, with the pages of the spread being edited.
  */
 
 export interface TrayEntry {
@@ -16,12 +17,16 @@ export interface TrayEntry {
 }
 
 /**
- * Copies of one card. Mirrors SaveBinderTray.MaxQuantity so the UI cannot build a tray the server
- * would refuse; the practical ceiling is far lower than this.
+ * Copies of one card, and distinct cards in a tray.
+ *
+ * **These are the only ceilings there are.** The server used to state its own and no longer does:
+ * how big a tray is worth having is a question about the workspace, not about the table, and two
+ * declarations of it were two things to keep in step. So nothing behind these enforces them — a
+ * tray that gets past them is saved as it stands, and the numbers are here to keep the UI honest
+ * rather than to keep the database safe. The practical ceiling is far lower than either.
  */
 export const MAX_QUANTITY = 999
 
-/** Distinct cards in a tray. Mirrors SaveBinderTray.MaxCards for the same reason. */
 export const MAX_CARDS = 500
 
 // Insertion-ordered, like a shopping cart: a card the user just picked belongs at the end of the

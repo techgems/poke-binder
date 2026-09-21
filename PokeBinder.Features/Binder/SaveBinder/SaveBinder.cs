@@ -10,8 +10,9 @@ namespace PokeBinder.Features.Binder.SaveBinder;
 
 /// <summary>
 /// Creates a binder, or saves an edit to one the user already has. This slice owns the binder
-/// itself -- its name, its grid and how many pages it has. What goes in its pockets is
-/// SaveBinderChanges, and what is staged for it is SaveBinderTray.
+/// itself -- its name, its grid and how many pages it has. What goes in its pockets and what is
+/// staged for it are both SaveBinderChanges: the tray is not separable from the pages, because
+/// placing a card spends a copy out of it.
 ///
 /// A new binder is empty in both senses: no cards on its pages, and no tray entries. Neither needs
 /// a row written here. The tray is scoped to the binder by id rather than being a record of its

@@ -1,4 +1,4 @@
-namespace PokeBinder.Features.Binder.SaveBinderTray.Models;
+namespace PokeBinder.Features.Binder.SaveBinderChanges.Models;
 
 /// <summary>
 /// One card sitting in the tray, as the front end holds it: which card, and how many copies.

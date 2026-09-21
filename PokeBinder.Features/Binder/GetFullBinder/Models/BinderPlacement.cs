@@ -6,8 +6,8 @@ namespace PokeBinder.Features.Binder.GetFullBinder.Models;
 public class BinderPlacement
 {
     /// <summary>
-    /// The pocket, counted from zero across the whole binder. This is what is stored and what
-    /// SaveBinderCards takes back; the two below are it, divided by the grid.
+    /// The pocket, counted from zero across the whole binder. This is what is stored and what a
+    /// save takes back; the two below are it, divided by the grid.
     /// </summary>
     public int IndexInBinder { get; set; }
 

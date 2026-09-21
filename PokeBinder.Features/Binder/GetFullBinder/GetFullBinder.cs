@@ -8,9 +8,9 @@ namespace PokeBinder.Features.Binder.GetFullBinder;
 
 /// <summary>
 /// One binder, whole: what it is, every card placed in it and where, and what is still waiting in
-/// its tray. This is the load that puts a client in a position to edit — and, because
-/// SaveBinderCards and SaveBinderTray both take snapshots, in a position to save without first
-/// asking what it does not already know.
+/// its tray. This is the load that puts a client in a position to edit — and, because the saves
+/// take snapshots rather than deltas, in a position to save without first asking what it does not
+/// already know.
 ///
 /// It reads both databases. The binder, its placements and its tray are in one; the cards those
 /// point at are in the catalog, a separate SQLite file. Nothing can join across the two, so the

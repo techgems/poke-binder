@@ -134,15 +134,22 @@ stack, and `stores/history.svelte.ts` is where that happens. It is numbered afte
 the file is append-only, not because it is last in line.
 
 Nothing in the workspace is saved today. The SPA holds the binder it was handed at startup and every
-edit since, and a reload throws all of it away: `BinderCardsController` and `BinderTrayController`
-exist and no client code has ever called them.
+edit since, and a reload throws all of it away: part 1 below is built, and no client code calls it
+yet.
+
+The three whole-binder writers this step was designed to sit beside are gone, all on 2026-09-21,
+none of them ever called by anything: `SaveBinderTray` and its controller, because the tray is not
+separable from the pages that spend copies out of it, and `SaveBinderCards` with `BindersController`,
+because nothing needs a whole-binder card write. **`SaveBinderChanges` is now the only thing that
+writes a binder's contents** — which is worth knowing while reading the rest of this section, since
+it was written when it was one writer of three.
 
 Three parts, in order:
 
-1. **The debounce**, driven off the history stack, ending in a stubbed request that logs rather than
-   fetches.
-2. **The endpoint and the slice** that takes the contract below and writes it, cancellation
+1. **The endpoint and the slice** that takes the contract below and writes it, cancellation
    included.
+2. **The debounce**, driven off the history stack, ending in a stubbed request that logs rather than
+   fetches.
 3. **The wiring**, which replaces the stub with a real call against the finished contract.
 
 ### The trigger is the history stack, not the stores
@@ -171,15 +178,14 @@ comes back rather than when one is sent.
 | The open pages | the pockets of the one or two pages in the open spread, and their contents |
 
 The point is what it leaves out: **the binder's other pages are not in the payload**, so editing
-page two of a fifty-page binder does not post fifty pages back. Both existing endpoints are the
-exact opposite of this — whole-binder PUTs whose own documentation says "send the whole binder, not
-the page being edited" — so this is a new slice beside them rather than a change to either.
-`SaveBinderChanges.cs` is an empty `internal class` stub sitting in `PokeBinder.Features/Binder/`
-already, which is presumably where it was always going.
+page two of a fifty-page binder does not post fifty pages back. The two endpoints that existed when
+this was written were the exact opposite of it — whole-binder PUTs whose own documentation said
+"send the whole binder, not the page being edited" — which is why this began as a new slice beside
+them rather than a change to either. Both have since been deleted, so it is not beside anything.
 
-**A partial payload has to say which pockets it covers, not only which cards it carries.** In
-`SaveBinderCards.Handler` a stored pocket the body does not mention is a pocket the user emptied,
-and it is deleted; give that handler one page and it empties the other forty-nine. Under this
+**A partial payload has to say which pockets it covers, not only which cards it carries.** To a
+whole-binder handler, a stored pocket the body does not mention is a pocket the user emptied, and it
+is deleted; give such a handler one page and it empties the other forty-nine. Under this
 contract an emptied pocket and an unsent pocket look identical unless the request states its scope,
 so the page numbers travel with it and the index range is arithmetic over the grid — page n is
 pockets `(n - 1) * cardsPerPage` through `n * cardsPerPage - 1`. The diff then runs inside that
@@ -221,12 +227,12 @@ committed page write with a failed tray write leaves that copy both placed and s
 
 The validator is the established pair — ownership first, answering for someone else's binder exactly
 as it answers for a missing one, then the page numbers against the binder's page count, then the
-pocket indexes against the pages the request claims, which is a stricter check than
-`SaveBinderCardsValidator`'s capacity bound, then the tray quantities and the existence of every
-card id in the catalog as `SaveBinderTray` already does.
+pocket indexes against the pages the request claims, which is stricter than a bound against the
+binder's capacity, then the tray quantities and the existence of every card id in the catalog.
 
-**Cancellation is the part the debounce makes ordinary.** `ct` is already threaded through both
-existing handlers, so the mechanism is nothing new; what changes is that an abandoned request stops
+**Cancellation is the part the debounce makes ordinary.** `ct` was already threaded through the
+handlers this was modelled on, so the mechanism is nothing new; what changes is that an abandoned
+request stops
 being an exception. A request aborted after `SaveChangesAsync` has returned is a save that happened
 and a client that does not know it — harmless only while every payload is a complete snapshot of the
 scope it claims, which is the standing reason to keep them that way.
@@ -256,10 +262,11 @@ except a comment. The store has to keep it before anything can address an endpoi
   flush is the usual answer, but `navigator.sendBeacon` only POSTs, so either the endpoint grows a
   POST alias or the flush is an unawaited `fetch` with `keepalive`. Leaving `/Binder` through the
   Razor sidebar is a full navigation and has the same problem.
-- **Whether a resize fits this contract at all.** Step 1's rearrangement re-flows every page and
-  changes the binder's own dimensions, which is `SaveBinder` plus a whole-binder card write — the
-  existing endpoints, not this one. So the partial save is not the only writer, and the two must not
-  be able to run against each other.
+- **How a resize writes its re-flow.** Settled that it is not this contract and not a whole-binder
+  card write either: those endpoints were deleted rather than kept for it. Step 1's rearrangement
+  re-flows every page and changes the binder's own dimensions, so it needs `SaveBinder` and
+  something that moves cards, and what that something is has not been decided. Whatever it is must
+  not be able to run against the debounced save.
 - **A maximum wait**, as above.
 - **What the user is told when a save fails**, and whether it retries. The workspace has nowhere to
   say "not saved" today.
