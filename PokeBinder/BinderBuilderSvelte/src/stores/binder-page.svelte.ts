@@ -1,6 +1,7 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import type { PreloadedBinder } from '../preloads/preload'
 import { history } from './history.svelte'
+import { save } from './save.svelte'
 import { tray } from './tray.svelte'
 
 /**
@@ -37,6 +38,10 @@ export type DragSource =
   | { kind: 'tray'; card: CardSearchResult }
   | { kind: 'slot'; card: CardSearchResult; index: number }
 
+// Which binder this is. Null until one is loaded -- /Binder without an id is a legitimate way to
+// arrive -- and needed before anything can address a save to it.
+let binderId = $state<number | null>(null)
+
 let columns = $state(DEFAULT_COLUMNS)
 let rows = $state(DEFAULT_ROWS)
 let pages = $state(1)
@@ -46,6 +51,12 @@ let slots = $state<(CardSearchResult | null)[]>(Array(DEFAULT_COLUMNS * DEFAULT_
 // pairs, so spread 0 is page 1 alone and spread n is pages 2n and 2n+1 -- the same way the sheets
 // are actually bound.
 let spread = $state(0)
+
+// Pockets the server flagged as reserved for a card the collector does not own yet. Kept beside
+// the slots rather than in them because nothing in the workspace sets the flag: what this holds is
+// what the server sent, so a save can hand it back instead of clearing it. A control for it is a
+// reason to move the flag into the slot itself.
+let missingPockets = new Set<number>()
 
 // The drag lives here rather than in the DataTransfer because dragover has to decide whether a
 // drop is allowed, and the payload cannot be read until the drop itself.
@@ -61,6 +72,22 @@ export function applySlotCard(index: number, card: CardSearchResult | null): voi
   slots[index] = card
 }
 
+/**
+ * Turns to a spread, flushing whatever save was waiting for the one being left.
+ *
+ * The flush is the rule that keeps one pending save to one spread: a save names the pages it
+ * covers, so a timer armed on page two and left to fire after a flip would post the wrong pages
+ * entirely. Sending on the way out is what makes the captured scope safe to trust. A flip with
+ * nothing pending sends nothing.
+ */
+function openSpread(next: number): void {
+  if (next === spread) return
+
+  save.flush()
+
+  spread = next
+}
+
 /** The same write, recorded. Nothing changed is nothing to record. */
 function changeSlot(index: number, to: CardSearchResult | null): void {
   const from = slots[index] ?? null
@@ -72,6 +99,11 @@ function changeSlot(index: number, to: CardSearchResult | null): void {
 }
 
 export const binderPage = {
+  /** Which binder is loaded, or null when the page was opened without one. */
+  get binderId(): number | null {
+    return binderId
+  },
+
   /** Pockets across a page. */
   get columns(): number {
     return columns
@@ -98,6 +130,14 @@ export const binderPage = {
   /** Which spread is open, counted from zero. */
   get spread(): number {
     return spread
+  },
+
+  /**
+   * Whether a pocket is flagged as reserved for a card that is not owned yet -- as the server said,
+   * since nothing here can change it. Read when a save is built, so the flag survives the save.
+   */
+  isMissing(index: number): boolean {
+    return missingPockets.has(index)
   },
 
   /**
@@ -158,11 +198,11 @@ export const binderPage = {
   },
 
   goBack(): void {
-    if (this.canGoBack) spread -= 1
+    if (this.canGoBack) openSpread(spread - 1)
   },
 
   goForward(): void {
-    if (this.canGoForward) spread += 1
+    if (this.canGoForward) openSpread(spread + 1)
   },
 
   /**
@@ -175,7 +215,7 @@ export const binderPage = {
 
     const page = Math.floor(index / this.cardsPerPage) + 1
 
-    spread = page <= 1 ? 0 : Math.floor(page / 2)
+    openSpread(page <= 1 ? 0 : Math.floor(page / 2))
   },
 
   get dragged(): DragSource | null {
@@ -196,12 +236,15 @@ export const binderPage = {
 
     if (!summary) return
 
+    binderId = summary.id
     columns = summary.x
     rows = summary.y
     pages = summary.pages
     spread = 0
 
     const placed: (CardSearchResult | null)[] = Array(summary.cardCount).fill(null)
+
+    missingPockets = new Set()
 
     for (const placement of preloaded.cards) {
       // A card the catalog no longer has, or a pocket outside the binder's current size — the
@@ -210,6 +253,8 @@ export const binderPage = {
       if (!placement.card || placement.indexInBinder >= placed.length) continue
 
       placed[placement.indexInBinder] = placement.card
+
+      if (placement.isMissing) missingPockets.add(placement.indexInBinder)
     }
 
     slots = placed

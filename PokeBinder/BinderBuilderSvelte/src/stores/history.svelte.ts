@@ -1,5 +1,6 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import { binderPage, applySlotCard } from './binder-page.svelte'
+import { save } from './save.svelte'
 import { applyTrayQuantity } from './tray.svelte'
 
 /**
@@ -16,6 +17,13 @@ import { applyTrayQuantity } from './tray.svelte'
  * `tray.svelte.ts` and `binder-page.svelte.ts` are. **A new mutating call is a new recording in the
  * same commit**: an edit that reaches the tray or the slots without one leaves the stack describing
  * a binder that no longer exists, and undo then restores a state the user was never in.
+ *
+ * Saving inherits that argument for free, which is why it is armed from here rather than from the
+ * stores: an action that records itself schedules its own save. All three events do it -- a commit,
+ * an undo and a redo -- because all three change what is in the binder, and each hands over the
+ * pockets its entry touched so the save claims the pages it actually changed rather than the ones
+ * on screen. `clear` does not, and deliberately does not cancel a save already armed: the edits
+ * before a clear still happened.
  */
 
 /** A change to one tray row: the card, the row it sits on, and its count before and after. */
@@ -79,6 +87,8 @@ function commit(): void {
 
   entries = kept.length > MAX_ENTRIES ? kept.slice(kept.length - MAX_ENTRIES) : kept
   applied = entries.length
+
+  save.arm(slotIndexes(entry.deltas))
 }
 
 /** The pocket an entry should be looking at, or -1 for an entry that touched no pocket. */
@@ -88,6 +98,14 @@ function firstSlotIndex(deltas: readonly Delta[]): number {
   }
 
   return -1
+}
+
+/**
+ * Every pocket an entry changed. Empty for an entry that only touched the tray, which is a save
+ * with no page of its own to name -- see `save.arm`.
+ */
+function slotIndexes(deltas: readonly Delta[]): number[] {
+  return deltas.filter((delta) => delta.store === 'slot').map((delta) => delta.index)
 }
 
 function replay(entry: HistoryEntry, direction: 'undo' | 'redo'): void {
@@ -164,17 +182,29 @@ export const history = {
   undo(): void {
     if (!this.canUndo) return
 
-    replay(entries[applied - 1], 'undo')
+    const entry = entries[applied - 1]
+
+    replay(entry, 'undo')
 
     applied -= 1
+
+    // Undo pushes nothing, so `commit` never runs for it and the save has to be armed here. The
+    // replay turned to the page it changed before writing, so the spread on screen is the spread
+    // being saved either way -- but the entry knows which pockets it touched, and that is what the
+    // request should claim.
+    save.arm(slotIndexes(entry.deltas))
   },
 
   redo(): void {
     if (!this.canRedo) return
 
-    replay(entries[applied], 'redo')
+    const entry = entries[applied]
+
+    replay(entry, 'redo')
 
     applied += 1
+
+    save.arm(slotIndexes(entry.deltas))
   },
 
   /**

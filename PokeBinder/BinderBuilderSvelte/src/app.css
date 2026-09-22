@@ -42,3 +42,43 @@
 [x-cloak] {
   display: none !important;
 }
+
+/*
+  Toasts position and animate themselves through custom properties, and applying those properties
+  is the consumer's job -- Skeleton 5 ships the toast as anatomy with no CSS of its own, so there
+  is nothing else in the bundle that does this.
+
+  Zag's machine writes --x, --y, --opacity, --z-index and (stacked only) --height inline on each
+  toast, then leaves them there: `--y: 100%` for a toast that has not entered yet, `--y: 0` once it
+  has. Nothing reads them without these rules, so the toast never translates into place -- it lands
+  half off the bottom of the viewport and never fades, which is how this was found.
+*/
+[data-scope='toast'][data-part='root'] {
+  translate: var(--x) var(--y);
+  scale: var(--scale, 1);
+  z-index: var(--z-index);
+  /* Only set while toasts are stacked rather than overlapped; ours overlap, hence the fallback. */
+  height: var(--height, auto);
+  opacity: var(--opacity, 1);
+  will-change: translate, opacity, scale;
+  transition:
+    translate 400ms cubic-bezier(0.21, 1.02, 0.73, 1),
+    scale 400ms cubic-bezier(0.21, 1.02, 0.73, 1),
+    opacity 400ms cubic-bezier(0.21, 1.02, 0.73, 1),
+    height 400ms cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+/* Leaving is quicker than arriving: a notice on its way out should not hold the corner. */
+[data-scope='toast'][data-part='root'][data-state='closed'] {
+  transition:
+    translate 200ms ease-out,
+    scale 200ms ease-out,
+    opacity 200ms ease-out,
+    height 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-scope='toast'][data-part='root'] {
+    transition: none;
+  }
+}

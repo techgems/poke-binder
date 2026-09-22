@@ -207,19 +207,7 @@ changed before applying it, so the spread on screen is again the spread being ed
 indexes it touched anyway, so a payload that would rather name the pages it actually touched than
 the ones on screen can be built from the entry instead of from `spreadPages`.
 
-### 3.1 — the debounce and the stub
-
-A store beside the other two, holding the dirty flag, the timer, and the captured scope. The request
-function has its final signature and its final return type from the start and logs the payload
-instead of fetching it, so part 3 replaces a body and not a caller. The debounce window is 5–10
-seconds; pick one number, name it, and put the reason next to it.
-
-**Nothing bounds a run of resets except the user.** Somebody holding down a quantity stepper defers
-the save for as long as they keep going, and a tab closed mid-run loses all of it. Whether there is a
-ceiling — a maximum wait after the first pending change, regardless of what arrives after it — is
-worth settling here rather than discovering later.
-
-### 3.2 — the endpoint and the slice
+### 3.1 — the endpoint and the slice
 
 One route taking both halves in one body, so one debounce tick is one request and one transaction.
 Two calls, cards then tray, can half-fail: placing a card spends a copy out of the tray, so a
@@ -232,15 +220,26 @@ binder's capacity, then the tray quantities and the existence of every card id i
 
 **Cancellation is the part the debounce makes ordinary.** `ct` was already threaded through the
 handlers this was modelled on, so the mechanism is nothing new; what changes is that an abandoned
-request stops
-being an exception. A request aborted after `SaveChangesAsync` has returned is a save that happened
-and a client that does not know it — harmless only while every payload is a complete snapshot of the
-scope it claims, which is the standing reason to keep them that way.
+request stops being an exception. A request aborted after `SaveChangesAsync` has returned is a save
+that happened and a client that does not know it — harmless only while every payload is a complete
+snapshot of the scope it claims, which is the standing reason to keep them that way.
 
 The slice gets tests, on the in-memory provider, per "Rules for tests" in `CLAUDE.md`. **The test
 this whole contract exists to make possible is that pockets outside the claimed pages survive the
 save** — a partial payload that quietly empties the rest of the binder is the failure mode, and it is
 the one nobody would notice until a binder came back short.
+
+### 3.2 — the debounce and the stub
+
+A store beside the other two, holding the dirty flag, the timer, and the captured scope. The request
+function has its final signature and its final return type from the start and logs the payload
+instead of fetching it, so part 3 replaces a body and not a caller. The debounce window is 5–10
+seconds; pick one number, name it, and put the reason next to it.
+
+**Nothing bounds a run of resets except the user.** Somebody holding down a quantity stepper defers
+the save for as long as they keep going, and a tab closed mid-run loses all of it. Whether there is a
+ceiling — a maximum wait after the first pending change, regardless of what arrives after it — is
+worth settling here rather than discovering later.
 
 ### 3.3 — wiring it up
 

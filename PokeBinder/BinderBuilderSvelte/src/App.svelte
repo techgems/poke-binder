@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Toast } from '@skeletonlabs/skeleton-svelte'
   import MousePointerClickIcon from '@lucide/svelte/icons/mouse-pointer-click'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import RedoIcon from '@lucide/svelte/icons/redo-2'
@@ -8,12 +9,40 @@
 
   import ActionSidebar from './components/ActionSidebar.svelte'
   import Modal from './components/Modal.svelte'
+  import { toaster } from './components/toaster'
   import WorkspacePanel from './components/WorkspacePanel.svelte'
   import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './components/workspace-tab'
   import { clickAdd } from './stores/click-add.svelte'
   import { history } from './stores/history.svelte'
+  import { save } from './stores/save.svelte'
 
   let searchOpen = $state(false)
+
+  // Failures already reported. The save store counts them; this decides which are news.
+  let toastedFailures = 0
+
+  /**
+   * Says so when a save could not be stored.
+   *
+   * The workspace saves silently and has nowhere else to say anything, so a failure that is not
+   * raised here is a failure the user finds out about by losing work. It reads the count rather
+   * than the status because a second failed save leaves the status on `error` and would never
+   * announce itself; the guard is what keeps the first run, on mount, from reporting nothing.
+   *
+   * The scheduler has already retried once by the time this fires and does not keep retrying on a
+   * timer, so what happens next is the user's next edit or page flip -- which is what this says,
+   * rather than promising a retry that is not scheduled.
+   */
+  $effect(() => {
+    if (save.failures <= toastedFailures) return
+
+    toastedFailures = save.failures
+
+    toaster.error({
+      title: 'Not saved',
+      description: 'Your changes are still here. The next edit you make will save them too.',
+    })
+  })
 
   // Held here rather than inside the panel so the sidebar can switch tabs as well as the tab strip.
   let tab = $state<WorkspaceTab>(DEFAULT_WORKSPACE_TAB)
@@ -128,6 +157,28 @@
     <WorkspacePanel bind:tab class="min-h-0 flex-1" />
   </main>
 </div>
+
+<!-- Positioned by Zag from the toaster's own placement, so it needs no wrapper of its own. It sits
+     outside the workspace column because a toast belongs to the page rather than to the panel. -->
+<Toast.Group {toaster}>
+  {#snippet children(toast)}
+    <Toast
+      {toast}
+      class="card grid w-80 grid-cols-[1fr_auto] items-start gap-3 p-4 shadow-xl {toast.type ===
+      'error'
+        ? 'preset-filled-error-500'
+        : 'preset-filled-surface-100-900'}"
+    >
+      <div class="space-y-1">
+        <Toast.Title class="font-semibold">{toast.title}</Toast.Title>
+        {#if toast.description}
+          <Toast.Description class="text-sm opacity-90">{toast.description}</Toast.Description>
+        {/if}
+      </div>
+      <Toast.CloseTrigger class="btn-icon btn-icon-sm hover:preset-tonal" aria-label="Dismiss" />
+    </Toast>
+  {/snippet}
+</Toast.Group>
 
 <Modal bind:open={searchOpen} title="Search cards">
   <input class="input" type="search" placeholder="Search by card name…" />

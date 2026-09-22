@@ -68,11 +68,35 @@ public class LoginModel : PageModel
         return Page();
     }
 
+    /// <summary>
+    /// Builds the one-time link and, in Development, writes it to <c>passwordless.txt</c> instead of
+    /// mailing it.
+    ///
+    /// <para>
+    /// The link carries where the user was going as well as who they are. It has to: the sign-in
+    /// leaves the browser and comes back as a fresh GET on the callback, so anything this page knew
+    /// and did not put in the link is gone by the time they are signed in. Without it every
+    /// sign-in lands on the default page, however the user got here.
+    /// </para>
+    /// </summary>
     private async Task GenerateTokenAndLink(User user, string email)
     {
         var token = await _userManager.GenerateUserTokenAsync(user, PasswordlessConstants.ProviderName, "passwordless-auth");
 
-        var url = Url.Page("AuthCallback", "Account", new { token, email = Input.Email }, Request.Scheme);
+        // Only a local destination travels. It arrives on this page's own query string, so anybody
+        // can put anything there -- and a link that carried an absolute URL would either walk the
+        // user off the site or, since the callback redirects locally, throw at the very end of a
+        // sign-in that had already happened. Dropped here, a crafted returnUrl is just an ordinary
+        // sign-in. Url.Page leaves the parameter out of the link entirely when it is null.
+        var destination = Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : null;
+
+        // `email` rather than `Input.Email`: the same value at both call sites, but a parameter the
+        // method ignored was one waiting to disagree with the user it was handed.
+        var url = Url.Page(
+            "AuthCallback",
+            "Account",
+            new { token, email, returnUrl = destination },
+            Request.Scheme);
 
         System.IO.File.WriteAllText("passwordless.txt", url);
 

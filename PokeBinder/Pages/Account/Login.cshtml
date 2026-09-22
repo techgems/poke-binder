@@ -51,7 +51,10 @@
                     We've sent you a one-time login link. Click the link in the email to continue.
                 </p>
 
+                @* Keeps the destination through a second attempt: starting over with a different
+                   email should still land where the first one would have. *@
                 <a asp-page="/Account/Login"
+                   asp-route-returnUrl="@Model.ReturnUrl"
                    class="mt-8 inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
