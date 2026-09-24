@@ -1,0 +1,180 @@
+@model RaritySetEditor
+
+@*
+    The set picker and the chosen set's rows, as one element. Every handler on the page answers
+    with this view, so choosing a set, saving, and being refused all land as the same markup with
+    different values in it.
+
+    The inputs carry no antiforgery token of their own: this renders inside the page's
+    <form method="post">, and htmx serialises that form alongside the button's own request.
+
+    Desktop only, per "Rules for the admin pages" in CLAUDE.md -- this is a wide table for the
+    person running the catalog, and it is not laid out for a phone.
+*@
+
+<div id="@RaritySetEditor.SwapTargetId">
+
+    <div class="flex items-end gap-4">
+        <label class="block">
+            <span class="block text-sm font-medium text-neutral-700">Set</span>
+
+            @*
+                A GET, so htmx sends this control's own value and nothing else: ?setId=20. The
+                whole editor comes back, picker included, because the counts beside each set name
+                move as soon as anything is saved.
+            *@
+            <select name="setId"
+                    class="mt-1 w-140 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900"
+                    hx-get="@Url.Page("/Admin/SetRarity", "Select")"
+                    hx-target="#@RaritySetEditor.SwapTargetId"
+                    hx-swap="outerHTML"
+                    hx-indicator="#rarity-set-loading">
+                <option value="">Choose a set...</option>
+                @foreach (var set in Model.Sets)
+                {
+                    <option value="@set.Id" selected="@(Model.Selected?.SetId == set.Id)">
+                        @RaritySetEditor.SetLabel(set)
+                    </option>
+                }
+            </select>
+        </label>
+
+        <span id="rarity-set-loading" class="htmx-indicator pb-2 text-sm text-neutral-500">Loading...</span>
+    </div>
+
+    @* Empty as well as null: a string attribute that was handed a null expression arrives here as
+       "", and an empty green banner on a page nobody has saved anything from is a lie. *@
+    @if (!string.IsNullOrEmpty(Model.Saved))
+    {
+        <p class="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-800">@Model.Saved</p>
+    }
+
+    @{
+        var formErrors = Model.FormErrors();
+    }
+
+    @if (formErrors.Count > 0)
+    {
+        <div class="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+            @foreach (var error in formErrors)
+            {
+                <p>@error</p>
+            }
+        </div>
+    }
+
+    @if (Model.Selected is null)
+    {
+        <p class="mt-8 text-sm text-neutral-500">
+            Choose a set to see its rarities and what they are currently worth.
+        </p>
+    }
+    else if (Model.Selected.Rarities.Count == 0)
+    {
+        @* A set with no rarityBySet rows at all. Nothing to edit, and nothing this page can add:
+           the rows are written when the set is loaded. *@
+        <p class="mt-8 text-sm text-neutral-500">
+            <strong class="font-semibold text-neutral-700">@Model.Selected.SetName</strong> has no
+            rarities recorded. They are written when the set is loaded, so there is nothing to
+            weight here yet.
+        </p>
+    }
+    else
+    {
+        <input type="hidden" name="SetId" value="@Model.Selected.SetId" />
+
+        <div class="mt-6 overflow-hidden rounded-lg border border-neutral-200">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-neutral-50 text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+                    <tr>
+                        <th scope="col" class="px-4 py-3">Rarity</th>
+                        <th scope="col" class="px-4 py-3">Cards in set</th>
+                        <th scope="col" class="px-4 py-3">Pull rate</th>
+                        <th scope="col" class="px-4 py-3">Name order</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-200">
+                    @for (var index = 0; index < Model.Selected.Rarities.Count; index++)
+                    {
+                        var row = Model.Selected.Rarities[index];
+                        var pullField = RaritySetEditor.FieldName(index, nameof(row.PullRateRarityOrder));
+                        var nameField = RaritySetEditor.FieldName(index, nameof(row.NameRarityOrder));
+
+                        <tr>
+                            <th scope="row" class="px-4 py-3 text-left font-medium text-neutral-900">
+                                @row.Rarity
+                                <input type="hidden" name="@RaritySetEditor.FieldName(index, nameof(row.Id))" value="@row.Id" />
+                            </th>
+
+                            <td class="px-4 py-3 text-neutral-600">
+                                @row.CardCount
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <input type="number"
+                                       name="@pullField"
+                                       value="@row.PullRateRarityOrder"
+                                       min="1"
+                                       max="@RaritySetEditor.MaxOrder"
+                                       step="1"
+                                       inputmode="numeric"
+                                       class="w-32 rounded-md border border-neutral-300 px-3 py-1.5 text-sm" />
+                                <span class="mt-1 block text-xs text-neutral-500">packs to pull one</span>
+                                @foreach (var error in Model.ErrorsFor(pullField))
+                                {
+                                    <span class="mt-1 block text-xs text-red-700">@error</span>
+                                }
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <input type="number"
+                                       name="@nameField"
+                                       value="@row.NameRarityOrder"
+                                       min="1"
+                                       max="@RaritySetEditor.MaxOrder"
+                                       step="1"
+                                       inputmode="numeric"
+                                       class="w-32 rounded-md border border-neutral-300 px-3 py-1.5 text-sm" />
+                                @*
+                                    The one value with no unit to give its direction away. A pull
+                                    rate announces itself in packs -- 540 is obviously harder than
+                                    20 -- and a bare ordering number does not, so the scale is
+                                    spelled out on the field rather than left to a convention the
+                                    person typing has to remember. Entered upside down it produces
+                                    a binder sorted commonest-first under a label that says "rare
+                                    first", which is a mistake nothing downstream can detect.
+                                *@
+                                <span class="mt-1 block text-xs text-neutral-500">higher equals rarer</span>
+                                @foreach (var error in Model.ErrorsFor(nameField))
+                                {
+                                    <span class="mt-1 block text-xs text-red-700">@error</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4 flex items-center gap-4">
+            @*
+                A POST, so htmx serialises the enclosing form: the hidden set id, every row's
+                hidden id and both number fields, plus the antiforgery token the form carries.
+            *@
+            <button type="button"
+                    class="inline-flex items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:opacity-50"
+                    hx-post="@Url.Page("/Admin/SetRarity", "Save")"
+                    hx-target="#@RaritySetEditor.SwapTargetId"
+                    hx-swap="outerHTML"
+                    hx-disabled-elt="this"
+                    hx-indicator="#rarity-set-loading">
+                Save weights
+            </button>
+
+            <p class="text-xs text-neutral-500">
+                Saving invalidates every browser's cached copy of the rarity filters, so the new
+                values are in use immediately.
+            </p>
+        </div>
+    }
+</div>

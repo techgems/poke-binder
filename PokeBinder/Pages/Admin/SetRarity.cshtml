@@ -1,0 +1,66 @@
+﻿@page
+@model PokeBinder.Pages.Admin.SetRarityModel
+@{
+    ViewData["Title"] = "Rarity weights";
+    Layout = "_AdminLayout";
+}
+
+<div class="max-w-5xl">
+    <h1 class="text-2xl font-bold text-neutral-900">Rarity weights</h1>
+
+    <p class="mt-3 text-sm text-neutral-600">
+        A rarity is not worth the same in every set, and its name does not say what it is worth. A
+        Special Illustration Rare is around 70 packs of opening in ME: Ascended Heroes and around
+        20 in the 30th anniversary set -- the same rarity name, three and a half times the effort.
+        These two numbers are what a binder is sorted by, and they are entered per set because that
+        is the only level at which either of them is true.
+    </p>
+
+    <dl class="mt-6 space-y-3 text-sm text-neutral-600">
+        <div>
+            <dt class="font-semibold text-neutral-800">Pull rate</dt>
+            <dd>
+                Roughly how many packs of this set it takes before you are likely to have pulled
+                that rarity. Bigger is harder, so bigger is rarer, and the unit is the same in
+                every set -- which is what makes 540 here and 20 there comparable. Round to whole
+                packs, and let two rarities share a number where that is the truth: anything you
+                pull most packs is a 1.
+            </dd>
+        </div>
+        <div>
+            <dt class="font-semibold text-neutral-800">Name order</dt>
+            <dd>
+                A ranking by what the rarity is <em>called</em>, deliberately not by how hard it is
+                to pull, so that a sort can keep all the Special Illustration Rares together
+                instead of scattering them by how generous each set was. Numbered the same way
+                round as the pull rate: Common low, Special Illustration Rare high.
+            </dd>
+        </div>
+    </dl>
+
+    <p class="mt-4 text-sm text-neutral-600">
+        Both are hand-entered and both may be left empty, which means the rarity is unweighted.
+        Two rarities in a set may share a pull rate, because two rarities really can take about
+        the same number of packs -- but not a name order, which is a ranking, and a ranking that
+        repeats itself does not say which of the two comes first. The card count beside each row
+        is context for the guess, not a weight.
+    </p>
+
+    @*
+        One form around the editor: method="post" is what makes Razor emit the antiforgery field,
+        and the save button posts through htmx, which serialises this form. Without it the save
+        would be a 400.
+
+        The form is outside the swapped element on purpose -- htmx replaces the editor on every
+        select, save and refusal, and the token has to survive all three.
+    *@
+    <form method="post" class="mt-8">
+        @*
+            The string attribute is written with an @ and the others are not, which is the tag
+            helper rule rather than a style: a string-typed attribute is taken as the literal text
+            unless it is an expression, so "Model.Saved" without one renders those nine characters
+            in the banner.
+        *@
+        <rarity-set-editor sets="Model.Sets" selected="Model.Selected" errors="Model.Errors" saved="@Model.Saved" />
+    </form>
+</div>

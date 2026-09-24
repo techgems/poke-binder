@@ -16,7 +16,181 @@ moment it runs.
 
 ---
 
-## 1. Third tab: binder settings
+## 1. One migration for the rarity seed, not eleven
+
+`011` through `021` are eleven separate scripts that all do the same thing to the same table: write
+`pullRateRarityOrder` onto `rarityBySetFilterOption`. They are eleven because they were written one
+era at a time, as sources for each era turned up — measured data for the recent sets, community
+counts for the old ones, a rescue job for Legendary Treasures. That is the history of the research,
+not a fact about the catalog, and a database rebuilt from scratch should not have to replay it.
+
+**Fold them into one seeding script.** `010` adds the two columns and `022` deletes the VSTAR Token;
+both are different in kind and stay where they are. The eleven in between become one.
+
+### What has to survive the fold
+
+**The provenance, per block.** The rows are not all the same quality, and the whole value of those
+eleven headers is that they say which is which. A single file listing 752 numbers with no sources is
+worse than eleven that explain themselves. Four tiers, and they need to stay distinguishable after
+the merge:
+
+- **Measured** — the TCGplayer (formerly eBay) Authentication Center, which opens packs and
+  publishes sample sizes and confidence intervals: the Scarlet & Violet and Mega Evolution sets,
+  five Sword & Shield sets, and Fusion Strike, whose figures exist only as an infographic.
+- **Community estimates** — ThePriceDex, self-described, no sample size, one source per set: Sun &
+  Moon, XY, Black & White, EX, Diamond & Pearl, Platinum, HGSS, the other eleven Sword & Shield
+  sets, and Shrouded Fable.
+- **Hand-entered judgements**, which no source backs and which should be the easiest rows in the
+  file to find: Black White Rare at 496, Holo Rare at 3 across the Sword & Shield sets, Common,
+  Uncommon and Rare at 1 everywhere, and Astral Radiance's Radiant Rare taken from Lost Origin
+  because its own article never measured it. The vintage WotC rows predate all of this and were
+  entered by hand before any of it.
+- **One rescaled set** — Legendary Treasures, whose source figures sum to 1.76 rare-slot cards per
+  pack and are divided by that before use. The arithmetic has to travel with it, or the numbers
+  look invented.
+
+**The per-set arithmetic.** Most rows are a sum of sub-rarities folded into one catalog bucket:
+`Ultra Rare` is V plus VMAX plus Full Art, and in Brilliant Stars the whole Trainer Gallery as well.
+Without the addition written beside the value, a future reader cannot check a number against its
+article — only trust it.
+
+### The check that the fold worked
+
+The table is the specification. Dump `(set code, rarity, pullRateRarityOrder, nameRarityOrder)` from
+the live catalog first — 752 weighted rows of 789 — then rebuild a database from scratch through
+the new script and diff the two dumps. They must be identical. Anything that differs is a
+transcription error, which is the one real risk in copying eleven files into one.
+
+### Open questions
+
+- **Additive or authoritative.** All eleven use `COALESCE`, so a value already in place is never
+  blanked, which is what made them safe to run in sequence. One consolidated seed has no such
+  constraint and could set the column outright — including back to null. Additive is the safer
+  default; authoritative is the honest one for a file that claims to be the seed.
+- **Whether it carries `nameRarityOrder` as well.** Only the vintage sets and Ascended Heroes have
+  one and the other hundred-odd sets are null, so the column is nearly empty either way. Leaving it
+  out makes the file purely about pull rates, and means those hand-entered name orders live nowhere
+  but the database.
+- **What running it here does.** `011`-`021` are already journalled against this catalog, so deleting
+  them leaves stale rows in `SchemaVersions` and the new script runs once and rewrites the same
+  values. Harmless if it is idempotent, which it should be anyway — but worth confirming on a copy
+  rather than assuming, the way every one of the eleven was.
+- **What the seed does not cover, and should say so.** Thirty-seven rows are still null: the promo
+  rows of nine promo and non-booster sets, which have no pull rate by definition, six EX-era Secret
+  Rares that no source rates, and three odd singles. A seed silent about them reads as incomplete
+  rather than as finished.
+
+---
+
+## 2. Reorder: sorting the whole binder
+
+Triggered from the action sidebar (`App.svelte`, beside Undo and Redo), opening a modal —
+`Modal.svelte` is already there, used at the moment only by the leftover "Search cards" placeholder.
+
+The modal holds up to **three sorting criteria applied in sequence**: Set, Rarity, Card name. The
+user **drags to set which one outranks which**, **drops any they do not want** (one, two or three is
+valid), and gives each **its own direction**, ascending or descending — so "Set descending, then
+Rarity ascending" is something the widget has to be able to say. Applying it **discards whatever
+arrangement the binder has** and lays the placed cards out again in that order.
+
+**There are four orderings but still three slots, because Rarity is one criterion with a choice of
+key.** It sorts by *either* `pullRateRarityOrder` or `nameRarityOrder` — **never both**,
+so the two are not separate criteria competing for a slot but one criterion whose widget asks which
+ordering it is using. That choice is independent of the direction: pull rate ascending and pull rate
+descending are both available, and so are the two for name ordering.
+
+### Decided
+
+- **The client sorts, and forces a whole-binder write.** Not the server. Both routes need a new
+  whole-binder write regardless, because `SaveBinderChanges` refuses more than `MaxPages = 2` and a
+  reorder rewrites every page; a server-side sort would *additionally* need a binder GET that does
+  not exist — `GetFullBinder` reaches the SPA only as a Razor preload from `Binder.cshtml.cs` — and
+  it would make the reorder **irreversible**, because reloading the binder runs `binderPage.load`,
+  which calls `history.clear()`. Undo matters most for the one action whose whole purpose is
+  throwing an arrangement away.
+- **The ranks travel with the page, at initial load.** Not fetched when the modal opens. The binder
+  page already embeds two payloads this way — the binder itself and the search starter filters — so
+  this is a third beside them, the modal opens with everything it needs, and sorting costs no round
+  trip at all.
+- **Rarity order is already in the catalog**, as `pullRateRarityOrder` and `nameRarityOrder` on
+  `rarityBySetFilterOption` — per set, because the hierarchy really does differ between sets: the
+  three Mega Evolution sets each hold one or two **Mega Hyper Rare** gold cards sitting *above*
+  Special Illustration Rare, while the fifteen other sets that have Special Illustration Rare have
+  nothing above it. There is nothing for this step to rank, and nothing to wait for: the
+  columns ship seeded, 752 rows of 789, and `/admin/setRarity` is where any of them is corrected.
+- **The Rarity criterion carries which of the two it uses**, chosen in its own widget and exclusive:
+  a payload saying both is not a thing the modal can produce. Two exclusive options with the chosen
+  one visible at a glance is a segmented control, which Skeleton ships
+  (`@skeletonlabs/skeleton-svelte`) — the same vocabulary the rest of the workspace is written in.
+  It means a criterion is no longer just a name and a direction, so whatever shape the modal keeps
+  its list in has to hold a key as well, and so does anything that remembers the last sort.
+- **The two directions are labelled for what they do, not for which way the number goes.** Rarity
+  reads **"rare first" / "common first"**. "Ascending" would have been the trap: the stored value is
+  packs-to-open, so ascending is *easiest* first, and a collector asking for their chase cards at
+  the front would have had to pick descending. The same principle gives the other two their words —
+  Set is **"newest first" / "oldest first"** and Card name is **"A–Z" / "Z–A"** — so the labels
+  differ per criterion instead of being one shared pair, which is the point. Internally each is
+  still a direction on the underlying value.
+- **Both rarity columns are numbered so that bigger means rarer**, which is what lets
+  one label sit over both: "rare first" is the descending end whichever key the criterion is using.
+  Numbered the other way round, `nameRarityOrder` would make the same label mean opposite things.
+- **Set order is `releaseDateUnix` and nothing else.** It is *already* `NOT NULL` in the schema
+  (`001_CreateTcgCatalogSchema.sql`); only the `Set` entity types it `long?`. **So there is nothing
+  to migrate** — the change is the entity property, plus whatever reads it as nullable.
+- **One history entry**, however many pockets move, so Ctrl+Z restores the old arrangement.
+- **The new whole-binder write is shared with step 3.** Its rearrangement needs the same thing, so
+  this step specifies it and step 3 reuses it: cards and tray in **one transaction**, because
+  emptying a binder into the tray moves every card from one to the other.
+
+### What the server side needs
+
+1. **`Set.ReleaseDateUnix` as `long`**, matching the column that is already `NOT NULL`.
+2. **`setId` on two projections, not one.** `BinderCardDetails` and `CardSearchResult` both carry
+   `setName` and nothing else about the set. The binder's own cards need the id to find their rarity
+   weights — and so do **cards added from search during the session**, or a card placed and then
+   sorted without a reload would have nothing to sort by.
+3. **The ordering data in the preload**: each set's release date, and the two rarity values keyed
+   by set. A few hundred rows all told.
+4. **The whole-binder write**: a slice, a validator and tests, per "Rules for tests" in `CLAUDE.md`.
+   The test worth writing first is that a reorder of a fifty-page binder leaves the same set of
+   cards in it, in the new order, with nothing dropped.
+
+### What the client side needs
+
+- The modal and the criteria widget: drag to reorder, a direction per criterion, and dropping a
+  criterion without disturbing the order of the rest.
+- The comparator, as one function with its tie rules written next to it.
+- **Laying the cards out from pocket 0 with no gaps.** Assumed rather than asked: a sort that
+  preserved holes would not look sorted. Worth confirming.
+- **Settling with the debounced save before writing.** `stores/save.svelte.ts` holds a dirty flag
+  and a pending scope of up to two pages; a whole-binder write that lands between an edit and that
+  save's tick is overwritten by it. The reorder has to flush and wait, and the two writers must not
+  be able to interleave.
+
+### Open questions
+
+- **Ties, and there are three kinds now.** Each needs a stated tie-break, or the same criteria
+  produce a different arrangement every time they are applied. **Equal pull rates** are no longer an
+  edge case: two rarities in one set may share a value on purpose, and the base rarities all share
+  1, so every set has ties at the bottom by construction. **Unweighted rarities** are the 37 rows
+  nothing rates -- and note that an empty value sorts *last* in a descending ordering, so the six
+  EX-era Secret Rares and the promo rows currently sort below their own commons. **Sets sharing a
+  release date** are the third.
+- **Pockets flagged missing.** They hold a real card id, so they sort like any other card — unless a
+  reserved pocket is meant to stay where it was put.
+- **Whether the tray takes part.** Read as written, no: the reorder arranges the binder, and the
+  tray is what has not been placed yet.
+- **What undo costs here.** One entry can hold a delta per pocket — up to 4000 — and `MAX_ENTRIES`
+  is 100. Worth deciding whether a reorder is capped, recorded more cheaply, or simply accepted.
+- **Whether the criteria are remembered.** Per binder, so re-sorting after adding cards is one
+  click, or per session, or not at all.
+- **What this asks of step 4.** LoadSet has to supply a release date for every set it loads, and
+  weights for the rarities it creates — `/admin/setRarity` edits rows but cannot add one, so a set loaded without them
+  sorts as unweighted for every card in it.
+
+---
+
+## 3. Third tab: binder settings
 
 A third tab beside Card Tray and Binder (`WorkspacePanel.svelte`), for the binder's own properties:
 name, dimensions (grid size), page count, and whatever else belongs to the binder rather than its
@@ -35,12 +209,28 @@ that would strand placed cards ("This binder holds N cards at that size, and M c
 that"), so that path has to be reconciled with whichever option the user picks — the refusal is
 correct for a bare resize and wrong once the user has consented to a rearrangement.
 
+**How a rearrangement writes the cards is undecided — but step 2 builds the write it needs.** The
+debounced save (`SaveBinderChanges`, `PUT api/binderCards/{binderId}`) is the only thing that writes
+a binder's contents today, and it refuses a payload claiming more than a spread, so a re-flow does
+not fit it; the whole-binder writers that would have fitted (`SaveBinderCards`, `SaveBinderTray` and
+their controllers) were deleted on 2026-09-21 rather than kept for it, because nothing had ever
+called them. **The reorder needs exactly that write and is specified to add it, so build this step
+after step 2 and reuse its endpoint** rather than adding a second one. Either way, whatever does it:
+
+- **writes the cards and the tray in one transaction**, because "empty the binder into the tray"
+  moves every placed card from one to the other, and half of that committing is a card both placed
+  and waiting;
+- **must not be able to run against the debounced save.** That save fires up to five seconds after
+  an edit and again when the tab closes, so a resize that lands in between writes a layout the next
+  tick overwrites with the old one. The workspace's save store (`stores/save.svelte.ts`) holds the
+  dirty flag and the pending scope, so it is what a resize has to settle with before it starts.
+
 **Card reordering as a feature is deliberately undefined for now** and will be specified later; do
 not invent an ordering model beyond what option 1 needs.
 
 ---
 
-## 2. LoadSet: loading a set from a CSV
+## 4. LoadSet: loading a set from a CSV
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
@@ -124,151 +314,3 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 - **The file itself.** Nothing in this app uploads anything yet, so the multipart form, the size
   limit and the antiforgery token on it are all new ground — and it is worth deciding whether the
   CSV is kept anywhere after the import or simply read and dropped.
-
----
-
-## 3. Saving the binder
-
-**What it hangs off already exists** — the trigger for a save is an entry landing on the history
-stack, and `stores/history.svelte.ts` is where that happens. It is numbered after LoadSet because
-the file is append-only, not because it is last in line.
-
-Nothing in the workspace is saved today. The SPA holds the binder it was handed at startup and every
-edit since, and a reload throws all of it away: part 1 below is built, and no client code calls it
-yet.
-
-The three whole-binder writers this step was designed to sit beside are gone, all on 2026-09-21,
-none of them ever called by anything: `SaveBinderTray` and its controller, because the tray is not
-separable from the pages that spend copies out of it, and `SaveBinderCards` with `BindersController`,
-because nothing needs a whole-binder card write. **`SaveBinderChanges` is now the only thing that
-writes a binder's contents** — which is worth knowing while reading the rest of this section, since
-it was written when it was one writer of three.
-
-Three parts, in order:
-
-1. **The endpoint and the slice** that takes the contract below and writes it, cancellation
-   included.
-2. **The debounce**, driven off the history stack, ending in a stubbed request that logs rather than
-   fetches.
-3. **The wiring**, which replaces the stub with a real call against the finished contract.
-
-### The trigger is the history stack, not the stores
-
-The history stack pushes its entries from inside the store methods, so that the completeness of
-the history can be checked by reading `tray.svelte.ts` and `binder-page.svelte.ts` rather than every
-component that calls them. The save trigger inherits that argument for free:
-**listen to the history store, not to the stores it watches.** An action that records itself
-schedules its own save, and there is one list of mutating calls to keep complete instead of two.
-
-It is three events rather than one, though. A new action pushes; undo and redo push nothing — they
-move a pointer — and all three arm the timer, because all three change what is in the binder. The
-events that *clear* the stack (deleting the binder, possibly a resize) are not save triggers, and
-clearing must not swallow a timer that is already armed: the edits before the clear still happened.
-
-**Successive actions reset the timer**, so a run of quantity steps costs one save and not four. A
-page flip flushes it instead of resetting it, and **a flip with nothing pending sends nothing at
-all** — which means the scheduler needs a dirty flag rather than just a timer, cleared when a save
-comes back rather than when one is sent.
-
-### What one save carries
-
-| Half | What it is |
-| --- | --- |
-| The tray | every entry the tray currently holds — card and quantity, the whole list |
-| The open pages | the pockets of the one or two pages in the open spread, and their contents |
-
-The point is what it leaves out: **the binder's other pages are not in the payload**, so editing
-page two of a fifty-page binder does not post fifty pages back. The two endpoints that existed when
-this was written were the exact opposite of it — whole-binder PUTs whose own documentation said
-"send the whole binder, not the page being edited" — which is why this began as a new slice beside
-them rather than a change to either. Both have since been deleted, so it is not beside anything.
-
-**A partial payload has to say which pockets it covers, not only which cards it carries.** To a
-whole-binder handler, a stored pocket the body does not mention is a pocket the user emptied, and it
-is deleted; give such a handler one page and it empties the other forty-nine. Under this
-contract an emptied pocket and an unsent pocket look identical unless the request states its scope,
-so the page numbers travel with it and the index range is arithmetic over the grid — page n is
-pockets `(n - 1) * cardsPerPage` through `n * cardsPerPage - 1`. The diff then runs inside that
-range and nothing outside it is even read.
-
-The tray goes whole because it has no comparable scope to claim, and it is small: `MAX_CARDS` is 500
-entries, one row each.
-
-**Which pages the payload names is decided when the timer is armed, not when it fires.** Built from
-`binderPage.spreadPages` at fire time it would name whichever spread is open by then: arm a save on
-page two, flip to page four, and the request posts page four's pockets and loses the edit on page
-two — while also claiming a scope it never touched, which means the diff would clear page four. The
-flush-on-flip rule is what keeps one pending save to one spread, so that rule is load-bearing rather
-than a nicety, and the scope still wants capturing at arm time to say so in code.
-
-Undo and redo are the harder version of the same thing: an undo can change a pocket on a page nobody
-is looking at. The history store settles both halves of that already. Undo turns to the page it
-changed before applying it, so the spread on screen is again the spread being edited; and its entry carries the pocket
-indexes it touched anyway, so a payload that would rather name the pages it actually touched than
-the ones on screen can be built from the entry instead of from `spreadPages`.
-
-### 3.1 — the endpoint and the slice
-
-One route taking both halves in one body, so one debounce tick is one request and one transaction.
-Two calls, cards then tray, can half-fail: placing a card spends a copy out of the tray, so a
-committed page write with a failed tray write leaves that copy both placed and still waiting.
-
-The validator is the established pair — ownership first, answering for someone else's binder exactly
-as it answers for a missing one, then the page numbers against the binder's page count, then the
-pocket indexes against the pages the request claims, which is stricter than a bound against the
-binder's capacity, then the tray quantities and the existence of every card id in the catalog.
-
-**Cancellation is the part the debounce makes ordinary.** `ct` was already threaded through the
-handlers this was modelled on, so the mechanism is nothing new; what changes is that an abandoned
-request stops being an exception. A request aborted after `SaveChangesAsync` has returned is a save
-that happened and a client that does not know it — harmless only while every payload is a complete
-snapshot of the scope it claims, which is the standing reason to keep them that way.
-
-The slice gets tests, on the in-memory provider, per "Rules for tests" in `CLAUDE.md`. **The test
-this whole contract exists to make possible is that pockets outside the claimed pages survive the
-save** — a partial payload that quietly empties the rest of the binder is the failure mode, and it is
-the one nobody would notice until a binder came back short.
-
-### 3.2 — the debounce and the stub
-
-A store beside the other two, holding the dirty flag, the timer, and the captured scope. The request
-function has its final signature and its final return type from the start and logs the payload
-instead of fetching it, so part 3 replaces a body and not a caller. The debounce window is 5–10
-seconds; pick one number, name it, and put the reason next to it.
-
-**Nothing bounds a run of resets except the user.** Somebody holding down a quantity stepper defers
-the save for as long as they keep going, and a tab closed mid-run loses all of it. Whether there is a
-ceiling — a maximum wait after the first pending change, regardless of what arrives after it — is
-worth settling here rather than discovering later.
-
-### 3.3 — wiring it up
-
-A client beside `CardSearchClient.ts`, same shape as the others: `credentials: 'same-origin'`, an
-`AbortSignal`, and a thrown error on a non-`ok` response. One save in flight at a time, with a new
-one aborting the previous.
-
-**The SPA does not know its own binder id.** `binderPage.load` reads `columns`, `rows` and `pages`
-off the preloaded summary and drops `summary.id` on the floor; `binderId` appears nowhere in `src`
-except a comment. The store has to keep it before anything can address an endpoint with it.
-
-### Open questions
-
-- **What "the list of what is currently in the binder" means.** Read as the tray it is the tray's
-  whole contents, which is what the rest of this step assumes and what the stated goal implies — not
-  sending every page. Read as the placed cards it is the whole binder again, which is the thing this
-  contract is designed to avoid. Settle this before the contract is written down anywhere.
-- **What a closing tab loses.** Up to the whole debounce window. A `pagehide` or `visibilitychange`
-  flush is the usual answer, but `navigator.sendBeacon` only POSTs, so either the endpoint grows a
-  POST alias or the flush is an unawaited `fetch` with `keepalive`. Leaving `/Binder` through the
-  Razor sidebar is a full navigation and has the same problem.
-- **How a resize writes its re-flow.** Settled that it is not this contract and not a whole-binder
-  card write either: those endpoints were deleted rather than kept for it. Step 1's rearrangement
-  re-flows every page and changes the binder's own dimensions, so it needs `SaveBinder` and
-  something that moves cards, and what that something is has not been decided. Whatever it is must
-  not be able to run against the debounced save.
-- **A maximum wait**, as above.
-- **What the user is told when a save fails**, and whether it retries. The workspace has nowhere to
-  say "not saved" today.
-- **What a reload loses.** The stack does not survive one: the cards come back from the server and
-  the history does not, so undo after a reload has nothing behind it. Worth confirming that reads
-  acceptably once a save can be in flight as the tab goes.

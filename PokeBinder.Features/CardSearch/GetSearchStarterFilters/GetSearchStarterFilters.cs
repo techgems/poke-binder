@@ -367,7 +367,9 @@ public static class GetSearchStarterFilters
         {
             Id = rarity.Id,
             SetId = rarity.SetId,
-            Rarity = rarity.Rarity
+            Rarity = rarity.Rarity,
+            PullRateRarityOrder = rarity.PullRateRarityOrder,
+            NameRarityOrder = rarity.NameRarityOrder
         };
 
     private static readonly Expression<Func<CardTypeFilterOption, CardTypeFilter>> MapCardTypes =

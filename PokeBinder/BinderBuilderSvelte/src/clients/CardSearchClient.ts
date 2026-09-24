@@ -33,6 +33,8 @@ export interface RarityBySetFilter {
   id: number
   setId: number
   rarity: string
+  pullRateRarityOrder: number | null
+  nameRarityOrder: number | null
 }
 
 export interface CardTypeFilter {

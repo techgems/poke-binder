@@ -100,6 +100,8 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.SetId).HasColumnName("setId");
             entity.Property(e => e.Rarity).HasColumnName("rarity").HasMaxLength(127);
+            entity.Property(e => e.PullRateRarityOrder).HasColumnName("pullRateRarityOrder");
+            entity.Property(e => e.NameRarityOrder).HasColumnName("nameRarityOrder");
 
             entity.HasOne(e => e.Set)
                 .WithMany()
