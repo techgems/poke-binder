@@ -147,6 +147,33 @@ cannot reach the slice while the controller's own copy of the shape quietly igno
   body carrying `"cards": null` is a 500 instead of the 400 the validator had already decided on.
   There is a test per list for this in `SaveBinderChangesTests`; copy it for a new slice.
 
+## Rules for catalog data
+
+**A migration is for the schema and for data the app cannot start without. Catalog data is
+neither.** `PokeBinder.Migrations` runs under DbUp, once per database, journalled by script name
+and never re-run -- which is the right shape for a table definition and the wrong shape for values
+that get corrected. Which rarities a set has, what a rarity is worth, which cards a set contains:
+all of it is important, none of it is essential in the sense that matters here, and all of it
+changes without the schema changing at all.
+
+So **catalog data goes in `Scripts/`**, as plain SQL run by hand:
+
+| | Migration | Script in `Scripts/` |
+| --- | --- | --- |
+| Belongs there | tables, columns, indexes; the seeded rows of `filterCacheStamps`, without which the filters have no stamp to serve | rarity weights, corrections to loaded cards, anything derived from the card catalog |
+| Runs | once, by DbUp, on every database | by hand, as often as it needs to |
+| If it is wrong | a new migration to correct it | edit the file and run it again |
+
+**Seed scripts must be re-runnable** Every statement is an upsert on `(setId, rarity)`, so running it twice
+  changes nothing the first run did not, and it resolves sets by code rather than by id, because
+  ids differ between databases. SeedRarityWeights.sql is an example of this.
+
+
+**Deleting an applied migration is safe and leaves a stale row in `SchemaVersions`.** DbUp
+journals by name and only ever asks whether a name has run, so a name it no longer has is simply
+never considered. The eleven above were deleted after their values were captured; the journal in
+the existing catalog still lists them and nothing reads it.
+
 ## Rules for tests
 
 `PokeBinder.Features.Tests` (xUnit) covers the slices. Run it with:

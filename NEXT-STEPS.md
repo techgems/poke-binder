@@ -16,73 +16,7 @@ moment it runs.
 
 ---
 
-## 1. One migration for the rarity seed, not eleven
-
-`011` through `021` are eleven separate scripts that all do the same thing to the same table: write
-`pullRateRarityOrder` onto `rarityBySetFilterOption`. They are eleven because they were written one
-era at a time, as sources for each era turned up — measured data for the recent sets, community
-counts for the old ones, a rescue job for Legendary Treasures. That is the history of the research,
-not a fact about the catalog, and a database rebuilt from scratch should not have to replay it.
-
-**Fold them into one seeding script.** `010` adds the two columns and `022` deletes the VSTAR Token;
-both are different in kind and stay where they are. The eleven in between become one.
-
-### What has to survive the fold
-
-**The provenance, per block.** The rows are not all the same quality, and the whole value of those
-eleven headers is that they say which is which. A single file listing 752 numbers with no sources is
-worse than eleven that explain themselves. Four tiers, and they need to stay distinguishable after
-the merge:
-
-- **Measured** — the TCGplayer (formerly eBay) Authentication Center, which opens packs and
-  publishes sample sizes and confidence intervals: the Scarlet & Violet and Mega Evolution sets,
-  five Sword & Shield sets, and Fusion Strike, whose figures exist only as an infographic.
-- **Community estimates** — ThePriceDex, self-described, no sample size, one source per set: Sun &
-  Moon, XY, Black & White, EX, Diamond & Pearl, Platinum, HGSS, the other eleven Sword & Shield
-  sets, and Shrouded Fable.
-- **Hand-entered judgements**, which no source backs and which should be the easiest rows in the
-  file to find: Black White Rare at 496, Holo Rare at 3 across the Sword & Shield sets, Common,
-  Uncommon and Rare at 1 everywhere, and Astral Radiance's Radiant Rare taken from Lost Origin
-  because its own article never measured it. The vintage WotC rows predate all of this and were
-  entered by hand before any of it.
-- **One rescaled set** — Legendary Treasures, whose source figures sum to 1.76 rare-slot cards per
-  pack and are divided by that before use. The arithmetic has to travel with it, or the numbers
-  look invented.
-
-**The per-set arithmetic.** Most rows are a sum of sub-rarities folded into one catalog bucket:
-`Ultra Rare` is V plus VMAX plus Full Art, and in Brilliant Stars the whole Trainer Gallery as well.
-Without the addition written beside the value, a future reader cannot check a number against its
-article — only trust it.
-
-### The check that the fold worked
-
-The table is the specification. Dump `(set code, rarity, pullRateRarityOrder, nameRarityOrder)` from
-the live catalog first — 752 weighted rows of 789 — then rebuild a database from scratch through
-the new script and diff the two dumps. They must be identical. Anything that differs is a
-transcription error, which is the one real risk in copying eleven files into one.
-
-### Open questions
-
-- **Additive or authoritative.** All eleven use `COALESCE`, so a value already in place is never
-  blanked, which is what made them safe to run in sequence. One consolidated seed has no such
-  constraint and could set the column outright — including back to null. Additive is the safer
-  default; authoritative is the honest one for a file that claims to be the seed.
-- **Whether it carries `nameRarityOrder` as well.** Only the vintage sets and Ascended Heroes have
-  one and the other hundred-odd sets are null, so the column is nearly empty either way. Leaving it
-  out makes the file purely about pull rates, and means those hand-entered name orders live nowhere
-  but the database.
-- **What running it here does.** `011`-`021` are already journalled against this catalog, so deleting
-  them leaves stale rows in `SchemaVersions` and the new script runs once and rewrites the same
-  values. Harmless if it is idempotent, which it should be anyway — but worth confirming on a copy
-  rather than assuming, the way every one of the eleven was.
-- **What the seed does not cover, and should say so.** Thirty-seven rows are still null: the promo
-  rows of nine promo and non-booster sets, which have no pull rate by definition, six EX-era Secret
-  Rares that no source rates, and three odd singles. A seed silent about them reads as incomplete
-  rather than as finished.
-
----
-
-## 2. Reorder: sorting the whole binder
+## 1. Reorder: sorting the whole binder
 
 Triggered from the action sidebar (`App.svelte`, beside Undo and Redo), opening a modal —
 `Modal.svelte` is already there, used at the moment only by the leftover "Search cards" placeholder.
@@ -116,8 +50,9 @@ descending are both available, and so are the two for name ordering.
   `rarityBySetFilterOption` — per set, because the hierarchy really does differ between sets: the
   three Mega Evolution sets each hold one or two **Mega Hyper Rare** gold cards sitting *above*
   Special Illustration Rare, while the fifteen other sets that have Special Illustration Rare have
-  nothing above it. There is nothing for this step to rank, and nothing to wait for: the
-  columns ship seeded, 752 rows of 789, and `/admin/setRarity` is where any of them is corrected.
+  nothing above it. There is nothing for this step to rank, and nothing to wait for: the catalog
+  holds 752 weighted rows of 789, `/admin/setRarity` is where any of them is corrected, and
+  `Scripts/SeedRarityWeights.sql` is what restores them into a rebuilt database.
 - **The Rarity criterion carries which of the two it uses**, chosen in its own widget and exclusive:
   a payload saying both is not a thing the modal can produce. Two exclusive options with the chosen
   one visible at a glance is a segmented control, which Skeleton ships
@@ -138,8 +73,8 @@ descending are both available, and so are the two for name ordering.
   (`001_CreateTcgCatalogSchema.sql`); only the `Set` entity types it `long?`. **So there is nothing
   to migrate** — the change is the entity property, plus whatever reads it as nullable.
 - **One history entry**, however many pockets move, so Ctrl+Z restores the old arrangement.
-- **The new whole-binder write is shared with step 3.** Its rearrangement needs the same thing, so
-  this step specifies it and step 3 reuses it: cards and tray in **one transaction**, because
+- **The new whole-binder write is shared with step 2.** Its rearrangement needs the same thing, so
+  this step specifies it and step 2 reuses it: cards and tray in **one transaction**, because
   emptying a binder into the tray moves every card from one to the other.
 
 ### What the server side needs
@@ -184,13 +119,13 @@ descending are both available, and so are the two for name ordering.
   is 100. Worth deciding whether a reorder is capped, recorded more cheaply, or simply accepted.
 - **Whether the criteria are remembered.** Per binder, so re-sorting after adding cards is one
   click, or per session, or not at all.
-- **What this asks of step 4.** LoadSet has to supply a release date for every set it loads, and
+- **What this asks of step 3.** LoadSet has to supply a release date for every set it loads, and
   weights for the rarities it creates — `/admin/setRarity` edits rows but cannot add one, so a set loaded without them
   sorts as unweighted for every card in it.
 
 ---
 
-## 3. Third tab: binder settings
+## 2. Third tab: binder settings
 
 A third tab beside Card Tray and Binder (`WorkspacePanel.svelte`), for the binder's own properties:
 name, dimensions (grid size), page count, and whatever else belongs to the binder rather than its
@@ -209,13 +144,13 @@ that would strand placed cards ("This binder holds N cards at that size, and M c
 that"), so that path has to be reconciled with whichever option the user picks — the refusal is
 correct for a bare resize and wrong once the user has consented to a rearrangement.
 
-**How a rearrangement writes the cards is undecided — but step 2 builds the write it needs.** The
+**How a rearrangement writes the cards is undecided — but step 1 builds the write it needs.** The
 debounced save (`SaveBinderChanges`, `PUT api/binderCards/{binderId}`) is the only thing that writes
 a binder's contents today, and it refuses a payload claiming more than a spread, so a re-flow does
 not fit it; the whole-binder writers that would have fitted (`SaveBinderCards`, `SaveBinderTray` and
 their controllers) were deleted on 2026-09-21 rather than kept for it, because nothing had ever
 called them. **The reorder needs exactly that write and is specified to add it, so build this step
-after step 2 and reuse its endpoint** rather than adding a second one. Either way, whatever does it:
+after step 1 and reuse its endpoint** rather than adding a second one. Either way, whatever does it:
 
 - **writes the cards and the tray in one transaction**, because "empty the binder into the tray"
   moves every placed card from one to the other, and half of that committing is a card both placed
@@ -230,7 +165,7 @@ not invent an ordering model beyond what option 1 needs.
 
 ---
 
-## 4. LoadSet: loading a set from a CSV
+## 3. LoadSet: loading a set from a CSV
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
