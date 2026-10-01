@@ -10,7 +10,7 @@ public class Set
 
     public string FullName { get; set; } = string.Empty;
 
-    public long? ReleaseDateUnix { get; set; }
+    public long ReleaseDateUnix { get; set; }
 
     public string? ImageUrl { get; set; }
 

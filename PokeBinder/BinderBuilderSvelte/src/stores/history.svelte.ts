@@ -1,5 +1,10 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
-import { binderPage, applySlotCard } from './binder-page.svelte'
+import {
+  applyArrangement,
+  applySlotCard,
+  binderPage,
+  type Arrangement,
+} from './binder-page.svelte'
 import { save } from './save.svelte'
 import { applyTrayQuantity } from './tray.svelte'
 
@@ -7,10 +12,11 @@ import { applyTrayQuantity } from './tray.svelte'
  * What the user did, so Undo and Redo have something to walk.
  *
  * An entry records what *changed*, not what the binder looked like: a snapshot per step would copy
- * every pocket in the binder to describe one of them changing. Every edit in the workspace is one
- * of two shapes, and both are a before and an after of one thing rather than a verb -- undo applies
- * every `from`, redo applies every `to`, so one replay serves both directions and no verb needs an
- * inverse written for it.
+ * every pocket in the binder to describe one of them changing. Every edit in the workspace is a
+ * before and an after of one thing rather than a verb -- a tray row, a pocket, or for a reorder the
+ * whole binder -- and undo applies every before while redo applies every after, so one replay
+ * serves both directions and no verb needs an inverse written for it. The reorder is the one place
+ * a snapshot is the right size, because it is the one edit that changes every pocket.
  *
  * Entries are pushed from inside the store methods rather than from the components that call them,
  * so an action records itself however it was triggered and the history is complete as long as
@@ -19,7 +25,8 @@ import { applyTrayQuantity } from './tray.svelte'
  * a binder that no longer exists, and undo then restores a state the user was never in.
  *
  * Saving inherits that argument for free, which is why it is armed from here rather than from the
- * stores: an action that records itself schedules its own save. All three events do it -- a commit,
+ * stores: an action that records itself schedules its own save -- except a reorder, which the
+ * server stored before it was recorded (see `recordStored`). All three events do it -- a commit,
  * an undo and a redo -- because all three change what is in the binder, and each hands over the
  * pockets its entry touched so the save claims the pages it actually changed rather than the ones
  * on screen. `clear` does not, and deliberately does not cancel a save already armed: the edits
@@ -47,7 +54,21 @@ export interface SlotDelta {
   to: CardSearchResult | null
 }
 
-export type Delta = TrayDelta | SlotDelta
+/**
+ * A reorder: the whole binder before it and after it, as two snapshots.
+ *
+ * The one entry that is not a per-pocket change. A reorder can move every pocket in the binder, and
+ * the arrangement it replaced exists nowhere else once the server has stored the new one, so the
+ * entry keeps both states outright -- undo lays `before` back out, redo lays `after` -- missing
+ * flags included, since they travel with their cards.
+ */
+export interface ArrangementDelta {
+  store: 'arrangement'
+  before: Arrangement
+  after: Arrangement
+}
+
+export type Delta = TrayDelta | SlotDelta | ArrangementDelta
 
 /** One thing the user did, however many edits across the two stores it took. */
 export interface HistoryEntry {
@@ -57,6 +78,8 @@ export interface HistoryEntry {
 /**
  * How far back Undo reaches. A delta is a handful of fields and a reference to a card the stores
  * are holding anyway, so this is a ceiling for a long session rather than a number anyone reaches.
+ * A reorder's entry is two snapshots of the binder, a small object per pocket each, and that is
+ * still nothing a tab notices.
  */
 export const MAX_ENTRIES = 100
 
@@ -74,6 +97,15 @@ let depth = 0
 // Set while undo or redo is writing, so the replay cannot record itself.
 let replaying = false
 
+function push(entry: HistoryEntry): void {
+  // Anything undone and not redone is gone the moment the user does something else: the future it
+  // described is not the one they are in any more.
+  const kept = [...entries.slice(0, applied), entry]
+
+  entries = kept.length > MAX_ENTRIES ? kept.slice(kept.length - MAX_ENTRIES) : kept
+  applied = entries.length
+}
+
 function commit(): void {
   if (buffer.length === 0) return
 
@@ -81,31 +113,48 @@ function commit(): void {
 
   buffer = []
 
-  // Anything undone and not redone is gone the moment the user does something else: the future it
-  // described is not the one they are in any more.
-  const kept = [...entries.slice(0, applied), entry]
-
-  entries = kept.length > MAX_ENTRIES ? kept.slice(kept.length - MAX_ENTRIES) : kept
-  applied = entries.length
+  push(entry)
 
   save.arm(slotIndexes(entry.deltas))
+}
+
+/** Whether two snapshots disagree about a pocket: a different card, or the same one flagged differently. */
+function pocketDiffers(arrangement: ArrangementDelta, index: number): boolean {
+  const before = arrangement.before[index] ?? null
+  const after = arrangement.after[index] ?? null
+
+  return before?.card.id !== after?.card.id || (before?.missing ?? false) !== (after?.missing ?? false)
+}
+
+/**
+ * Every pocket an entry changed. Empty for an entry that only touched the tray, which is a save
+ * with no page of its own to name -- see `save.arm`. For a reorder, the pockets the two snapshots
+ * disagree about: usually most of the binder, which is what makes its undo claim every page.
+ */
+function slotIndexes(deltas: readonly Delta[]): number[] {
+  return deltas.flatMap((delta) => {
+    if (delta.store === 'slot') return [delta.index]
+
+    if (delta.store === 'arrangement') {
+      const length = Math.max(delta.before.length, delta.after.length)
+
+      return Array.from({ length }, (_, index) => index).filter((index) => pocketDiffers(delta, index))
+    }
+
+    return []
+  })
 }
 
 /** The pocket an entry should be looking at, or -1 for an entry that touched no pocket. */
 function firstSlotIndex(deltas: readonly Delta[]): number {
   for (const delta of deltas) {
     if (delta.store === 'slot') return delta.index
+
+    // Its earliest changed pocket, which for a reorder is the front of the binder.
+    if (delta.store === 'arrangement') return slotIndexes([delta])[0] ?? -1
   }
 
   return -1
-}
-
-/**
- * Every pocket an entry changed. Empty for an entry that only touched the tray, which is a save
- * with no page of its own to name -- see `save.arm`.
- */
-function slotIndexes(deltas: readonly Delta[]): number[] {
-  return deltas.filter((delta) => delta.store === 'slot').map((delta) => delta.index)
 }
 
 function replay(entry: HistoryEntry, direction: 'undo' | 'redo'): void {
@@ -122,6 +171,8 @@ function replay(entry: HistoryEntry, direction: 'undo' | 'redo'): void {
     for (const delta of ordered) {
       if (delta.store === 'tray') {
         applyTrayQuantity(delta.at, delta.card, direction === 'undo' ? delta.from : delta.to)
+      } else if (delta.store === 'arrangement') {
+        applyArrangement(direction === 'undo' ? delta.before : delta.after)
       } else {
         applySlotCard(delta.index, direction === 'undo' ? delta.from : delta.to)
       }
@@ -177,6 +228,16 @@ export const history = {
     // A mutating method that forgot its `act` wrapper still records, as an entry of its own. The
     // history stays sound; only the grouping is wrong, which is the failure worth having.
     if (depth === 0) commit()
+  },
+
+  /**
+   * Records an action the server has already stored -- a reorder, whose request both did it and
+   * saved it. Its own entry, never merged into an action in progress, and it arms no save: there is
+   * nothing to save until an undo or a redo moves the binder away from what is stored, and both of
+   * those arm one like any other.
+   */
+  recordStored(delta: Delta): void {
+    push({ deltas: [delta] })
   },
 
   undo(): void {

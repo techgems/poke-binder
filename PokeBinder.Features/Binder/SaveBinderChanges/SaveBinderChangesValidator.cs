@@ -52,8 +52,8 @@ public class SaveBinderChangesValidator : AbstractValidator<SaveBinderChanges.Re
             // said what it covers -- and the one thing this contract cannot leave unsaid.
             .Must(pages => pages.Count > 0)
                 .WithMessage("A save has to name the pages it covers.")
-            .Must(pages => pages.Count <= SaveBinderChanges.MaxPages)
-                .WithMessage($"A save covers at most {SaveBinderChanges.MaxPages} pages.")
+            // The spread ceiling is checked below, beside the page count it needs: a claim past it
+            // is allowed when it names every page of the binder.
             .Must(pages => pages.Distinct().Count() == pages.Count)
                 .WithMessage("The same page is claimed twice.");
 
@@ -109,6 +109,17 @@ public class SaveBinderChangesValidator : AbstractValidator<SaveBinderChanges.Re
 
                     // The pocket check below is arithmetic over these page numbers, so it would
                     // only report a second failure about a range that was never real.
+                    return;
+                }
+
+                if (request.Pages.Count > SaveBinderChanges.MaxPages
+                    && !SaveBinderChanges.ClaimsWholeBinder(request.Pages, shape.Pages))
+                {
+                    validation.AddFailure(
+                        nameof(SaveBinderChanges.Request.Pages),
+                        $"A save covers at most {SaveBinderChanges.MaxPages} pages, or every page " +
+                        "of the binder.");
+
                     return;
                 }
 

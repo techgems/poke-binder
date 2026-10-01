@@ -327,6 +327,44 @@ public class SaveBinderChangesTests
     }
 
     [Fact]
+    public async Task A_claim_of_every_page_passes()
+    {
+        using var fixture = new BinderFixture().WithBinder(pages: 4).WithCatalogCards(100);
+
+        // Undoing a reorder puts back an arrangement that spans the whole binder: the one claim
+        // past a spread the client means rather than lost track of. Any order, each page once.
+        var result = await ValidateAsync(fixture, Save(pages: [3, 1, 4, 2], cards: [(30, 100)]));
+
+        Assert.True(result.IsValid, result.ToString());
+    }
+
+    [Fact]
+    public async Task A_claim_of_every_page_rewrites_the_whole_binder()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder(pages: 4)
+            .WithCatalogCards(100, 200, 300)
+            .WithPlacements((0, 100), (1, 200), (2, 300));
+
+        // What an undone reorder looks like: the same cards, scattered back over the binder.
+        await HandleAsync(fixture, Save(pages: [1, 2, 3, 4], cards: [(0, 300), (13, 100), (35, 200)]));
+
+        Assert.Equal(
+            new Dictionary<int, int> { [0] = 300, [13] = 100, [35] = 200 },
+            await fixture.StoredPlacementsAsync());
+    }
+
+    [Fact]
+    public async Task Every_page_but_one_is_still_more_than_a_spread()
+    {
+        using var fixture = new BinderFixture().WithBinder(pages: 4);
+
+        var result = await ValidateAsync(fixture, Save(pages: [1, 2, 4]));
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
     public async Task The_same_page_claimed_twice_is_refused()
     {
         using var fixture = new BinderFixture().WithBinder();

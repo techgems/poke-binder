@@ -23,6 +23,12 @@ import { tray } from './tray.svelte'
  *
  * Clearing the history is not one of them, and must not cancel a save that is already armed: the
  * edits before the clear still happened.
+ *
+ * **A reorder is the other writer**, and it goes through here too so the two cannot interleave:
+ * `afterSettling` sends whatever is pending, waits for it, and holds the queue while the reorder is
+ * out. The reorder sorts what the server has, so a pending edit that had not landed would be sorted
+ * as though it never happened -- and a page save landing after the reorder would put the old
+ * arrangement of its pages back.
  */
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -52,6 +58,10 @@ export const SAVE_RETRY_DELAY_MS = 1_000
 /**
  * Pages one request may claim. Mirrors SaveBinderChanges.MaxPages, which refuses more: a binder
  * falls open two pages at a time, and a page flip flushes the pending save rather than widening it.
+ *
+ * Past it, the pending save claims every page of the binder instead -- the one wider claim the
+ * server accepts, and what undoing a reorder needs, since that puts back an arrangement spanning the
+ * whole binder.
  */
 const MAX_PAGES = 2
 
@@ -72,6 +82,14 @@ let failures = $state(0)
 // touched -- which would clear page four as well.
 let scope = new Set<number>()
 
+// Set when the pending save has outgrown a spread. It then claims every page, and `scope` is ignored
+// until it has gone.
+let wholeBinder = false
+
+// Set by a flush that found the queue busy, so the pending save goes the moment it is free instead
+// of waiting out the debounce as though nobody had asked.
+let sendWhenFree = false
+
 let timer: ReturnType<typeof setTimeout> | null = null
 
 // When the oldest change this save is still holding arrived, which is what SAVE_MAX_WAIT_MS counts
@@ -82,8 +100,21 @@ let oldestPendingAt = 0
 // flight.
 let revision = 0
 
-// The save currently in flight, or null. One at a time.
+// The save currently in flight -- or the reorder holding the queue -- or null. One at a time.
 let inFlight: AbortController | null = null
+
+// Settles when whatever `inFlight` names has finished, so `afterSettling` has something to wait on.
+let inFlightDone: Promise<void> = Promise.resolve()
+
+/** Every page of the binder, for a claim that has outgrown a spread. */
+function allPages(): number[] {
+  return Array.from({ length: binderPage.pages }, (_, index) => index + 1)
+}
+
+/** The pages the pending save claims, whichever kind of claim it is. */
+function pendingClaim(): number[] {
+  return wholeBinder ? allPages() : [...scope]
+}
 
 function clearTimer(): void {
   if (timer === null) return
@@ -172,11 +203,17 @@ function schedule(): void {
  * returns schedules the next one if anything is still pending.
  */
 function send(): void {
-  if (!dirty || scope.size === 0 || inFlight !== null) return
+  if (!dirty || (scope.size === 0 && !wholeBinder)) return
+
+  if (inFlight !== null) {
+    sendWhenFree = true
+
+    return
+  }
 
   clearTimer()
 
-  const pages = [...scope]
+  const pages = pendingClaim()
   const sentRevision = revision
   const request = buildRequest(pages)
 
@@ -185,13 +222,23 @@ function send(): void {
   // Cleared only now that the request is built: an edit arriving while this is in flight captures
   // its own scope and arms its own timer, and the two do not have to be told apart.
   scope = new Set()
+  wholeBinder = false
+  sendWhenFree = false
 
   const controller = new AbortController()
 
   inFlight = controller
   status = 'saving'
 
-  void deliver(request, controller, pages, sentRevision)
+  inFlightDone = deliver(request, controller, pages, sentRevision)
+}
+
+/** Whatever is pending once the queue comes free: now if somebody flushed, else after the window. */
+function resume(): void {
+  if (!dirty) return
+
+  if (sendWhenFree) send()
+  else schedule()
 }
 
 async function deliver(
@@ -213,9 +260,14 @@ async function deliver(
   } catch {
     failed = true
 
-    // The pages go back into the pending scope rather than being dropped: a save that failed is a
-    // save that still has to happen.
-    for (const page of pages) scope.add(page)
+    // The claim goes back rather than being dropped: a save that failed is a save that still has
+    // to happen. A claim of every page goes back as one, and swallows any pages edited meanwhile.
+    if (pages.length > MAX_PAGES) {
+      wholeBinder = true
+      scope = new Set()
+    } else if (!wholeBinder) {
+      for (const page of pages) scope.add(page)
+    }
 
     status = 'error'
 
@@ -232,7 +284,7 @@ async function deliver(
     // exactly what it did, until a broken endpoint stacked two dozen of them. The pages stay
     // dirty, so the next edit or page flip carries them, and `pagehide` carries them if the tab
     // closes first.
-    if (dirty && !failed) schedule()
+    if (!failed) resume()
   }
 }
 
@@ -272,7 +324,7 @@ export const save = {
 
   /** The pages the pending save will claim, for a test or a console. Empty when nothing is pending. */
   get pendingPages(): readonly number[] {
-    return [...scope].sort((left, right) => left - right)
+    return pendingClaim().sort((left, right) => left - right)
   },
 
   /**
@@ -292,13 +344,12 @@ export const save = {
     const pages = pagesFor(pockets)
     const widened = new Set([...scope, ...pages])
 
-    if (widened.size > MAX_PAGES) {
-      // More pages than one request may claim, which the flush-on-flip rule is supposed to make
-      // impossible. Send what is pending under the scope it was captured with, and start a new one
-      // rather than posting a claim the server would refuse.
-      this.flush()
-
-      scope = new Set(pages)
+    // More pages than a spread: undoing or redoing a reorder, or the rare edit that lands after a
+    // spread's worth is already pending. Either way the claim becomes every page, which the server
+    // accepts as a snapshot of the whole binder -- and which is still debounced like any other.
+    if (wholeBinder || widened.size > MAX_PAGES) {
+      wholeBinder = true
+      scope = new Set()
     } else {
       scope = widened
     }
@@ -319,12 +370,69 @@ export const save = {
    * What a page flip does: a flip ends the spread the pending save was captured against, so it is
    * sent rather than deferred again. **A flip with nothing pending sends nothing at all** -- which
    * is what the dirty flag is for, since a timer alone cannot tell "waiting to save" from "nothing
-   * to save".
+   * to save". With the queue busy, it goes the moment the queue is free.
    */
   flush(): void {
     if (!dirty) return
 
     send()
+  },
+
+  /**
+   * Runs a write of its own -- a reorder -- once everything pending has been stored, and holds the
+   * queue while it is out.
+   *
+   * Settling first because the reorder sorts what the server has: an edit still waiting here would
+   * be sorted as though it never happened, and then overwritten when it landed. Holding the queue
+   * because a save that went out alongside it could land after it and put back the arrangement it
+   * replaced. Edits made meanwhile wait, and go once the task is done.
+   *
+   * @throws When a pending save could not be stored. The task is not run: sorting a binder the
+   * server has not caught up with would throw the unsaved edits away.
+   */
+  async afterSettling<T>(task: () => Promise<T>): Promise<T> {
+    // A loop, because a save coming back can send the next one -- an edit made while it was out.
+    while (inFlight !== null || dirty) {
+      if (inFlight !== null) {
+        await inFlightDone
+
+        continue
+      }
+
+      const failedBefore = failures
+
+      send()
+
+      // Nothing went out -- no binder to address it to -- so there is nothing to wait for either.
+      if (inFlight === null) break
+
+      await inFlightDone
+
+      if (failures > failedBefore) {
+        throw new Error('Your latest changes could not be saved.')
+      }
+    }
+
+    const controller = new AbortController()
+
+    inFlight = controller
+
+    const done = (async () => {
+      try {
+        return await task()
+      } finally {
+        if (inFlight === controller) inFlight = null
+
+        resume()
+      }
+    })()
+
+    inFlightDone = done.then(
+      () => undefined,
+      () => undefined,
+    )
+
+    return done
   },
 
   /**
@@ -341,7 +449,11 @@ export const save = {
       // Fire and forget: nothing will be alive to read the answer, and `keepalive` is what lets
       // the request outlive the document. It goes around `send` because the in-flight rule is
       // about not racing two saves in a live tab, and this tab is not going to be live.
-      const request = buildRequest([...scope])
+      //
+      // A claim of every page is tried the same way, and on a big binder the browser refuses it for
+      // size: Chrome caps a keepalive body at 64 KB. Undoing a reorder and closing the tab within
+      // the debounce window is the one way to lose it.
+      const request = buildRequest(pendingClaim())
 
       if (request !== null) {
         void BinderSaveClient.save(request, { keepalive: true }).catch(() => {})

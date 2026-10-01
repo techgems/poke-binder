@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Binders.DbContext.Entities;
 using PokeBinder.TcgCatalog.DbContext;
+using PokeBinder.TcgCatalog.DbContext.Entities;
 using CatalogCard = PokeBinder.TcgCatalog.DbContext.Entities.Card;
 
 namespace PokeBinder.Features.Tests.Binder;
@@ -145,6 +146,91 @@ public sealed class BinderFixture : IDisposable
         Catalog.SaveChanges();
 
         return this;
+    }
+
+    /// <summary>A set in the catalog, released on the given day. What the reorder's Set criterion reads.</summary>
+    public BinderFixture WithSet(int setId, string name, long releaseDateUnix)
+    {
+        Catalog.Sets.Add(new Set
+        {
+            Id = setId,
+            Code = $"S{setId}",
+            Name = name,
+            FullName = name,
+            SeriesId = 1,
+            ReleaseDateUnix = releaseDateUnix,
+        });
+
+        Catalog.SaveChanges();
+
+        return this;
+    }
+
+    private int _nextRarityRowId = 1;
+
+    /// <summary>
+    /// One rarity's two weights in one set, as /admin/setRarity would have left them. Null is
+    /// unweighted.
+    /// </summary>
+    public BinderFixture WithRarity(int setId, string rarity, int? pullRate, int? nameOrder = null)
+    {
+        Catalog.RarityBySetFilterOptions.Add(new RarityBySetFilterOption
+        {
+            Id = _nextRarityRowId++,
+            SetId = setId,
+            Rarity = rarity,
+            PullRateRarityOrder = pullRate,
+            NameRarityOrder = nameOrder,
+        });
+
+        Catalog.SaveChanges();
+
+        return this;
+    }
+
+    /// <summary>A catalog card with everything a reorder reads off it.</summary>
+    public BinderFixture WithCard(int cardId, int setId, string rarity, string name, string cardNumber)
+    {
+        Catalog.Cards.Add(new CatalogCard
+        {
+            Id = cardId,
+            TcgPlayerId = 1000 + cardId,
+            SetId = setId,
+            Name = name,
+            Rarity = rarity,
+            CardNumber = cardNumber,
+            CardType = "Pokemon",
+            CardSubtype = string.Empty,
+        });
+
+        Catalog.SaveChanges();
+
+        return this;
+    }
+
+    /// <summary>Flags pockets as reserved for a card the collector does not own yet.</summary>
+    public BinderFixture WithMissing(params int[] pockets)
+    {
+        foreach (var card in Binders.BinderCards.Where(card => pockets.Contains(card.IndexInBinder)))
+        {
+            card.IsMissing = true;
+        }
+
+        Binders.SaveChanges();
+
+        return this;
+    }
+
+    /// <summary>The pockets flagged missing now.</summary>
+    public async Task<HashSet<int>> StoredMissingAsync()
+    {
+        Binders.ChangeTracker.Clear();
+
+        return (await Binders.BinderCards
+            .Where(card => card.BinderId == BinderId && card.IsMissing == true)
+            .Select(card => card.IndexInBinder)
+            .ToListAsync())
+            .ToHashSet();
     }
 
     /// <summary>

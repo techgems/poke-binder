@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Toast } from '@skeletonlabs/skeleton-svelte'
+  import ArrowDownWideNarrowIcon from '@lucide/svelte/icons/arrow-down-wide-narrow'
   import MousePointerClickIcon from '@lucide/svelte/icons/mouse-pointer-click'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import RedoIcon from '@lucide/svelte/icons/redo-2'
@@ -12,11 +13,15 @@
   import { toaster } from './components/toaster'
   import WorkspacePanel from './components/WorkspacePanel.svelte'
   import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './components/workspace-tab'
+  import ReorderModal from './features/binder/sort/ReorderModal.svelte'
+  import { binderPage } from './stores/binder-page.svelte'
   import { clickAdd } from './stores/click-add.svelte'
   import { history } from './stores/history.svelte'
   import { save } from './stores/save.svelte'
 
   let searchOpen = $state(false)
+  let reorderOpen = $state(false)
+  let reordering = $state(false)
 
   // Failures already reported. The save store counts them; this decides which are news.
   let toastedFailures = 0
@@ -58,6 +63,10 @@
     const key = event.key.toLowerCase()
 
     if (key !== 'z' && key !== 'y') return
+
+    // Not while a reorder is out: it will replace the binder with what the server sorted, and an
+    // undo landing first would be an edit that reorder never saw.
+    if (reordering) return
 
     // instanceof rather than a cast: a keydown can be dispatched at the window itself, which has no
     // closest() and would throw out of the handler.
@@ -116,12 +125,28 @@
     >
       <MousePointerClickIcon class="size-6" />
     </button>
+    <!-- With Undo and Redo because it is undone by them: a reorder throws the arrangement away, and
+         the button that brings it back is the one below. It also turns to the Binder tab, since a
+         sort nobody can see reads as nothing having happened. -->
+    <button
+      type="button"
+      class="btn-icon btn-icon-lg hover:preset-tonal"
+      title="Reorder binder"
+      aria-label="Reorder binder"
+      disabled={binderPage.binderId === null}
+      onclick={() => {
+        tab = 'binder'
+        reorderOpen = true
+      }}
+    >
+      <ArrowDownWideNarrowIcon class="size-6" />
+    </button>
     <button
       type="button"
       class="btn-icon btn-icon-lg hover:preset-tonal"
       title="Undo"
       aria-label="Undo"
-      disabled={!history.canUndo}
+      disabled={!history.canUndo || reordering}
       onclick={() => history.undo()}
     >
       <UndoIcon class="size-6" />
@@ -131,7 +156,7 @@
       class="btn-icon btn-icon-lg hover:preset-tonal"
       title="Redo"
       aria-label="Redo"
-      disabled={!history.canRedo}
+      disabled={!history.canRedo || reordering}
       onclick={() => history.redo()}
     >
       <RedoIcon class="size-6" />
@@ -179,6 +204,8 @@
     </Toast>
   {/snippet}
 </Toast.Group>
+
+<ReorderModal bind:open={reorderOpen} bind:busy={reordering} />
 
 <Modal bind:open={searchOpen} title="Search cards">
   <input class="input" type="search" placeholder="Search by card name…" />

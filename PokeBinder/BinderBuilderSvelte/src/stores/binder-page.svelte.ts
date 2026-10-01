@@ -1,3 +1,4 @@
+import type { ReorderedCard } from '../clients/BinderReorderClient'
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import type { PreloadedBinder } from '../preloads/preload'
 import { history } from './history.svelte'
@@ -33,6 +34,18 @@ export interface BinderPageView {
   slots: BinderSlotView[]
 }
 
+/** A full pocket in a snapshot of the binder: the card, and whether the pocket is flagged missing. */
+export interface ArrangedPocket {
+  card: CardSearchResult
+  missing: boolean
+}
+
+/**
+ * Every pocket of the binder at one moment, empty ones as null. What a reorder is recorded as: the
+ * arrangement it threw away and the one it put in its place.
+ */
+export type Arrangement = readonly (ArrangedPocket | null)[]
+
 /** Where a dragged card came from, which is what decides what dropping it means. */
 export type DragSource =
   | { kind: 'tray'; card: CardSearchResult }
@@ -54,8 +67,9 @@ let spread = $state(0)
 
 // Pockets the server flagged as reserved for a card the collector does not own yet. Kept beside
 // the slots rather than in them because nothing in the workspace sets the flag: what this holds is
-// what the server sent, so a save can hand it back instead of clearing it. A control for it is a
-// reason to move the flag into the slot itself.
+// what the server sent, so a save can hand it back instead of clearing it. Only a reorder moves
+// one, carrying it with its card. A control for it is a reason to move the flag into the slot
+// itself.
 let missingPockets = new Set<number>()
 
 // The drag lives here rather than in the DataTransfer because dragover has to decide whether a
@@ -70,6 +84,18 @@ let dragged = $state<DragSource | null>(null)
  */
 export function applySlotCard(index: number, card: CardSearchResult | null): void {
   slots[index] = card
+}
+
+/**
+ * Lays the whole binder out as a snapshot says, missing flags included. The write a reorder and its
+ * undo and redo go through -- the one edit that moves a missing flag, which travels with its card.
+ */
+export function applyArrangement(arrangement: Arrangement): void {
+  slots = arrangement.map((pocket) => pocket?.card ?? null)
+
+  missingPockets = new Set(
+    arrangement.flatMap((pocket, index) => (pocket?.missing ? [index] : [])),
+  )
 }
 
 /**
@@ -351,6 +377,47 @@ export const binderPage = {
 
       tray.add(card)
     })
+  },
+
+  /** The binder as it stands, every pocket, as a snapshot that later edits do not reach into. */
+  get arrangement(): Arrangement {
+    return slots.map((card, index) => (card ? { card, missing: missingPockets.has(index) } : null))
+  },
+
+  /**
+   * Takes the order a reorder came back with. The server has already stored it, so this records
+   * it without saving anything: the entry holds the arrangement it replaced and the one it put in
+   * its place, so Undo lays the old one back out and Redo the new -- and each of those is an edit
+   * the server has not seen, which is what saves.
+   *
+   * The server answers with ids, and the cards are the ones already in the binder, so each is
+   * looked up here rather than sent again. One the workspace does not have -- a card the catalog
+   * dropped, which `load` never drew either -- leaves its pocket empty on screen, as it always was.
+   */
+  adoptReorder(reordered: readonly ReorderedCard[]): void {
+    const before = this.arrangement
+
+    const cards = new Map<number, CardSearchResult>()
+
+    for (const card of slots) {
+      if (card) cards.set(card.id, card)
+    }
+
+    const after: (ArrangedPocket | null)[] = Array(slots.length).fill(null)
+
+    for (const placed of reordered) {
+      const card = cards.get(placed.cardId)
+
+      if (card && placed.indexInBinder < after.length) {
+        after[placed.indexInBinder] = { card, missing: placed.isMissing }
+      }
+    }
+
+    history.recordStored({ store: 'arrangement', before, after })
+    applyArrangement(after)
+
+    // The start of the new order, which is the part of it worth seeing first.
+    openSpread(0)
   },
 
   /**

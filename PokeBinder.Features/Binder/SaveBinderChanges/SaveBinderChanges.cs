@@ -49,8 +49,22 @@ public static class SaveBinderChanges
     /// than widening it. A payload naming more pages than the user can see at once is a client that
     /// has lost track of its own scope, and believing it costs a diff over pages nobody touched.
     /// </para>
+    /// <para>
+    /// <b>The one exception is a claim of every page</b> -- see <see cref="ClaimsWholeBinder"/>.
+    /// Undoing a reorder puts back an arrangement that spans the whole binder, and that is a claim
+    /// the client means rather than one it lost track of.
+    /// </para>
     /// </summary>
     public const int MaxPages = 2;
+
+    /// <summary>
+    /// Whether a claim names every page of the binder, each once: pages 1 through
+    /// <paramref name="pageCount"/> and nothing else. The one claim allowed past
+    /// <see cref="MaxPages"/>, and a snapshot of the whole binder under the same rules as a
+    /// spread -- a pocket it leaves out is one the user emptied.
+    /// </summary>
+    public static bool ClaimsWholeBinder(IReadOnlyCollection<int> pages, int pageCount) =>
+        pages.Count == pageCount && pages.Order().SequenceEqual(Enumerable.Range(1, pageCount));
 
     public record Request
     {
@@ -177,9 +191,9 @@ public static class SaveBinderChanges
 
         // Read as one span rather than as a list of indexes: a page of a large grid is hundreds of
         // pockets, and an IN clause over those is a worse query than a range over the same rows.
-        // Two claimed pages are adjacent in practice -- they are a spread -- so the span is the
-        // claim, and the filter in the walk is what keeps a row in between from being touched when
-        // they are not.
+        // Two claimed pages are adjacent in practice -- they are a spread -- and a whole-binder
+        // claim has nothing between its pages at all, so the span is the claim; the filter in the
+        // walk is what keeps a row in between from being touched when it is not.
         var lowest = claimed.Min();
         var highest = claimed.Max();
 

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using PokeBinder.Auth;
 using PokeBinder.Binders.DbContext;
+using PokeBinder.Features.Binder.ReorderBinder;
 using PokeBinder.Features.Binder.SaveBinderChanges;
 using PokeBinder.TcgCatalog.DbContext;
 
@@ -66,6 +67,44 @@ public class BinderCardsController(
         }
 
         var response = await SaveBinderChanges.Handler(request, userId, binderContext, ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Sorts every placed card in a binder by up to three criteria and lays them out again from the
+    /// first pocket, answering with the new order.
+    /// <para>
+    /// POST rather than PUT: the body is an instruction, not the state it leaves behind, and what
+    /// it writes depends on what the binder held when it arrived. The client settles its own
+    /// pending save before sending this, because what gets sorted is what the server has.
+    /// </para>
+    /// </summary>
+    /// <param name="binderId">Whose binder to reorder. Must be one of the caller's own.</param>
+    /// <param name="body">
+    /// The slice's own request. Its <see cref="ReorderBinder.Request.BinderId"/> is overwritten by
+    /// the route's, so the field is not part of what this endpoint asks for.
+    /// </param>
+    [HttpPost("{binderId:int}/reorder")]
+    public async Task<ActionResult<ReorderBinder.Response>> Reorder(
+        int binderId,
+        [FromBody] ReorderBinder.Request body,
+        CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+
+        // The URL wins, before anything reads the request. Nothing else is normalised: a null list
+        // is the validator's to refuse.
+        var request = body with { BinderId = binderId };
+
+        var validation = await new ReorderBinderValidator(binderContext, userId).ValidateAsync(request, ct);
+
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(ToModelState(validation.Errors));
+        }
+
+        var response = await ReorderBinder.Handler(request, userId, binderContext, catalogContext, ct);
 
         return Ok(response);
     }

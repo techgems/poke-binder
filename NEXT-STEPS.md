@@ -16,120 +16,42 @@ moment it runs.
 
 ---
 
-## 1. Reorder: sorting the whole binder
+## 1. New tab: adding whole sets to the binder
 
-Triggered from the action sidebar (`App.svelte`, beside Undo and Redo), opening a modal —
-`Modal.svelte` is already there, used at the moment only by the leftover "Search cards" placeholder.
+A new tab in the workspace (`WorkspacePanel.svelte`, beside Card Tray and Binder) from which a whole
+set goes into the binder in one action, rather than card by card through search. **The details are
+still to come** -- this entry records only why it is first and where the code sits, so nothing
+beyond that should be built on it until they arrive.
 
-The modal holds up to **three sorting criteria applied in sequence**: Set, Rarity, Card name. The
-user **drags to set which one outranks which**, **drops any they do not want** (one, two or three is
-valid), and gives each **its own direction**, ascending or descending — so "Set descending, then
-Rarity ascending" is something the widget has to be able to say. Applying it **discards whatever
-arrangement the binder has** and lays the placed cards out again in that order.
+**Why it comes first:** it is what makes the reorder worth trying on a real binder. The reorder is
+built (`ReorderBinder`, and the modal on the action sidebar), but a sort only shows anything on a
+binder holding many cards across several sets and rarities, and filling one today means adding each
+card from search by hand. Being able to drop two or three whole sets into a binder gives it
+something to sort.
 
-**There are four orderings but still three slots, because Rarity is one criterion with a choice of
-key.** It sorts by *either* `pullRateRarityOrder` or `nameRarityOrder` — **never both**,
-so the two are not separate criteria competing for a slot but one criterion whose widget asks which
-ordering it is using. That choice is independent of the direction: pull rate ascending and pull rate
-descending are both available, and so are the two for name ordering.
+### Where it plugs in
 
-### Decided
-
-- **The client sorts, and forces a whole-binder write.** Not the server. Both routes need a new
-  whole-binder write regardless, because `SaveBinderChanges` refuses more than `MaxPages = 2` and a
-  reorder rewrites every page; a server-side sort would *additionally* need a binder GET that does
-  not exist — `GetFullBinder` reaches the SPA only as a Razor preload from `Binder.cshtml.cs` — and
-  it would make the reorder **irreversible**, because reloading the binder runs `binderPage.load`,
-  which calls `history.clear()`. Undo matters most for the one action whose whole purpose is
-  throwing an arrangement away.
-- **The ranks travel with the page, at initial load.** Not fetched when the modal opens. The binder
-  page already embeds two payloads this way — the binder itself and the search starter filters — so
-  this is a third beside them, the modal opens with everything it needs, and sorting costs no round
-  trip at all.
-- **Rarity order is already in the catalog**, as `pullRateRarityOrder` and `nameRarityOrder` on
-  `rarityBySetFilterOption` — per set, because the hierarchy really does differ between sets: the
-  three Mega Evolution sets each hold one or two **Mega Hyper Rare** gold cards sitting *above*
-  Special Illustration Rare, while the fifteen other sets that have Special Illustration Rare have
-  nothing above it. There is nothing for this step to rank, and nothing to wait for: the catalog
-  holds 752 weighted rows of 789, `/admin/setRarity` is where any of them is corrected, and
-  `Scripts/SeedRarityWeights.sql` is what restores them into a rebuilt database.
-- **The Rarity criterion carries which of the two it uses**, chosen in its own widget and exclusive:
-  a payload saying both is not a thing the modal can produce. Two exclusive options with the chosen
-  one visible at a glance is a segmented control, which Skeleton ships
-  (`@skeletonlabs/skeleton-svelte`) — the same vocabulary the rest of the workspace is written in.
-  It means a criterion is no longer just a name and a direction, so whatever shape the modal keeps
-  its list in has to hold a key as well, and so does anything that remembers the last sort.
-- **The two directions are labelled for what they do, not for which way the number goes.** Rarity
-  reads **"rare first" / "common first"**. "Ascending" would have been the trap: the stored value is
-  packs-to-open, so ascending is *easiest* first, and a collector asking for their chase cards at
-  the front would have had to pick descending. The same principle gives the other two their words —
-  Set is **"newest first" / "oldest first"** and Card name is **"A–Z" / "Z–A"** — so the labels
-  differ per criterion instead of being one shared pair, which is the point. Internally each is
-  still a direction on the underlying value.
-- **Both rarity columns are numbered so that bigger means rarer**, which is what lets
-  one label sit over both: "rare first" is the descending end whichever key the criterion is using.
-  Numbered the other way round, `nameRarityOrder` would make the same label mean opposite things.
-- **Set order is `releaseDateUnix` and nothing else.** It is *already* `NOT NULL` in the schema
-  (`001_CreateTcgCatalogSchema.sql`); only the `Set` entity types it `long?`. **So there is nothing
-  to migrate** — the change is the entity property, plus whatever reads it as nullable.
-- **One history entry**, however many pockets move, so Ctrl+Z restores the old arrangement.
-- **The new whole-binder write is shared with step 2.** Its rearrangement needs the same thing, so
-  this step specifies it and step 2 reuses it: cards and tray in **one transaction**, because
-  emptying a binder into the tray moves every card from one to the other.
-
-### What the server side needs
-
-1. **`Set.ReleaseDateUnix` as `long`**, matching the column that is already `NOT NULL`.
-2. **`setId` on two projections, not one.** `BinderCardDetails` and `CardSearchResult` both carry
-   `setName` and nothing else about the set. The binder's own cards need the id to find their rarity
-   weights — and so do **cards added from search during the session**, or a card placed and then
-   sorted without a reload would have nothing to sort by.
-3. **The ordering data in the preload**: each set's release date, and the two rarity values keyed
-   by set. A few hundred rows all told.
-4. **The whole-binder write**: a slice, a validator and tests, per "Rules for tests" in `CLAUDE.md`.
-   The test worth writing first is that a reorder of a fifty-page binder leaves the same set of
-   cards in it, in the new order, with nothing dropped.
-
-### What the client side needs
-
-- The modal and the criteria widget: drag to reorder, a direction per criterion, and dropping a
-  criterion without disturbing the order of the rest.
-- The comparator, as one function with its tie rules written next to it.
-- **Laying the cards out from pocket 0 with no gaps.** Assumed rather than asked: a sort that
-  preserved holes would not look sorted. Worth confirming.
-- **Settling with the debounced save before writing.** `stores/save.svelte.ts` holds a dirty flag
-  and a pending scope of up to two pages; a whole-binder write that lands between an edit and that
-  save's tick is overwritten by it. The reorder has to flush and wait, and the two writers must not
-  be able to interleave.
-
-### Open questions
-
-- **Ties, and there are three kinds now.** Each needs a stated tie-break, or the same criteria
-  produce a different arrangement every time they are applied. **Equal pull rates** are no longer an
-  edge case: two rarities in one set may share a value on purpose, and the base rarities all share
-  1, so every set has ties at the bottom by construction. **Unweighted rarities** are the 37 rows
-  nothing rates -- and note that an empty value sorts *last* in a descending ordering, so the six
-  EX-era Secret Rares and the promo rows currently sort below their own commons. **Sets sharing a
-  release date** are the third.
-- **Pockets flagged missing.** They hold a real card id, so they sort like any other card — unless a
-  reserved pocket is meant to stay where it was put.
-- **Whether the tray takes part.** Read as written, no: the reorder arranges the binder, and the
-  tray is what has not been placed yet.
-- **What undo costs here.** One entry can hold a delta per pocket — up to 4000 — and `MAX_ENTRIES`
-  is 100. Worth deciding whether a reorder is capped, recorded more cheaply, or simply accepted.
-- **Whether the criteria are remembered.** Per binder, so re-sorting after adding cards is one
-  click, or per session, or not at all.
-- **What this asks of step 3.** LoadSet has to supply a release date for every set it loads, and
-  weights for the rarities it creates — `/admin/setRarity` edits rows but cannot add one, so a set loaded without them
-  sorts as unweighted for every card in it.
+- **The tab itself.** `WorkspaceTab` in `components/workspace-tab.ts` is the union of panels
+  (`'add' | 'binder'`); a new panel is a member there plus a `Tabs.Trigger` and a `Tabs.Content` in
+  `WorkspacePanel.svelte`. Both existing panels stay mounted and that file's comment on why no
+  `display` utility may go on `Tabs.Content` applies to the new one too.
+- **A set's cards are more than one search page.** `SearchCardsByFilter` caps a page at
+  `MaxPageSize = 200`, and SV01 alone has 258 cards, so the client either pages through the search
+  or the tab gets a by-set read of its own.
+- **The write already exists.** A set placed into the binder is far more than a spread, and
+  `SaveBinderChanges` takes that too: beside a claim of up to two pages it accepts a claim of every
+  page (`SaveBinderChanges.ClaimsWholeBinder`), as a snapshot of the whole binder with the tray in
+  the same transaction. The client's save store already promotes any pending save wider than a
+  spread to that claim, so placing a set is an ordinary recorded edit -- build on that rather than
+  adding a third writer.
 
 ---
 
-## 2. Third tab: binder settings
+## 2. Another tab: binder settings
 
-A third tab beside Card Tray and Binder (`WorkspacePanel.svelte`), for the binder's own properties:
-name, dimensions (grid size), page count, and whatever else belongs to the binder rather than its
-cards. `SaveBinder` already accepts all of these, and `GetFullBinder` already returns them.
+A tab beside Card Tray, Binder and step 1's set tab (`WorkspacePanel.svelte`), for the binder's
+own properties: name, dimensions (grid size), page count, and whatever else belongs to the binder
+rather than its cards. `SaveBinder` already accepts all of these, and `GetFullBinder` already returns them.
 
 **The hard part is resizing.** Changing the grid or the page count invalidates where every card
 sits: pockets are stored as one absolute index across the binder, so a different page size moves
@@ -144,75 +66,86 @@ that would strand placed cards ("This binder holds N cards at that size, and M c
 that"), so that path has to be reconciled with whichever option the user picks — the refusal is
 correct for a bare resize and wrong once the user has consented to a rearrangement.
 
-**How a rearrangement writes the cards is undecided — but step 1 builds the write it needs.** The
-debounced save (`SaveBinderChanges`, `PUT api/binderCards/{binderId}`) is the only thing that writes
-a binder's contents today, and it refuses a payload claiming more than a spread, so a re-flow does
-not fit it; the whole-binder writers that would have fitted (`SaveBinderCards`, `SaveBinderTray` and
-their controllers) were deleted on 2026-09-21 rather than kept for it, because nothing had ever
-called them. **The reorder needs exactly that write and is specified to add it, so build this step
-after step 1 and reuse its endpoint** rather than adding a second one. Either way, whatever does it:
+**How a rearrangement writes the cards is undecided, but the pieces it needs are built.** Two things
+write a binder's contents: the debounced save (`SaveBinderChanges`, `PUT api/binderCards/{binderId}`)
+and the reorder (`ReorderBinder`, `POST api/binderCards/{binderId}/reorder`). The debounced save
+already accepts a claim of every page with the tray in the same transaction, which is the shape "empty
+the binder into the tray" needs. But it diffs against the binder's *current* page count, so a claim
+for a binder that is changing size at the same time is a new case -- whether the resize and the
+re-flow go in one request, and through which slice, is the open part. Whatever does it:
 
 - **writes the cards and the tray in one transaction**, because "empty the binder into the tray"
   moves every placed card from one to the other, and half of that committing is a card both placed
   and waiting;
 - **must not be able to run against the debounced save.** That save fires up to five seconds after
   an edit and again when the tab closes, so a resize that lands in between writes a layout the next
-  tick overwrites with the old one. The workspace's save store (`stores/save.svelte.ts`) holds the
-  dirty flag and the pending scope, so it is what a resize has to settle with before it starts.
+  tick overwrites with the old one. `save.afterSettling` in `stores/save.svelte.ts` is the existing
+  answer -- it sends what is pending, waits, and holds the queue while a write of its own is out --
+  and the reorder already goes through it.
 
-**Card reordering as a feature is deliberately undefined for now** and will be specified later; do
-not invent an ordering model beyond what option 1 needs.
+**Option 1 keeps the order the cards are in; it is not a sort.** Sorting is the reorder's job, with
+its own criteria; the re-flow should not grow an ordering model of its own.
 
 ---
 
-## 3. LoadSet: loading a set from a CSV
+## 3. LoadSet: loading a set from the TCGdex API
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
 Components with HTMX doing the posting, and Alpine only where a control needs local state of its own.
 Desktop only, like every admin page.
 
-The form is a CSV file, a set name, a date published, and a series — **prefilled with the series
-currently running**, since that is the answer almost every time.
+**The source is the TCGdex API (`https://api.tcgdex.net/v2/en/...`), not a CSV file.** The form
+names a TCGdex set rather than taking an upload, alongside a set name, a date published, and a
+series — **prefilled with the series currently running**, since that is the answer almost every
+time. The CSVs in `TCGCSV/` and the ETL's CSV readers (`CardSetCsvLoader`,
+`ModernPokemonSetsCsvMapper`) are not part of this.
 
-**Uploading is two steps, not one.** The file is validated and what it would do is reported back
-first; only then does a second action commit it. A CSV that is half wrong should cost the person a
+**Loading is two steps, not one.** The set is fetched and what it would do is reported back first;
+only then does a second action commit it. A set that comes back half wrong should cost the person a
 glance, not an undo.
 
-### What the CSV actually is
+### What TCGdex gives
 
-The files in `TCGCSV/` are what this takes, and `CardSetCsvLoader` plus
-`ModernPokemonSetsCsvMapper` already read that shape: `productId`, `name`, `extNumber`, `extRarity`,
-`extCardType`, `extHP`, `extStage`, `extCardText`.
+Checked against the live API on 2026-09-30; worth re-checking when the work starts.
 
-**It is one row per printing, not per card, and that is the trap.** `SV01ScarletAndVioletBaseSet`
-has 444 rows for 258 cards: 186 `productId`s appear two or three times, differing only in
-`subTypeName` — Normal, Holofoil, Reverse Holofoil. `cards.tcgPlayerId` is `UNIQUE`, so loading the
-file row by row collides. The ETL never had to say what it wanted here because it upserts
-`.On(x => x.TcgPlayerId)` and the last row quietly wins; a page with a validation step should decide
-this out loud instead.
-
-`CardCsvUtilsService.MapCsvCardTypeToDbCardType` is the existing card-type derivation (Energy,
-Trainer, Pokemon, else the `UNKNOWN` placeholder). `UNKNOWN` is the value the search filters exclude
-from super types, so rows that land on it are rows nobody will be able to filter for.
+- **A set** is `GET /v2/en/sets/{id}`: `id` (`me02`), `name`, `releaseDate` (`2025-11-14`),
+  `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. Our
+  `sets.code` is usually its id upper-cased (`ME02`, `SV01`) -- but not always: Ascended Heroes is
+  `ME-AH` in the catalog.
+- **The set's `cards` are briefs** -- `id`, `localId`, `name`, `image` -- with no rarity or category,
+  so the full card is a second request each: `GET /v2/en/cards/{id}`, one per card, 130 for ME02.
+- **A card is one card, not one row per printing.** Printings are listed inside it
+  (`variants_detailed`), so the CSV's "one productId on three rows" collision does not arise.
+- **The TCGplayer id is `thirdParty.tcgplayer`** (`487828` for `sv01-001`), which is what
+  `cards.tcgPlayerId` (`UNIQUE`, `NOT NULL`) needs. It is also repeated per variant under
+  `pricing.tcgplayer`.
+- **`category` is the super type directly** -- `Pokemon`, `Trainer`, `Energy` -- in place of the
+  CSV's derivation through `CardCsvUtilsService.MapCsvCardTypeToDbCardType`.
+- **Rarity names are not spelled like ours.** TCGdex says "Special illustration rare" where the
+  catalog's TCGplayer-sourced rows say "Special Illustration Rare", and the `rarityBySet` weights and
+  the rarity filters are both keyed by that name.
+- **Card numbers are `localId` alone** (`129`), where the catalog holds `129/094`.
+- **Art** is the card's `image` plus a quality and extension suffix (TCGdex's convention; not yet
+  confirmed here).
 
 ### What the validation step should report
 
 Enough for someone to say yes with their eyes open — the counts first, then anything that will be
 wrong afterwards. Worth flagging, and the list is open:
 
-- **Rows that collapse into one card**, and whether the duplicates agree on name, number and rarity.
-  Two printings of Sprigatito are fine; two rows claiming different rarities for one `productId` are
-  not.
-- **Rows whose card type maps to `UNKNOWN`** — they import, and then they are invisible to the
-  filters.
-- **Missing `extNumber` or `extRarity`.** `cards.cardNumber` and `cards.rarity` are `NOT NULL`, so a
+- **Cards with no `thirdParty.tcgplayer`** -- `cards.tcgPlayerId` is `NOT NULL`, so one without it
+  cannot be inserted as the table stands.
+- **Cards whose category is not one of the three super types** — they import, and then they are
+  invisible to the filters, like the ETL's `UNKNOWN` placeholder.
+- **Missing `localId` or `rarity`.** `cards.cardNumber` and `cards.rarity` are `NOT NULL`, so a
   blank is an insert failure, not a blank card.
-- **`productId`s already in the catalog**, which means either a re-upload or a set overlapping one
+- **TCGplayer ids already in the catalog**, which means either a reload or a set overlapping one
   that is already loaded.
 - **A set name or code that already exists.**
-- **The summary itself**: rows, distinct cards, distinct rarities, and the rarities by name — eight
-  in SV01, and they become the `rarityBySet` rows this set is filtered by.
+- **The summary itself**: cards, distinct rarities, and the rarities by name -- they become the
+  `rarityBySet` rows this set is filtered by, so a name that does not match the catalog's spelling
+  is worth showing next to the one it probably means.
 
 ### The slice
 
@@ -226,7 +159,7 @@ every browser still holding the old stamp — permanently stale, with nothing su
 Validation is its own thing rather than a step inside the write: the page needs the report without
 committing anything, so whatever produces it has to be callable on its own. `FluentValidation` is
 already in `PokeBinder.Features` and the binder slices pair a `Handler` with a `Validator`, though a
-per-row CSV report may not fit that shape — worth deciding rather than assuming.
+per-card report may not fit that shape — worth deciding rather than assuming.
 
 The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 
@@ -241,11 +174,25 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
   `EndDateUnix == null` check would find nothing at all. Is the open series the one with 0, or simply
   the latest `startDateUnix`?
 - **Card art.** The ETL downloads it per card from TCGplayer (`TcgPlayerImgDownloadService`) and
-  fills `imageUrl`. Does an upload do that too, leave the cards imageless until a later pass, or
-  queue it?
-- **Card text.** `pkmnCardText` and `nonPkmnCardText` are written by the ETL from the same CSV
-  columns. In scope here or not?
-- **Re-uploading.** Does loading a set that already exists update it, or is that refused outright?
-- **The file itself.** Nothing in this app uploads anything yet, so the multipart form, the size
-  limit and the antiforgery token on it are all new ground — and it is worth deciding whether the
-  CSV is kept anywhere after the import or simply read and dropped.
+  fills `imageUrl`. Does a load do that too, take TCGdex's `image` instead, leave the cards
+  imageless until a later pass, or queue it?
+- **Card text.** `pkmnCardText` and `nonPkmnCardText` are written by the ETL from the CSV. TCGdex
+  carries attacks, abilities and effects on the full card. In scope here or not?
+- **Rarity spelling.** Map TCGdex's names onto the catalog's ("Special illustration rare" to
+  "Special Illustration Rare"), store them as TCGdex writes them, or both? Mapping is what keeps a
+  new set inside the existing rarity filters and weights.
+- **Card number format.** Store `localId` as it comes (`129`), or rebuild the catalog's `129/094`
+  from the set's `cardCount.official`?
+- **Which fields the form still needs.** TCGdex carries the set's name, release date and series, so
+  the name, date and series fields could prefill from it rather than be typed. Kept as overrides, or
+  dropped?
+- **A card per request.** A set costs one request per card. Is that fine for an admin action, or is
+  TCGdex's GraphQL endpoint worth using to fetch the set with its cards in one call? And whether
+  TCGdex is called live on each load or through a client with a timeout and retry of its own.
+- **What the reorder needs from it.** The reorder sorts by `sets.releaseDateUnix` and by the two
+  weights on each `rarityBySet` row, so a set loaded here has to arrive with a release date
+  (TCGdex's `releaseDate`, or the form's "date published") and with weights for the rarities it
+  creates. TCGdex has no weights, so those still come from somewhere else. `/admin/setRarity` edits
+  weights but cannot add a row, so a set loaded without them sorts as unweighted -- last, either
+  direction -- for every card in it.
+- **Reloading.** Does loading a set that already exists update it, or is that refused outright?
