@@ -425,3 +425,6 @@ TCGCSV/**
 
 # Dev-only magic login URL written by Login.cshtml.cs; a credential, never commit it.
 passwordless.txt
+
+# Rewritten by the Vite dev server with its port on every start; generated, never edited.
+manifest.dev.json

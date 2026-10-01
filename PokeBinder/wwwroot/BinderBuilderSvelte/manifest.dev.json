@@ -1,6 +1,0 @@
-{
-  "port": 5173,
-  "entrypoint": "src/main.ts",
-  "containerElementId": "app",
-  "isReact": false
-}

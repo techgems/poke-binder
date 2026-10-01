@@ -222,7 +222,7 @@ helpers resolve it, so the port it prints is not one to hard-code anywhere.
 **Never touch `manifest.dev.json`.** The Vite dev server rewrites
 `wwwroot/BinderBuilderSvelte/manifest.dev.json` every time it starts, with whatever port it got.
 A changed port in that file is not a change anybody made, so do not edit it, revert it or report
-it. It is generated, and arguably should not be committed at all.
+it. It is generated, and `.gitignore` keeps it out of the repo.
 
 **Stop it again before the turn is over.** Any prompt an agent started the server for is a prompt
 that ends by killing it — no leaving it up for the next one. It holds port 5076 and a Vite port, so
