@@ -192,7 +192,9 @@
       class="card grid w-80 grid-cols-[1fr_auto] items-start gap-3 p-4 shadow-xl {toast.type ===
       'error'
         ? 'preset-filled-error-500'
-        : 'preset-filled-surface-100-900'}"
+        : toast.type === 'success'
+          ? 'preset-filled-success-500'
+          : 'preset-filled-surface-100-900'}"
     >
       <div class="space-y-1">
         <Toast.Title class="font-semibold">{toast.title}</Toast.Title>

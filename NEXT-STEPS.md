@@ -88,7 +88,41 @@ its own criteria; the re-flow should not grow an ordering model of its own.
 
 ---
 
-## 3. LoadSet: loading a set from the TCGdex API
+## 3. One code per data source on `sets`
+
+Before LoadSet (step 4): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
+**adds `tcgDexCode`**, and the changes to carry both through the app. Today's one code is
+TCGplayer's (`ME02`, `ME-AH`); TCGdex has ids of its own (`me02`), and more data sources may follow,
+so each source gets its own column rather than a single code that means whichever source wrote it.
+
+### Where it plugs in
+
+- **The migration** goes in `PokeBinder.Migrations/Scripts/TcgCatalog/`, after
+  `010_AddRarityOrdersToRarityBySetFilterOption.sql`. `code` is defined in
+  `001_CreateTcgCatalogSchema.sql` as `TEXT UNIQUE NOT NULL`, so the rename keeps that constraint.
+- **Filling `tcgDexCode` for the sets already loaded is catalog data, not schema**, so per "Rules
+  for catalog data" in `CLAUDE.md` it goes in a re-runnable script in `Scripts/`, not in the
+  migration. The column has to allow null until that script has run, and for any set TCGdex does
+  not have.
+- **The entity and mapping.** `Set.Code` in `PokeBinder.TcgCatalog.DbContext/Entities/Set.cs`, and
+  `HasColumnName("code")` in `TcgCatalogDbContext.cs`.
+- **What reads `Code` today:**
+  - the ETL, which upserts sets on it (`PokeBinderETL/Db/Repositories/CardUpsertService.cs`,
+    `.On(x => x.Code)`, then looks sets back up by it);
+  - `GetRarityBySetForAdminEdit` and its `RaritySetChoice` model, and `RaritySetEditor.cshtml.cs`,
+    which shows it beside the set name on `/admin/setRarity`;
+  - the test fixtures that build sets (`CatalogFixture.cs`, `GetSearchStarterFiltersTests.cs`).
+- **The scripts in `Scripts/` join on `[sets].[code]`** -- `SeedRarityWeights.sql` resolves every
+  set by it, and so does `RemoveVstarTokenFromBrilliantStars.sql`. They have to move to the new
+  column name, or the next run of either fails.
+
+### Open questions
+
+- **Is `tcgDexCode` unique?** Unique where it is set, like `tcgPlayerCode`, or not constrained.
+
+---
+
+## 4. LoadSet: loading a set from the TCGdex API
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
@@ -110,9 +144,9 @@ glance, not an undo.
 Checked against the live API on 2026-09-30; worth re-checking when the work starts.
 
 - **A set** is `GET /v2/en/sets/{id}`: `id` (`me02`), `name`, `releaseDate` (`2025-11-14`),
-  `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. Our
-  `sets.code` is usually its id upper-cased (`ME02`, `SV01`) -- but not always: Ascended Heroes is
-  `ME-AH` in the catalog.
+  `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. The `id` is
+  what goes in `sets.tcgDexCode` (step 3). The TCGplayer code is usually the same id upper-cased
+  (`ME02`, `SV01`), but not always: Ascended Heroes is `ME-AH` in the catalog.
 - **The set's `cards` are briefs** -- `id`, `localId`, `name`, `image` -- with no rarity or category,
   so the full card is a second request each: `GET /v2/en/cards/{id}`, one per card, 130 for ME02.
 - **A card is one card, not one row per printing.** Printings are listed inside it
@@ -128,6 +162,14 @@ Checked against the live API on 2026-09-30; worth re-checking when the work star
 - **Card numbers are `localId` alone** (`129`), where the catalog holds `129/094`.
 - **Art** is the card's `image` plus a quality and extension suffix (TCGdex's convention; not yet
   confirmed here).
+- **Two things worth taking that the CSV never gave us: prices and artists.**
+  - **The artist** is `illustrator` on the full card. `cards.artist` already exists (`Card.Artist`)
+    and nothing fills it today.
+  - **Prices** are `pricing` on the full card. `pricing.tcgplayer` (USD) gives per-variant prices,
+    keyed `normal`, `reverse-holofoil` and so on, each with `lowPrice`, `midPrice`, `highPrice`,
+    `marketPrice` and `directLowPrice`. `pricing.cardmarket` (EUR) gives `avg`, `low`, `trend` and
+    the 1/7/30-day averages, with `-holo` versions of each. Both carry an `updated` timestamp. The
+    catalog has nowhere to put any of this yet: no price column or table exists.
 
 ### What the validation step should report
 
@@ -165,10 +207,10 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 
 ### Open questions
 
-- **Where do `code` and `fullName` come from?** The form gives a name, a date and a series, but
-  `sets.code` is what the ETL upserts sets on (`ME03`, `SV01`), and `fullName` is the long form
-  ("Mega Evolution: Perfect Order" against "ME: Perfect Order"). Either the form grows two fields or
-  something derives them.
+- **Where do `tcgPlayerCode` and `fullName` come from?** `tcgDexCode` is the TCGdex set id, but
+  `sets.tcgPlayerCode` (today's `code`, renamed in step 3) is what the ETL upserts sets on (`ME03`,
+  `SV01`), and `fullName` is the long form ("Mega Evolution: Perfect Order" against "ME: Perfect
+  Order"). Either the form grows two fields or something derives them.
 - **Which series is "currently running"?** `series.endDateUnix` holds **0** for the open one, not
   null, even though the entity types it `long?` — today that is `Mega Evolution`, and a
   `EndDateUnix == null` check would find nothing at all. Is the open series the one with 0, or simply
@@ -195,4 +237,82 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
   creates. TCGdex has no weights, so those still come from somewhere else. `/admin/setRarity` edits
   weights but cannot add a row, so a set loaded without them sorts as unweighted -- last, either
   direction -- for every card in it.
+- **Prices: where they live and how they stay current.** They need a home in the schema, which
+  variants and which market to keep, and a decision on freshness: a set is loaded once, but prices
+  move daily, so the load's prices are a snapshot from that day and step 6 is what refreshes them.
 - **Reloading.** Does loading a set that already exists update it, or is that refused outright?
+
+---
+
+## 5. A/B: the card tray beside the binder instead of under it
+
+A **dev-only switch** between two layouts of the Binder tab, so the two can be tried side by side
+and the better one kept. Today the tray is a strip along the foot of the binder; the alternative is
+a column along its left side that **works the same way, scrolling vertically instead of horizontally**.
+Nothing about what the tray does changes, only where it sits. The goal is to find out which layout
+makes for the better UX.
+
+### Where it plugs in
+
+- **The layout.** `features/binder/BinderView.svelte` stacks the page and the tray as a column
+  (`flex flex-col`), with `BinderTrayStrip` last. The side variant is the same two children in a
+  row, tray first.
+- **The strip is horizontal all the way through.** `BinderTrayStrip.svelte` scrolls with
+  `overflow-x-auto`, decides whether its arrows are live from `scrollLeft` / `scrollWidth`
+  (`syncEnds`), pages with `scrollBy({ left })`, uses left/right chevrons, and folds away with a
+  vertical `slide`. Every one of those has a vertical counterpart -- `scrollTop`, `scrollHeight`,
+  `scrollBy({ top })`, up/down chevrons, `slide` with `axis: 'x'` -- and they come as a set, so it
+  is worth deciding whether that is one component with an orientation or two.
+- **What has to keep working in both.** Dragging a card out of a pocket onto the tray
+  (`dropOnTray`), dragging from the tray into a pocket, click-add mode, the spotlight on click, the
+  strip expanding when a drag reaches it while empty, and the `ResizeObserver` that re-measures
+  when the hidden tab comes back (see the comment above it in `BinderTrayStrip.svelte`).
+- **The pockets size themselves off the space left.** `BinderPage.svelte` measures its panel in
+  `cqw` / `cqh`, so a tray taking width rather than height gives the pages a narrower, taller box
+  -- on a wide screen that may suit a spread better, which is part of what is being tested.
+
+### Decided
+
+- **The switch is a `sessionStorage` flag named `leftSideTrayOn`, for now.** No UI and nothing from
+  the server: it is set by hand from the console, and an absent flag means today's strip along the
+  foot. Session storage keeps the choice across reloads of the same tab, and a new tab starts on the
+  default again. Read it guarded, since storage access can throw (a private window, blocked site
+  data), and fall back to the default when it does.
+- **The side tray goes on the left**, between the action sidebar and the binder, as the flag's name
+  says.
+- **This step builds both layouts and deletes neither.** Which one goes, and when, is decided
+  separately.
+
+---
+
+## 6. Refreshing a set's card prices from TCGdex
+
+An admin action that does one thing: **tell the backend to update the prices of every card in one
+set**. It fetches that set's cards from TCGdex and writes their prices onto the catalog cards they
+match. It loads nothing new. Cards are only matched and priced, and a TCGdex card with no catalog
+match is left alone.
+
+A **Razor page** on `_AdminLayout` and a **vertical slice** for the request. Desktop only, like
+every admin page.
+
+### Where it plugs in
+
+- **The page.** `Pages/Admin/SetRarity.cshtml` is the pattern to follow: one page, a set picked from
+  the catalog's sets, and HTMX posting from inside a `<form method="post">`, so the antiforgery token
+  survives the swap (the comment there says why). The pages sit in `Pages/Admin/`.
+- **The slice** goes under `PokeBinder.Features/CardAdmin/`, beside `UpdateRarityBySet`, with a
+  validator and tests per "Rules for tests" in `CLAUDE.md`. The TCGdex call goes behind something
+  the tests can replace, since a test never reaches a real service any more than it reaches a real
+  database.
+- **What TCGdex gives** is in step 4: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
+  `pricing` on each full card (`GET /v2/en/cards/{id}`), one request per card.
+- **Matching.** `thirdParty.tcgplayer` on a TCGdex card against `cards.tcgPlayerId`, which is
+  `UNIQUE` -- the one key both sides already carry. The catalog set's TCGdex id is
+  `sets.tcgDexCode` (step 3).
+
+### Open questions
+
+- **Where the prices are stored.** The catalog has no price column or table yet. Step 4 raises the
+  same question; whichever step is built first answers it for both.
+- **What the result reports.** Cards updated, catalog cards TCGdex had no price for, and TCGdex
+  cards that matched nothing are the obvious three.

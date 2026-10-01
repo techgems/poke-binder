@@ -91,6 +91,11 @@
 
       sortSession.remember(criteria)
       open = false
+
+      toaster.success({
+        title: 'Binder reordered',
+        description: 'Undo puts the old arrangement back.',
+      })
     } catch {
       toaster.error({
         title: 'Not reordered',
@@ -110,7 +115,8 @@
     'btn btn-sm cursor-pointer rounded-base hover:preset-tonal data-[state=checked]:preset-filled-primary-500 data-[focus-visible]:ring-2 data-[focus-visible]:ring-primary-500'
 </script>
 
-<Modal bind:open title="Reorder binder" width="max-w-xl">
+<!-- Wide rather than tall: each criterion is one row, its switches beside its name. -->
+<Modal bind:open title="Reorder binder" width="max-w-4xl">
   <p class="text-sm opacity-75">
     Sorts every card in the binder and lays them out again from the first pocket, replacing the
     arrangement it has now. The first criterion decides; the ones below it only break its ties.
@@ -122,7 +128,7 @@
       <li
         animate:flip={{ duration: prefersReducedMotion() ? 0 : 150 }}
         draggable="true"
-        class="card space-y-2 border-2 p-3 transition-colors {over === index && dragging !== index
+        class="card border-2 px-3 py-2 transition-colors {over === index && dragging !== index
           ? 'border-primary-500 bg-primary-500/15'
           : 'border-transparent preset-tonal'} {dragging === index ? 'opacity-50' : ''}"
         ondragstart={(event) => {
@@ -156,42 +162,9 @@
           >
             {index + 1}
           </span>
-          <span class="flex-1 font-semibold">{CRITERION_NAMES[criterion.key]}</span>
+          <!-- A fixed width, so every row's switches start at the same place and read as a column. -->
+          <span class="w-24 shrink-0 font-semibold">{CRITERION_NAMES[criterion.key]}</span>
 
-          <button
-            type="button"
-            class="btn-icon btn-icon-sm hover:preset-tonal"
-            title="Rank higher"
-            aria-label="Rank {CRITERION_NAMES[criterion.key]} higher"
-            disabled={index === 0}
-            onclick={() => move(index, index - 1)}
-          >
-            <ArrowUpIcon class="size-4" />
-          </button>
-          <button
-            type="button"
-            class="btn-icon btn-icon-sm hover:preset-tonal"
-            title="Rank lower"
-            aria-label="Rank {CRITERION_NAMES[criterion.key]} lower"
-            disabled={index === criteria.length - 1}
-            onclick={() => move(index, index + 1)}
-          >
-            <ArrowDownIcon class="size-4" />
-          </button>
-          <!-- One criterion is the fewest a sort can have, so the last one cannot go. -->
-          <button
-            type="button"
-            class="btn-icon btn-icon-sm hover:preset-tonal-error"
-            title="Don't sort by this"
-            aria-label="Don't sort by {CRITERION_NAMES[criterion.key]}"
-            disabled={criteria.length === 1}
-            onclick={() => drop(index)}
-          >
-            <XIcon class="size-4" />
-          </button>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2 pl-14">
           <SegmentedControl
             value={criterion.direction}
             onValueChange={(details) => {
@@ -235,6 +208,38 @@
               </SegmentedControl.Control>
             </SegmentedControl>
           {/if}
+
+          <button
+            type="button"
+            class="btn-icon btn-icon-sm ml-auto hover:preset-tonal"
+            title="Rank higher"
+            aria-label="Rank {CRITERION_NAMES[criterion.key]} higher"
+            disabled={index === 0}
+            onclick={() => move(index, index - 1)}
+          >
+            <ArrowUpIcon class="size-4" />
+          </button>
+          <button
+            type="button"
+            class="btn-icon btn-icon-sm hover:preset-tonal"
+            title="Rank lower"
+            aria-label="Rank {CRITERION_NAMES[criterion.key]} lower"
+            disabled={index === criteria.length - 1}
+            onclick={() => move(index, index + 1)}
+          >
+            <ArrowDownIcon class="size-4" />
+          </button>
+          <!-- One criterion is the fewest a sort can have, so the last one cannot go. -->
+          <button
+            type="button"
+            class="btn-icon btn-icon-sm hover:preset-tonal-error"
+            title="Don't sort by this"
+            aria-label="Don't sort by {CRITERION_NAMES[criterion.key]}"
+            disabled={criteria.length === 1}
+            onclick={() => drop(index)}
+          >
+            <XIcon class="size-4" />
+          </button>
         </div>
       </li>
     {/each}
