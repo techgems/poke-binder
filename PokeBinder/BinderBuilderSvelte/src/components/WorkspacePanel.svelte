@@ -1,10 +1,12 @@
 <script lang="ts">
   import BookOpenIcon from '@lucide/svelte/icons/book-open'
+  import SettingsIcon from '@lucide/svelte/icons/settings'
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
   import { Tabs } from '@skeletonlabs/skeleton-svelte'
 
   import BinderView from '../features/binder/BinderView.svelte'
   import SearchTab from '../features/search/SearchTab.svelte'
+  import BinderSettingsTab from '../features/settings/BinderSettingsTab.svelte'
   import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './workspace-tab'
 
   interface Props {
@@ -39,6 +41,13 @@
       <BookOpenIcon class="size-4" />
       <span>Binder</span>
     </Tabs.Trigger>
+    <Tabs.Trigger
+      value="settings"
+      class="btn hover:preset-tonal data-[selected]:preset-filled-primary-500"
+    >
+      <SettingsIcon class="size-4" />
+      <span>Settings</span>
+    </Tabs.Trigger>
   </Tabs.List>
 
   <!--
@@ -56,6 +65,12 @@
   <Tabs.Content value="binder" class="min-h-0 flex-1">
     <div class="flex h-full flex-col">
       <BinderView />
+    </div>
+  </Tabs.Content>
+
+  <Tabs.Content value="settings" class="min-h-0 flex-1">
+    <div class="flex h-full flex-col">
+      <BinderSettingsTab />
     </div>
   </Tabs.Content>
 </Tabs>

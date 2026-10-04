@@ -36,6 +36,9 @@ else
        its own storage to decide what -- if anything -- to fetch. One shape, preloaded or fetched. *@
     <server-preload key="searchFilters" data="@Model.SearchFilters" />
 
+    @* The grids the settings tab offers -- the same list the create form on My Binders shows. *@
+    <server-preload key="binderSizes" data="@Model.BinderSizes" />
+
     @* Both helpers render the SPA's mount element and its assets, nothing else -- the page frame
        around them is the layout's. *@
     @if (Env.IsDevelopment())

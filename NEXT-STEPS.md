@@ -16,81 +16,85 @@ moment it runs.
 
 ---
 
-## 1. New tab: adding whole sets to the binder
+## 1. New tab: adding a whole set to the binder
 
 A new tab in the workspace (`WorkspacePanel.svelte`, beside Card Tray and Binder) from which a whole
-set goes into the binder in one action, rather than card by card through search. **The details are
-still to come** -- this entry records only why it is first and where the code sits, so nothing
-beyond that should be built on it until they arrive.
+set goes into the binder in one action, rather than card by card through search. **One set at a
+time for now**; adding several sets in one action comes later.
 
-**Why it comes first:** it is what makes the reorder worth trying on a real binder. The reorder is
+**Why it matters:** it is what makes the reorder worth trying on a real binder. The reorder is
 built (`ReorderBinder`, and the modal on the action sidebar), but a sort only shows anything on a
 binder holding many cards across several sets and rarities, and filling one today means adding each
 card from search by hand. Being able to drop two or three whole sets into a binder gives it
 something to sort.
 
-### Where it plugs in
+### What it does
 
-- **The tab itself.** `WorkspaceTab` in `components/workspace-tab.ts` is the union of panels
-  (`'add' | 'binder'`); a new panel is a member there plus a `Tabs.Trigger` and a `Tabs.Content` in
-  `WorkspacePanel.svelte`. Both existing panels stay mounted and that file's comment on why no
-  `display` utility may go on `Tabs.Content` applies to the new one too.
-- **A set's cards are more than one search page.** `SearchCardsByFilter` caps a page at
-  `MaxPageSize = 200`, and SV01 alone has 258 cards, so the client either pages through the search
-  or the tab gets a by-set read of its own.
-- **The write already exists.** A set placed into the binder is far more than a spread, and
-  `SaveBinderChanges` takes that too: beside a claim of up to two pages it accepts a claim of every
-  page (`SaveBinderChanges.ClaimsWholeBinder`), as a snapshot of the whole binder with the tray in
-  the same transaction. The client's save store already promotes any pending save wider than a
-  spread to that claim, so placing a set is an ordinary recorded edit -- build on that rather than
-  adding a third writer.
+The tab is a **wizard**. Its first step is a set picker that shows **each set with its image**.
+The rest of the questions appear once a set is picked:
+
+- **Empty the binder first**, as an option. The cards it held are removed, **not sent to the
+  tray**, so the pockets-only `arrangement` snapshot is enough for undo to bring them back.
+- **A buffer page, or the existing cards to the end -- one or the other, never both.** When the
+  binder is not empty the user may pick one of the two, or neither:
+  - **a buffer page** leaves a blank page between what is already there and the new set. It is
+    only ever there because the user asked for it;
+  - **send to the end** moves everything already in the binder to after the set, so the set takes
+    the front of the binder.
+- **Where the set starts.** Straight into the pockets, never the tray. It starts on the next
+  available page, or on the page after the buffer when there is one. With send to the end, it
+  starts at the front.
+- **Too small a binder.** When the set does not fit, the user chooses between not adding it and
+  adding pages. Pages added at the end move no existing card, since pockets are one absolute index
+  across the binder. That is not true of a resize in the settings tab, which changes the page
+  size. **Undo keeps the added pages**: it puts the pockets back and leaves the page count as it
+  is.
+- **Order within the set**, chosen the way the reorder modal's criteria are
+  (`features/binder/sort/reorder-criteria.ts`): rarity, card name and card number. There is no set
+  criterion, because there is only one set. Card number is not one of the modal's criteria today,
+  but `ReorderBinder` already sorts by it as its last tiebreak, through `NaturalComparer`.
+- **Narrowing by rarity**: the user can leave rarities out, and that is the only narrowing on offer.
+  Anything more specific is what card search is for.
+- **The tray is left alone** whichever options are picked.
+- **No missing flag.** Placed cards go in as ordinary cards.
+
+When it is done, the workspace **switches to the Binder tab and shows a success toast**.
+
+**It is a server action, like the reorder.** The client calls an endpoint, and the server places
+the cards. The before and after snapshots of the binder go into the undo/redo queue, the way
+`binderPage.adoptReorder` records a reorder (`history.recordStored` with an `arrangement` entry).
+The call goes through `save.afterSettling`, as `reorder-binder.ts` does, so it cannot interleave
+with the debounced save. Undo and redo are then ordinary edits saved by `SaveBinderChanges`'
+whole-binder claim. Because the server reads the set's cards itself, `SearchCardsByFilter`'s
+200-card page cap does not come into it.
+
+### Substeps
+
+1. **The UI, with nothing wired.** The tab, the wizard and the set picker, so the design can be
+   refined before anything sits behind it. The tab is a new member of `WorkspaceTab`
+   (`components/workspace-tab.ts`, `'add' | 'binder'` today), plus a `Tabs.Trigger` and a
+   `Tabs.Content` in `WorkspacePanel.svelte`. Both existing panels stay mounted, and that file's
+   comment on why no `display` utility may go on `Tabs.Content` applies to the new one too. Set
+   images are not available until substep 2.
+2. **Set images through the sets filter.** `GetSearchStarterFilters` maps sets to `SetsFilter`
+   (`Id`, `Name`, `SeriesId`) and leaves the image out. `Set.ImageUrl` / `sets.imageUrl` exists, but
+   it is **empty for all 136 sets** in the catalog today. The images are being supplied
+   separately. Writing them into `sets.imageUrl` is catalog data, so per "Rules for catalog data"
+   in `CLAUDE.md` it is a re-runnable script in `Scripts/` that resolves sets by code, not a
+   migration. The client's `SetsFilter` in
+   `clients/CardSearchClient.ts` gains the field too. Sets is a cached filter group: a browser
+   holding a copy stamped before the change keeps serving it without images until the `Sets`
+   stamp is bumped.
+3. **The write and the undo.** The slice and its endpoint under `PokeBinder.Features/Binder/`,
+   beside `ReorderBinder`, with a validator and tests (see "Rules for controllers" and "Rules for
+   tests" in `CLAUDE.md`). Then the client call, the snapshots in the history, the tab switch and
+   the toast.
 
 ---
 
-## 2. Another tab: binder settings
+## 2. One code per data source on `sets`
 
-A tab beside Card Tray, Binder and step 1's set tab (`WorkspacePanel.svelte`), for the binder's
-own properties: name, dimensions (grid size), page count, and whatever else belongs to the binder
-rather than its cards. `SaveBinder` already accepts all of these, and `GetFullBinder` already returns them.
-
-**The hard part is resizing.** Changing the grid or the page count invalidates where every card
-sits: pockets are stored as one absolute index across the binder, so a different page size moves
-every card after the first page. The user has to choose, and the choice has to be explicit:
-
-1. **Auto-rearrange** — keep the cards in their current order and re-flow them into the new shape.
-2. **Empty the binder into the tray** — every placed card goes back to the tray and the binder is
-   laid out again from scratch.
-
-Neither should ever happen silently. Note that `SaveBinder`'s validator already refuses a resize
-that would strand placed cards ("This binder holds N cards at that size, and M cards sit past
-that"), so that path has to be reconciled with whichever option the user picks — the refusal is
-correct for a bare resize and wrong once the user has consented to a rearrangement.
-
-**How a rearrangement writes the cards is undecided, but the pieces it needs are built.** Two things
-write a binder's contents: the debounced save (`SaveBinderChanges`, `PUT api/binderCards/{binderId}`)
-and the reorder (`ReorderBinder`, `POST api/binderCards/{binderId}/reorder`). The debounced save
-already accepts a claim of every page with the tray in the same transaction, which is the shape "empty
-the binder into the tray" needs. But it diffs against the binder's *current* page count, so a claim
-for a binder that is changing size at the same time is a new case -- whether the resize and the
-re-flow go in one request, and through which slice, is the open part. Whatever does it:
-
-- **writes the cards and the tray in one transaction**, because "empty the binder into the tray"
-  moves every placed card from one to the other, and half of that committing is a card both placed
-  and waiting;
-- **must not be able to run against the debounced save.** That save fires up to five seconds after
-  an edit and again when the tab closes, so a resize that lands in between writes a layout the next
-  tick overwrites with the old one. `save.afterSettling` in `stores/save.svelte.ts` is the existing
-  answer -- it sends what is pending, waits, and holds the queue while a write of its own is out --
-  and the reorder already goes through it.
-
-**Option 1 keeps the order the cards are in; it is not a sort.** Sorting is the reorder's job, with
-its own criteria; the re-flow should not grow an ordering model of its own.
-
----
-
-## 3. One code per data source on `sets`
-
-Before LoadSet (step 4): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
+Before LoadSet (step 3): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
 **adds `tcgDexCode`**, and the changes to carry both through the app. Today's one code is
 TCGplayer's (`ME02`, `ME-AH`); TCGdex has ids of its own (`me02`), and more data sources may follow,
 so each source gets its own column rather than a single code that means whichever source wrote it.
@@ -122,7 +126,7 @@ so each source gets its own column rather than a single code that means whicheve
 
 ---
 
-## 4. LoadSet: loading a set from the TCGdex API
+## 3. LoadSet: loading a set from the TCGdex API
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
@@ -145,7 +149,7 @@ Checked against the live API on 2026-09-30; worth re-checking when the work star
 
 - **A set** is `GET /v2/en/sets/{id}`: `id` (`me02`), `name`, `releaseDate` (`2025-11-14`),
   `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. The `id` is
-  what goes in `sets.tcgDexCode` (step 3). The TCGplayer code is usually the same id upper-cased
+  what goes in `sets.tcgDexCode` (step 2). The TCGplayer code is usually the same id upper-cased
   (`ME02`, `SV01`), but not always: Ascended Heroes is `ME-AH` in the catalog.
 - **The set's `cards` are briefs** -- `id`, `localId`, `name`, `image` -- with no rarity or category,
   so the full card is a second request each: `GET /v2/en/cards/{id}`, one per card, 130 for ME02.
@@ -208,7 +212,7 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 ### Open questions
 
 - **Where do `tcgPlayerCode` and `fullName` come from?** `tcgDexCode` is the TCGdex set id, but
-  `sets.tcgPlayerCode` (today's `code`, renamed in step 3) is what the ETL upserts sets on (`ME03`,
+  `sets.tcgPlayerCode` (today's `code`, renamed in step 2) is what the ETL upserts sets on (`ME03`,
   `SV01`), and `fullName` is the long form ("Mega Evolution: Perfect Order" against "ME: Perfect
   Order"). Either the form grows two fields or something derives them.
 - **Which series is "currently running"?** `series.endDateUnix` holds **0** for the open one, not
@@ -239,12 +243,12 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
   direction -- for every card in it.
 - **Prices: where they live and how they stay current.** They need a home in the schema, which
   variants and which market to keep, and a decision on freshness: a set is loaded once, but prices
-  move daily, so the load's prices are a snapshot from that day and step 6 is what refreshes them.
+  move daily, so the load's prices are a snapshot from that day and step 5 is what refreshes them.
 - **Reloading.** Does loading a set that already exists update it, or is that refused outright?
 
 ---
 
-## 5. A/B: the card tray beside the binder instead of under it
+## 4. A/B: the card tray beside the binder instead of under it
 
 A **dev-only switch** between two layouts of the Binder tab, so the two can be tried side by side
 and the better one kept. Today the tray is a strip along the foot of the binder; the alternative is
@@ -285,7 +289,7 @@ makes for the better UX.
 
 ---
 
-## 6. Refreshing a set's card prices from TCGdex
+## 5. Refreshing a set's card prices from TCGdex
 
 An admin action that does one thing: **tell the backend to update the prices of every card in one
 set**. It fetches that set's cards from TCGdex and writes their prices onto the catalog cards they
@@ -304,15 +308,40 @@ every admin page.
   validator and tests per "Rules for tests" in `CLAUDE.md`. The TCGdex call goes behind something
   the tests can replace, since a test never reaches a real service any more than it reaches a real
   database.
-- **What TCGdex gives** is in step 4: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
+- **What TCGdex gives** is in step 3: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
   `pricing` on each full card (`GET /v2/en/cards/{id}`), one request per card.
 - **Matching.** `thirdParty.tcgplayer` on a TCGdex card against `cards.tcgPlayerId`, which is
   `UNIQUE` -- the one key both sides already carry. The catalog set's TCGdex id is
-  `sets.tcgDexCode` (step 3).
+  `sets.tcgDexCode` (step 2).
 
 ### Open questions
 
-- **Where the prices are stored.** The catalog has no price column or table yet. Step 4 raises the
+- **Where the prices are stored.** The catalog has no price column or table yet. Step 3 raises the
   same question; whichever step is built first answers it for both.
 - **What the result reports.** Cards updated, catalog cards TCGdex had no price for, and TCGdex
   cards that matched nothing are the obvious three.
+
+---
+
+## 6. Move code shared between slices into each section's `Shared` folder
+
+Scan `PokeBinder.Features` for code that more than one slice of a section uses, and move it into
+that section's `Shared` folder, following "Rules for code shared between slices" in `CLAUDE.md`.
+Code general to every section stays in `PokeBinder.Features/Utils` and is not part of this.
+`Binder/Shared/Arrangement` is the pattern. A move changes namespaces and nothing else: no
+behaviour, and the tests pass unchanged before and after.
+
+### Already known
+
+Found in passing, not by a scan, so the list is a start rather than the whole of it:
+
+- **The sort criteria models** -- `SortCriterion`, `CriterionKey`, `SortDirection`, `RarityKey` --
+  live in `Binder/ReorderBinder/Models`, and `UpdateBinder` and `Binder/Shared/Arrangement` both
+  use them.
+- **`ReorderedCard`**, in the same folder, is what `BinderArrangement.LayOutFromFirstPocket`
+  returns, so `Shared` currently reaches into a slice.
+- **A binder's limits** -- `MaxNameLength`, `MaxDescriptionLength`, `MaxPages` -- are constants on
+  `CreateBinder`, which `UpdateBinderValidator` reads.
+- **Two `CardSearchResult` models**, one under `SearchCardsByFilter` and one under
+  `SearchCardWithSimpleSearch`. Worth checking whether they are the same shape before deciding
+  they are one model.

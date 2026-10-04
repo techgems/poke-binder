@@ -7,7 +7,8 @@ using System.Linq.Expressions;
 namespace PokeBinder.Features.Binder.GetNewBinderOptions;
 
 /// <summary>
-/// Everything the create-a-binder form has to be handed before it can be drawn. Today that is only
+/// Everything the create-a-binder form has to be handed before it can be drawn -- and the settings
+/// tab, which offers the same grids to an existing binder. Today that is only
 /// the list of grids, which is why the response has one member -- but the slice is named for the
 /// question the UI is asking ("what are my choices?") rather than for today's answer, so a form
 /// that grows a second choice grows this response instead of gaining a second round trip.
@@ -43,6 +44,8 @@ public static class GetNewBinderOptions
             Id = size.Id,
             Name = size.Name,
             Description = size.Description,
+            X = size.X,
+            Y = size.Y,
             // CardsPerPage is computed on the entity, which SQL cannot call, so the same
             // arithmetic is written out here to keep the projection translatable.
             CardsPerPage = size.X * size.Y,

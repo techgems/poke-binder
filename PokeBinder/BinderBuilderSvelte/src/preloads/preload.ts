@@ -66,10 +66,26 @@ export interface PreloadedBinder {
   tray: PreloadedTrayCard[]
 }
 
+/** One grid a binder can be set to. Mirrors GetNewBinderOptions' BinderSizeOption. */
+export interface PreloadedBinderSize {
+  id: number
+  /** The grid, "3x3". */
+  name: string
+  /** What a page of it holds, "9 cards per page". */
+  description: string
+  /** Pockets across a page. */
+  x: number
+  /** Pockets down a page. */
+  y: number
+  cardsPerPage: number
+  defaultPages: number
+}
+
 /** The namespace the page writes into. One object, so pages add keys rather than globals. */
 interface PreloadNamespace {
   binder?: unknown
   searchFilters?: unknown
+  binderSizes?: unknown
 }
 
 declare global {
@@ -117,4 +133,14 @@ export function preloadedSearchFilters(): StarterFiltersResponse | null {
   }
 
   return payload as StarterFiltersResponse
+}
+
+/**
+ * The grids the settings tab offers, smallest first, or an empty list when the page did not send
+ * them -- a page opened without a binder has no settings to change.
+ */
+export function preloadedBinderSizes(): PreloadedBinderSize[] {
+  const payload = window.pokeBinder?.binderSizes
+
+  return Array.isArray(payload) ? (payload as PreloadedBinderSize[]) : []
 }

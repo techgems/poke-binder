@@ -7,7 +7,7 @@ using PokeBinder.Features.Binder.GetBinderList;
 using PokeBinder.Features.Binder.GetBinderList.Models;
 using PokeBinder.Features.Binder.GetNewBinderOptions;
 using PokeBinder.Features.Binder.GetNewBinderOptions.Models;
-using PokeBinder.Features.Binder.SaveBinder;
+using PokeBinder.Features.Binder.CreateBinder;
 
 namespace PokeBinder.Pages;
 
@@ -46,7 +46,7 @@ public class MyBindersModel : PageModel
     {
         var userId = User.GetUserId();
 
-        var request = new SaveBinder.Request
+        var request = new CreateBinder.Request
         {
             Name = Input.Name,
             Description = Input.Description,
@@ -56,7 +56,7 @@ public class MyBindersModel : PageModel
 
         // The slice's rules, unchanged and in one place: the page neither repeats them nor gets to
         // disagree with them.
-        var validation = await new SaveBinderValidator(_db, userId).ValidateAsync(request, ct);
+        var validation = await new CreateBinderValidator(_db).ValidateAsync(request, ct);
 
         if (!validation.IsValid)
         {
@@ -72,7 +72,7 @@ public class MyBindersModel : PageModel
             return Partial("_NewBinderForm", Input);
         }
 
-        await SaveBinder.Handler(request, userId, _db, ct);
+        await CreateBinder.Handler(request, userId, _db, ct);
 
         Binders = (await GetBinderList.Handler(new GetBinderList.Request(), userId, _db, ct)).Binders;
 
@@ -94,7 +94,7 @@ public class MyBindersModel : PageModel
 
     /// <summary>
     /// What the create form posts, plus what it needs to draw itself again when the save is
-    /// refused. Deliberately not SaveBinder.Request: this one is bound from a form, so it carries
+    /// refused. Deliberately not CreateBinder.Request: this one is bound from a form, so it carries
     /// the size list and the messages, and the owner is never part of it.
     /// </summary>
     public class NewBinderForm

@@ -1,30 +1,31 @@
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
-using PokeBinder.Binders.DbContext.Entities;
 
 // "Binder" is a namespace here as well as an entity, so the entity is aliased rather than
 // referred to by its full name at every use.
 using BinderEntity = PokeBinder.Binders.DbContext.Entities.Binder;
 
-namespace PokeBinder.Features.Binder.SaveBinder;
+namespace PokeBinder.Features.Binder.CreateBinder;
 
 /// <summary>
-/// Creates a binder, or saves an edit to one the user already has. This slice owns the binder
-/// itself -- its name, its grid and how many pages it has. What goes in its pockets and what is
-/// staged for it are both SaveBinderChanges: the tray is not separable from the pages, because
-/// placing a card spends a copy out of it.
+/// Creates a binder: its name, its grid and how many pages it has. Editing one is UpdateBinder's,
+/// since an edit can move the cards already placed and a new binder has none. What goes in its
+/// pockets and what is staged for it are both SaveBinderChanges: the tray is not separable from the
+/// pages, because placing a card spends a copy out of it.
 ///
 /// A new binder is empty in both senses: no cards on its pages, and no tray entries. Neither needs
 /// a row written here. The tray is scoped to the binder by id rather than being a record of its
 /// own, so a binder gets its own tray -- and with it the user's context for managing that one
 /// binder -- simply by existing.
 ///
-/// The handler is the happy path only. SaveBinderValidator runs first and rejects everything that
-/// could fail here, so this code never sees a nameless binder, an unknown size or someone else's
-/// binder; the reads below use First rather than FirstOrDefault to say so, and would throw rather
-/// than write something wrong if a caller skipped validation.
+/// The handler is the happy path only. CreateBinderValidator runs first and rejects everything that
+/// could fail here, so this code never sees a nameless binder or an unknown size; the read below
+/// uses First rather than FirstOrDefault to say so, and would throw rather than write something
+/// wrong if a caller skipped validation.
+///
+/// The limits below are what a binder can be, so UpdateBinderValidator holds an edit to them too.
 /// </summary>
-public static class SaveBinder
+public static class CreateBinder
 {
     public const int MaxNameLength = 100;
 
@@ -42,13 +43,7 @@ public static class SaveBinder
     /// </summary>
     public record Request
     {
-        /// <summary>
-        /// The binder being edited, or null to create one. An id that is not the caller's own
-        /// binder is refused rather than created under a new id.
-        /// </summary>
-        public int? Id { get; init; }
-
-        /// <summary>Required. Trimmed by the handler; SaveBinderValidator rejects a blank one.</summary>
+        /// <summary>Required. Trimmed by the handler; CreateBinderValidator rejects a blank one.</summary>
         public string? Name { get; init; }
 
         public string? Description { get; init; }
@@ -69,18 +64,15 @@ public static class SaveBinder
 
     /// <summary>
     /// The saved binder as it now stands. There is no failure to report: anything the user could
-    /// get wrong was answered by SaveBinderValidator before this ran.
+    /// get wrong was answered by CreateBinderValidator before this ran.
     /// </summary>
-    /// <param name="Created">True if this call created the binder, false if it edited one.</param>
-    public record Response(int BinderId, int Pages, int CardCount, bool Created)
+    public record Response(int BinderId, int Pages, int CardCount)
     {
-        internal static Response From(BinderEntity binder, bool created) =>
-            new(binder.Id, binder.Pages, binder.CardCount, created);
+        internal static Response From(BinderEntity binder) =>
+            new(binder.Id, binder.Pages, binder.CardCount);
     }
 
-    /// <param name="userId">
-    /// The signed-in user. Owns a created binder, and is the only one who can edit one.
-    /// </param>
+    /// <param name="userId">The signed-in user, who owns the binder created.</param>
     public static async Task<Response> Handler(
         Request request,
         int userId,
@@ -100,20 +92,6 @@ public static class SaveBinder
         // would be taken for a new size row and inserted alongside the binder.
         var size = await context.BinderSizes.FirstAsync(s => s.Id == request.BinderSizeId, ct);
 
-        return request.Id is null
-            ? await Create(name, description, size, request.Pages, userId, context, ct)
-            : await Update(request.Id.Value, name, description, size, request.Pages, userId, context, ct);
-    }
-
-    private static async Task<Response> Create(
-        string name,
-        string? description,
-        BinderSize size,
-        int pages,
-        int userId,
-        BinderDbContext context,
-        CancellationToken ct)
-    {
         var binder = new BinderEntity
         {
             Name = name,
@@ -122,7 +100,7 @@ public static class SaveBinder
             // Assigning the navigation rather than the id so the binder can report its CardCount
             // in the response without a second read.
             BinderSize = size,
-            Pages = pages,
+            Pages = request.Pages,
             CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
 
@@ -130,29 +108,6 @@ public static class SaveBinder
 
         await context.SaveChangesAsync(ct);
 
-        return Response.From(binder, created: true);
-    }
-
-    private static async Task<Response> Update(
-        int binderId,
-        string name,
-        string? description,
-        BinderSize size,
-        int pages,
-        int userId,
-        BinderDbContext context,
-        CancellationToken ct)
-    {
-        var binder = await context.Binders
-            .FirstAsync(b => b.Id == binderId && b.UserId == userId, ct);
-
-        binder.Name = name;
-        binder.Description = description;
-        binder.BinderSize = size;
-        binder.Pages = pages;
-
-        await context.SaveChangesAsync(ct);
-
-        return Response.From(binder, created: false);
+        return Response.From(binder);
     }
 }

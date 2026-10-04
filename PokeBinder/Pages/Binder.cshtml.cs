@@ -6,6 +6,8 @@ using Microsoft.Extensions.Caching.Memory;
 using PokeBinder.Auth;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Features.Binder.GetFullBinder;
+using PokeBinder.Features.Binder.GetNewBinderOptions;
+using PokeBinder.Features.Binder.GetNewBinderOptions.Models;
 using PokeBinder.Features.CardImages;
 using PokeBinder.Features.CardSearch.GetSearchStarterFilters;
 using PokeBinder.TcgCatalog.DbContext;
@@ -66,6 +68,12 @@ public class BinderModel : PageModel
     /// </summary>
     public GetSearchStarterFilters.Response? SearchFilters { get; private set; }
 
+    /// <summary>
+    /// The grids a binder can be set to, for the settings tab. Embedded rather than fetched for the
+    /// same reason as the binder: five rows, and the tab should not open on a spinner for them.
+    /// </summary>
+    public IReadOnlyList<BinderSizeOption> BinderSizes { get; private set; } = [];
+
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
         if (BinderId is not null)
@@ -92,6 +100,11 @@ public class BinderModel : PageModel
                     _catalogContext,
                     _cache,
                     ct);
+
+                BinderSizes = (await GetNewBinderOptions.Handler(
+                    new GetNewBinderOptions.Request(),
+                    _binderContext,
+                    ct)).Sizes;
 
                 return Page();
             }

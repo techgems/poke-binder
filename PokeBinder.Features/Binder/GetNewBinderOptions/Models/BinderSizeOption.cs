@@ -1,8 +1,9 @@
 namespace PokeBinder.Features.Binder.GetNewBinderOptions.Models;
 
 /// <summary>
-/// One grid offered on the create-a-binder form. The page count is not chosen here -- it is a
-/// number the user can overwrite -- so this carries the recommendation rather than a rule.
+/// One grid offered on the create-a-binder form and the workspace's settings tab. The page count is
+/// not chosen here -- it is a number the user can overwrite -- so this carries the recommendation
+/// rather than a rule.
 /// </summary>
 public class BinderSizeOption
 {
@@ -13,6 +14,12 @@ public class BinderSizeOption
 
     /// <summary>What a page of it holds, in words, e.g. "9 cards per page".</summary>
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>Pockets across a page.</summary>
+    public int X { get; set; }
+
+    /// <summary>Pockets down a page.</summary>
+    public int Y { get; set; }
 
     /// <summary>Pockets on one page: the grid's x * y.</summary>
     public int CardsPerPage { get; set; }

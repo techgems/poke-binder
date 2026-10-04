@@ -23,11 +23,15 @@ export interface TrayEntry {
  * how big a tray is worth having is a question about the workspace, not about the table, and two
  * declarations of it were two things to keep in step. So nothing behind these enforces them — a
  * tray that gets past them is saved as it stands, and the numbers are here to keep the UI honest
- * rather than to keep the database safe. The practical ceiling is far lower than either.
+ * rather than to keep the database safe.
+ *
+ * `MAX_CARDS` is low on purpose. The tray stages a handful of cards on their way into the binder,
+ * not a second collection, so a binder emptied into it has to fit under this number or its cards
+ * are not offered the tray at all.
  */
 export const MAX_QUANTITY = 999
 
-export const MAX_CARDS = 500
+export const MAX_CARDS = 100
 
 // Insertion-ordered, like a shopping cart: a card the user just picked belongs at the end of the
 // list, not sorted into the middle of it where they have to hunt for it.

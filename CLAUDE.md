@@ -147,6 +147,36 @@ cannot reach the slice while the controller's own copy of the shape quietly igno
   body carrying `"cards": null` is a 500 instead of the 400 the validator had already decided on.
   There is a test per list for this in `SaveBinderChangesTests`; copy it for a new slice.
 
+## Rules for code shared between slices
+
+`PokeBinder.Features` is split into sections -- `Binder`, `CardAdmin`, `CardSearch` -- and each
+section is a folder of vertical slices. **Code that two or more slices of a section need goes in
+that section's `Shared` folder**, never in one of the slices that happen to use it:
+
+```
+PokeBinder.Features/Binder/Shared/Arrangement/   namespace PokeBinder.Features.Binder.Shared.Arrangement
+```
+
+`Binder/Shared/Arrangement` is the example: the sort and the pocket rewrite that `ReorderBinder` and
+`UpdateBinder` both run, and the validation rules for a list of sort criteria.
+
+- **A slice never reaches into another slice's folder.** When a second slice needs something that
+  lives inside a slice, move it to `Shared` first, then use it from both. Left where it was, the
+  first slice cannot be rewritten without breaking one that only borrowed from it.
+- **`Shared` holds no slices.** No `Request`, no `Handler`, no endpoint of its own: only what slices
+  call. Group it in a subfolder named for what it does (`Arrangement`), not one file per caller.
+- **Keep it `internal`** unless something outside `PokeBinder.Features` needs it. A model that
+  travels on the wire is the exception, and goes in `Shared` the same way.
+- **One slice is not shared.** Code used by a single slice stays in that slice, however general it
+  looks; it moves the day a second slice needs it.
+- **A slice may split its own logic into a subfolder of its own**, as
+  `CardSearch/GetSearchStarterFilters/Utils` does. That is the slice organising itself, not shared
+  code: it stays inside the slice, no other slice uses it, and it does not move to `Shared`.
+- **General code for every section goes in `PokeBinder.Features/Utils`**, not in a `Shared`
+  folder. `Shared` is per logical unit -- the binder's slices, the search's -- and `Utils` is for
+  code that is not about any one of them (`SqlLiteLikePatterns`), whichever slices happen to call
+  it today.
+
 ## Rules for catalog data
 
 **A migration is for the schema and for data the app cannot start without. Catalog data is

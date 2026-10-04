@@ -1,7 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
-using PokeBinder.Features.Binder.ReorderBinder.Models;
+using PokeBinder.Features.Binder.Shared.Arrangement;
 
 namespace PokeBinder.Features.Binder.ReorderBinder;
 
@@ -34,31 +34,8 @@ public class ReorderBinderValidator : AbstractValidator<ReorderBinder.Request>
         RuleFor(request => request.Criteria)
             .Cascade(CascadeMode.Stop)
             .NotNull()
-            .Must(criteria => criteria.Count is >= 1 and <= ReorderBinder.MaxCriteria)
-                .WithMessage($"A reorder sorts by at least one criterion and at most {ReorderBinder.MaxCriteria}.")
-            .Must(criteria => criteria.All(criterion => criterion is not null))
-                .WithMessage("A criterion is empty.")
-            // A criterion a second time could only break ties it has already broken.
-            .Must(criteria => criteria.Select(criterion => criterion.Key).Distinct().Count() == criteria.Count)
-                .WithMessage("The same criterion is used twice.");
+            .MakeASort();
 
-        RuleForEach(request => request.Criteria).ChildRules(criterion =>
-        {
-            criterion.RuleFor(c => c.Key).IsInEnum();
-            criterion.RuleFor(c => c.Direction).IsInEnum();
-
-            // One criterion with a choice of key: Rarity has to say which ordering it reads, and a
-            // key on anything else is a client that has confused its criteria.
-            criterion.RuleFor(c => c.RarityKey)
-                .NotNull()
-                    .WithMessage("Rarity has to say which ordering it sorts by: pull rate or name order.")
-                .IsInEnum()
-                .When(c => c.Key == CriterionKey.Rarity);
-
-            criterion.RuleFor(c => c.RarityKey)
-                .Null()
-                .When(c => c.Key != CriterionKey.Rarity)
-                .WithMessage("Only Rarity sorts by a rarity ordering.");
-        });
+        RuleForEach(request => request.Criteria).ChildRules(SortCriteriaRules.Criterion);
     }
 }

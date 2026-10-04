@@ -92,6 +92,9 @@ let sendWhenFree = false
 
 let timer: ReturnType<typeof setTimeout> | null = null
 
+// Set once the server's copy has moved on without this page -- see `retire`. Nothing is sent after.
+let retired = false
+
 // When the oldest change this save is still holding arrived, which is what SAVE_MAX_WAIT_MS counts
 // from.
 let oldestPendingAt = 0
@@ -203,7 +206,7 @@ function schedule(): void {
  * returns schedules the next one if anything is still pending.
  */
 function send(): void {
-  if (!dirty || (scope.size === 0 && !wholeBinder)) return
+  if (retired || !dirty || (scope.size === 0 && !wholeBinder)) return
 
   if (inFlight !== null) {
     sendWhenFree = true
@@ -339,7 +342,7 @@ export const save = {
    */
   arm(pockets: readonly number[] = []): void {
     // No binder, nothing to address a save to: /Binder without an id is a legitimate way to arrive.
-    if (binderPage.binderId === null) return
+    if (retired || binderPage.binderId === null) return
 
     const pages = pagesFor(pockets)
     const widened = new Set([...scope, ...pages])
@@ -436,6 +439,24 @@ export const save = {
   },
 
   /**
+   * Stops saving for good: whatever is pending is dropped, and no edit from here on arms anything.
+   *
+   * For a write that has moved the server's copy on without this page -- a binder edit that ends
+   * in a refresh, a delete that ends in a redirect. Call it from inside `afterSettling`, as soon as
+   * that write has succeeded: the queue is still held then, so nothing can slip out between the
+   * two. What the page holds afterwards describes a binder that is gone or laid out differently,
+   * and a save of it -- the one a closing tab fires included -- would put the old layout back.
+   */
+  retire(): void {
+    retired = true
+    dirty = false
+    scope = new Set()
+    wholeBinder = false
+
+    clearTimer()
+  },
+
+  /**
    * Starts listening for the tab going away, so a close costs less than the debounce window.
    *
    * `pagehide` rather than `unload`, which a page in the back/forward cache never gets, and
@@ -444,7 +465,7 @@ export const save = {
    */
   listenForUnload(): void {
     const flushOnLeave = (): void => {
-      if (!dirty) return
+      if (retired || !dirty) return
 
       // Fire and forget: nothing will be alive to read the answer, and `keepalive` is what lets
       // the request outlive the document. It goes around `send` because the in-flight rule is

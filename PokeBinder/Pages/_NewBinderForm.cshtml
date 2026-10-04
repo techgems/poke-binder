@@ -1,4 +1,4 @@
-@using SaveBinderSlice = PokeBinder.Features.Binder.SaveBinder.SaveBinder
+@using CreateBinderSlice = PokeBinder.Features.Binder.CreateBinder.CreateBinder
 @model PokeBinder.Pages.MyBindersModel.NewBinderForm
 @{
     var nameErrors = Model.ErrorsFor(nameof(Model.Name));
@@ -23,7 +23,7 @@
     <label class="label">
         <span class="label-text">Name</span>
         <input class="input" type="text" name="Input.Name" value="@Model.Name"
-               maxlength="@SaveBinderSlice.MaxNameLength" placeholder="Master set, birthday pulls, ..."
+               maxlength="@CreateBinderSlice.MaxNameLength" placeholder="Master set, birthday pulls, ..."
                aria-invalid="@(nameErrors.Count > 0 ? "true" : null)" />
     </label>
     @foreach (var message in nameErrors)
@@ -34,7 +34,7 @@
     <label class="label">
         <span class="label-text">Description <span class="opacity-60">(optional)</span></span>
         <textarea class="textarea" name="Input.Description" rows="2"
-                  maxlength="@SaveBinderSlice.MaxDescriptionLength">@Model.Description</textarea>
+                  maxlength="@CreateBinderSlice.MaxDescriptionLength">@Model.Description</textarea>
     </label>
     @foreach (var message in descriptionErrors)
     {
@@ -61,7 +61,7 @@
         <label class="label">
             <span class="label-text">Pages</span>
             <input class="input" type="number" name="Input.Pages" x-model="pages"
-                   min="1" max="@SaveBinderSlice.MaxPages" />
+                   min="1" max="@CreateBinderSlice.MaxPages" />
         </label>
     </div>
     @foreach (var message in sizeErrors.Concat(pagesErrors))
