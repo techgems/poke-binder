@@ -1,11 +1,13 @@
-using FluentValidation.Results;
+﻿using FluentValidation.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using PokeBinder.Auth;
 using PokeBinder.Binders.DbContext;
+using PokeBinder.Features.Binder.AddSetToBinder;
 using PokeBinder.Features.Binder.ReorderBinder;
 using PokeBinder.Features.Binder.SaveBinderChanges;
+using PokeBinder.Features.CardImages;
 using PokeBinder.TcgCatalog.DbContext;
 
 namespace PokeBinder.Controllers;
@@ -15,7 +17,8 @@ namespace PokeBinder.Controllers;
 [ApiController]
 public class BinderCardsController(
     BinderDbContext binderContext,
-    TcgCatalogDbContext catalogContext) : ControllerBase
+    TcgCatalogDbContext catalogContext,
+    CardImageUrls imageUrls) : ControllerBase
 {
     /// <summary>
     /// Stores one edit to a binder: the pages the user is looking at and the whole tray, both
@@ -105,6 +108,45 @@ public class BinderCardsController(
         }
 
         var response = await ReorderBinder.Handler(request, userId, binderContext, catalogContext, ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Puts a whole set into the binder's pockets: in the order asked for, less any rarities left
+    /// out, and wherever the body says relative to the cards already there. Answers with the new
+    /// layout and the set's cards, so the workspace can draw it and record it for undo.
+    /// <para>
+    /// POST for the same reason as the reorder: an instruction whose result depends on what the
+    /// binder held when it arrived. The client settles its own pending save before sending it.
+    /// </para>
+    /// </summary>
+    /// <param name="binderId">Whose binder to fill. Must be one of the caller's own.</param>
+    /// <param name="body">
+    /// The slice's own request. Its <see cref="AddSetToBinder.Request.BinderId"/> is overwritten by
+    /// the route's, so the field is not part of what this endpoint asks for.
+    /// </param>
+    [HttpPost("{binderId:int}/addSet")]
+    public async Task<ActionResult<AddSetToBinder.Response>> AddSet(
+        int binderId,
+        [FromBody] AddSetToBinder.Request body,
+        CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+
+        // The URL wins, before anything reads the request. Nothing else is normalised: a null list
+        // is the validator's to refuse.
+        var request = body with { BinderId = binderId };
+
+        var validation = await new AddSetToBinderValidator(binderContext, catalogContext, userId)
+            .ValidateAsync(request, ct);
+
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(ToModelState(validation.Errors));
+        }
+
+        var response = await AddSetToBinder.Handler(request, userId, binderContext, catalogContext, imageUrls, ct);
 
         return Ok(response);
     }

@@ -7,7 +7,12 @@
  * the catalog's. Mirrors ReorderBinder's SortCriterion, in the camelCase the serializer reads.
  */
 
-export type CriterionKey = 'set' | 'rarity' | 'name'
+/**
+ * `number` is offered only where every card comes from one set -- adding a whole set -- because a
+ * card number means nothing across sets. The reorder never offers it, and ReorderBinder only ever
+ * reads it as its last tiebreak.
+ */
+export type CriterionKey = 'set' | 'rarity' | 'name' | 'number'
 
 /**
  * Which way the underlying value runs. Never shown as is: the modal labels each direction for what
@@ -23,11 +28,13 @@ export type SortCriterion =
   | { key: 'set'; direction: SortDirection }
   | { key: 'rarity'; direction: SortDirection; rarityKey: RarityKey }
   | { key: 'name'; direction: SortDirection }
+  | { key: 'number'; direction: SortDirection }
 
 export const CRITERION_NAMES: Record<CriterionKey, string> = {
   set: 'Set',
   rarity: 'Rarity',
   name: 'Card name',
+  number: 'Card number',
 }
 
 /**
@@ -42,6 +49,7 @@ export const DIRECTION_LABELS: Record<CriterionKey, Record<SortDirection, string
   set: { desc: 'Newest first', asc: 'Oldest first' },
   rarity: { desc: 'Rare first', asc: 'Common first' },
   name: { asc: 'A–Z', desc: 'Z–A' },
+  number: { asc: 'Lowest first', desc: 'Highest first' },
 }
 
 export const RARITY_KEY_LABELS: Record<RarityKey, string> = {
@@ -58,7 +66,15 @@ export function defaultCriteria(): SortCriterion[] {
   ]
 }
 
+/** The criteria the reorder offers, in the order its defaults list them. */
+export const REORDER_KEYS: readonly CriterionKey[] = ['set', 'rarity', 'name']
+
 /** A fresh criterion of one kind, for putting a dropped one back. Same directions as the defaults. */
 export function newCriterion(key: CriterionKey): SortCriterion {
-  return defaultCriteria().find((criterion) => criterion.key === key)!
+  return (
+    defaultCriteria().find((criterion) => criterion.key === key) ?? {
+      key: 'number',
+      direction: 'asc',
+    }
+  )
 }

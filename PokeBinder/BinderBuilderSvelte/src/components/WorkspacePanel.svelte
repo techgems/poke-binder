@@ -1,9 +1,11 @@
 <script lang="ts">
   import BookOpenIcon from '@lucide/svelte/icons/book-open'
+  import LibraryBigIcon from '@lucide/svelte/icons/library-big'
   import SettingsIcon from '@lucide/svelte/icons/settings'
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
   import { Tabs } from '@skeletonlabs/skeleton-svelte'
 
+  import AddSetTab from '../features/add-set/AddSetTab.svelte'
   import BinderView from '../features/binder/BinderView.svelte'
   import SearchTab from '../features/search/SearchTab.svelte'
   import BinderSettingsTab from '../features/settings/BinderSettingsTab.svelte'
@@ -12,11 +14,17 @@
   interface Props {
     /** The selected panel. Bindable, so the sidebar can steer it too. */
     tab?: WorkspaceTab
+    /** A set is being added. Bindable, so the page can keep undo away from the binder meanwhile. */
+    addingSet?: boolean
     /** Additional classes for the panel. */
     class?: string
   }
 
-  let { tab = $bindable(DEFAULT_WORKSPACE_TAB), class: classes = '' }: Props = $props()
+  let {
+    tab = $bindable(DEFAULT_WORKSPACE_TAB),
+    addingSet = $bindable(false),
+    class: classes = '',
+  }: Props = $props()
 </script>
 
 <!-- min-h-0 so the panel can be shorter than its content and hand the leftover height to whichever
@@ -42,6 +50,13 @@
       <span>Binder</span>
     </Tabs.Trigger>
     <Tabs.Trigger
+      value="set"
+      class="btn hover:preset-tonal data-[selected]:preset-filled-primary-500"
+    >
+      <LibraryBigIcon class="size-4" />
+      <span>Add a Set</span>
+    </Tabs.Trigger>
+    <Tabs.Trigger
       value="settings"
       class="btn hover:preset-tonal data-[selected]:preset-filled-primary-500"
     >
@@ -65,6 +80,12 @@
   <Tabs.Content value="binder" class="min-h-0 flex-1">
     <div class="flex h-full flex-col">
       <BinderView />
+    </div>
+  </Tabs.Content>
+
+  <Tabs.Content value="set" class="min-h-0 flex-1">
+    <div class="flex h-full flex-col">
+      <AddSetTab bind:busy={addingSet} onadded={() => (tab = 'binder')} />
     </div>
   </Tabs.Content>
 

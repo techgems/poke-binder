@@ -11,4 +11,7 @@ public class SetsFilter
     public string Name { get; set; } = string.Empty;
 
     public int SeriesId { get; set; }
+
+    /// <summary>The set's image, as stored. Null for a set nobody has given one yet.</summary>
+    public string? ImageUrl { get; set; }
 }

@@ -11,7 +11,7 @@
   } from '../../clients/CardSearchClient'
   import CardSpotlight from '../../components/tilt/CardSpotlight.svelte'
   import TiltCard from '../../components/tilt/TiltCard.svelte'
-  import { fetchStaleSearchFilters, preloadSearchFilters } from '../../preloads/search-filters'
+  import { loadSearchFilters } from '../../preloads/search-filters'
   import { tray } from '../../stores/tray.svelte'
   import { effectiveSelection, emptySelection, type FilterSelection } from './utils/filter-selection'
   import AddCardFilters from './filter/AddCardFilters.svelte'
@@ -36,7 +36,7 @@
 
   // The catalog's filter options, assembled before the first paint from the two groups the page
   // embeds and whatever this browser already has in storage. Nothing is awaited to get here.
-  const preloaded = preloadSearchFilters()
+  const { preloaded, refreshed } = loadSearchFilters()
 
   let starterFilters = $state<StarterFilters | null>(
     preloaded.hasPageFilters ? preloaded.filters : null,
@@ -51,8 +51,8 @@
   // is what says so rather than leaving the user to wonder why a set is missing.
   let filtersError = $state<string | null>(null)
 
-  if (preloaded.stale.length > 0) {
-    fetchStaleSearchFilters(preloaded)
+  if (refreshed) {
+    refreshed
       .then((filters) => {
         starterFilters = filters
         filtersError = null

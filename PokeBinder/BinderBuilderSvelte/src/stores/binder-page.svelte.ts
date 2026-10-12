@@ -1,3 +1,4 @@
+import type { AddSetResponse } from '../clients/BinderAddSetClient'
 import type { ReorderedCard } from '../clients/BinderReorderClient'
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import type { PreloadedBinder } from '../preloads/preload'
@@ -122,6 +123,40 @@ function changeSlot(index: number, to: CardSearchResult | null): void {
 
   history.record({ store: 'slot', index, from, to })
   applySlotCard(index, to)
+}
+
+/**
+ * Lays out a layout the server has already stored and records it for undo: the arrangement it
+ * replaced and the one it put in its place. Nothing is saved -- there is nothing to save until an
+ * undo or a redo moves the binder away from what is stored.
+ *
+ * The server answers with ids. Each is looked up among the cards already in the binder, then in
+ * `added` for any it has just put there. One found in neither -- a card the catalog dropped, which
+ * `load` never drew either -- leaves its pocket empty on screen, as it always was.
+ */
+function adoptLayout(layout: readonly ReorderedCard[], added: readonly CardSearchResult[]): void {
+  const before = binderPage.arrangement
+
+  const cards = new Map<number, CardSearchResult>()
+
+  for (const card of slots) {
+    if (card) cards.set(card.id, card)
+  }
+
+  for (const card of added) cards.set(card.id, card)
+
+  const after: (ArrangedPocket | null)[] = Array(slots.length).fill(null)
+
+  for (const placed of layout) {
+    const card = cards.get(placed.cardId)
+
+    if (card && placed.indexInBinder < after.length) {
+      after[placed.indexInBinder] = { card, missing: placed.isMissing }
+    }
+  }
+
+  history.recordStored({ store: 'arrangement', before, after })
+  applyArrangement(after)
 }
 
 export const binderPage = {
@@ -385,39 +420,36 @@ export const binderPage = {
   },
 
   /**
-   * Takes the order a reorder came back with. The server has already stored it, so this records
-   * it without saving anything: the entry holds the arrangement it replaced and the one it put in
-   * its place, so Undo lays the old one back out and Redo the new -- and each of those is an edit
-   * the server has not seen, which is what saves.
-   *
-   * The server answers with ids, and the cards are the ones already in the binder, so each is
-   * looked up here rather than sent again. One the workspace does not have -- a card the catalog
-   * dropped, which `load` never drew either -- leaves its pocket empty on screen, as it always was.
+   * Takes the order a reorder came back with, already stored -- see `adoptLayout`. Undo lays the
+   * old order back out and Redo the new, and each of those is an edit the server has not seen,
+   * which is what saves. Every card is one the binder already held, so none comes with it.
    */
   adoptReorder(reordered: readonly ReorderedCard[]): void {
-    const before = this.arrangement
-
-    const cards = new Map<number, CardSearchResult>()
-
-    for (const card of slots) {
-      if (card) cards.set(card.id, card)
-    }
-
-    const after: (ArrangedPocket | null)[] = Array(slots.length).fill(null)
-
-    for (const placed of reordered) {
-      const card = cards.get(placed.cardId)
-
-      if (card && placed.indexInBinder < after.length) {
-        after[placed.indexInBinder] = { card, missing: placed.isMissing }
-      }
-    }
-
-    history.recordStored({ store: 'arrangement', before, after })
-    applyArrangement(after)
+    adoptLayout(reordered, [])
 
     // The start of the new order, which is the part of it worth seeing first.
     openSpread(0)
+  },
+
+  /**
+   * Takes the layout adding a set came back with, already stored -- recorded the way a reorder is,
+   * so Undo takes the set out again and puts back whatever it moved or removed.
+   *
+   * The set's cards come with the response, since the workspace has never seen them. Pages added
+   * to fit it stay through an undo: the server has already grown the binder, and undo puts the
+   * pockets back, not the binder's length -- so the snapshot taken before is padded out to the new
+   * length, every added pocket empty.
+   */
+  adoptAddedSet(response: AddSetResponse): void {
+    if (response.pages > pages) {
+      pages = response.pages
+      slots = [...slots, ...Array(pages * columns * rows - slots.length).fill(null)]
+    }
+
+    adoptLayout(response.cards, response.added)
+
+    // The set's first page, which is what was just asked for.
+    this.showIndex(response.setStart)
   },
 
   /**

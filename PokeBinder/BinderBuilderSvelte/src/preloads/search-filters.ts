@@ -135,3 +135,29 @@ export async function fetchStaleSearchFilters(
 
   return filters
 }
+
+export interface SearchFiltersLoad {
+  preloaded: SearchFiltersPreload
+  /** The completed options once the stale groups are in, or null when nothing was stale. */
+  refreshed: Promise<StarterFilters> | null
+}
+
+let shared: SearchFiltersLoad | null = null
+
+/**
+ * The filter options for everything in the workspace that reads them, assembled once per page.
+ * The search and the add-a-set tab both mount on load, and without this each would fetch the same
+ * stale groups for itself.
+ */
+export function loadSearchFilters(): SearchFiltersLoad {
+  if (!shared) {
+    const preloaded = preloadSearchFilters()
+
+    shared = {
+      preloaded,
+      refreshed: preloaded.stale.length > 0 ? fetchStaleSearchFilters(preloaded) : null,
+    }
+  }
+
+  return shared
+}

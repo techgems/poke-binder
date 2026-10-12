@@ -1,4 +1,4 @@
-using PokeBinder.Features.CardSearch.GetSearchStarterFilters;
+﻿using PokeBinder.Features.CardSearch.GetSearchStarterFilters;
 using PokeBinder.TcgCatalog.DbContext.Entities;
 
 namespace PokeBinder.Features.Tests.CardSearch;
@@ -291,6 +291,25 @@ public class GetSearchStarterFiltersTests
         // The filter panel narrows sets by the chosen series, so this is the one field on a set the
         // UI cannot do without.
         Assert.Equal(2, response.Sets!.Single(set => set.Name == "Neo Genesis").SeriesId);
+    }
+
+    [Fact]
+    public async Task Sets_carry_their_image_when_they_have_one()
+    {
+        using var fixture = new CatalogFixture().WithCatalog().WithStamps();
+
+        fixture.Context.Sets.Add(new Set
+        {
+            Id = 99, Code = "XX", Name = "Pictured", FullName = "Pictured", SeriesId = 1,
+            ImageUrl = "/images/sets/xx.png",
+        });
+        await fixture.Context.SaveChangesAsync();
+
+        var response = await HandleAsync(fixture, Holding());
+
+        // The add-a-set picker shows it, and draws a placeholder for a set without one.
+        Assert.Equal("/images/sets/xx.png", response.Sets!.Single(set => set.Name == "Pictured").ImageUrl);
+        Assert.Null(response.Sets!.Single(set => set.Name == "Neo Genesis").ImageUrl);
     }
 
     [Fact]

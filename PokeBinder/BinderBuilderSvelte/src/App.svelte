@@ -22,6 +22,11 @@
   let searchOpen = $state(false)
   let reorderOpen = $state(false)
   let reordering = $state(false)
+  let addingSet = $state(false)
+
+  // A write that replaces the binder with what the server answers is out: an undo landing first
+  // would be an edit it never saw.
+  const rewriting = $derived(reordering || addingSet)
 
   // Failures already reported. The save store counts them; this decides which are news.
   let toastedFailures = 0
@@ -64,9 +69,8 @@
 
     if (key !== 'z' && key !== 'y') return
 
-    // Not while a reorder is out: it will replace the binder with what the server sorted, and an
-    // undo landing first would be an edit that reorder never saw.
-    if (reordering) return
+    // Not while a reorder or a set is out -- see `rewriting`.
+    if (rewriting) return
 
     // instanceof rather than a cast: a keydown can be dispatched at the window itself, which has no
     // closest() and would throw out of the handler.
@@ -146,7 +150,7 @@
       class="btn-icon btn-icon-lg hover:preset-tonal"
       title="Undo"
       aria-label="Undo"
-      disabled={!history.canUndo || reordering}
+      disabled={!history.canUndo || rewriting}
       onclick={() => history.undo()}
     >
       <UndoIcon class="size-6" />
@@ -156,7 +160,7 @@
       class="btn-icon btn-icon-lg hover:preset-tonal"
       title="Redo"
       aria-label="Redo"
-      disabled={!history.canRedo || reordering}
+      disabled={!history.canRedo || rewriting}
       onclick={() => history.redo()}
     >
       <RedoIcon class="size-6" />
@@ -179,7 +183,7 @@
        scales the root font size, so that arithmetic does not stay true. min-w-0 lets the
        workspace shrink past its content width instead of shoving the sidebar off screen. -->
   <main class="flex h-dvh min-w-0 flex-1 flex-col pt-20 pb-4">
-    <WorkspacePanel bind:tab class="min-h-0 flex-1" />
+    <WorkspacePanel bind:tab bind:addingSet class="min-h-0 flex-1" />
   </main>
 </div>
 

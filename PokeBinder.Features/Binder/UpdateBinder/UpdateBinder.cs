@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Binders.DbContext.Entities;
 using PokeBinder.Features.Binder.Shared.Arrangement;
-using PokeBinder.Features.Binder.ReorderBinder.Models;
 using PokeBinder.Features.Binder.UpdateBinder.Models;
 using PokeBinder.TcgCatalog.DbContext;
 using PlacedCardEntity = PokeBinder.Binders.DbContext.Entities.BinderCard;

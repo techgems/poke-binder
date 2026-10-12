@@ -292,3 +292,10 @@ One caveat when driving the page with browser automation: synthesised `Enter`/`S
 arrive with an empty `event.key` and so never produce the activation click a real key press would.
 A keyboard path that looks broken under automation is worth confirming with `element.click()`, which
 is exactly what the browser does on activation, before believing it.
+
+## Reporting back
+
+**Keep the report on finished work short, and only as long as the change.** Say what changed and
+anything the reader has to act on or decide -- a failed check, an open question, a judgement call
+they may disagree with. Leave out the walk through how it was done, measurements that only confirm
+the request was met, and restating the request. A one-line change gets a one-line report.

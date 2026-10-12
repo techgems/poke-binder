@@ -1,8 +1,8 @@
 <!--
   Edits the criteria of a sort: up to three, ranked by dragging -- or by the arrow buttons, for
   anyone not using a mouse -- each with its own direction, and any of them dropped. It edits the
-  list it is bound to and nothing else, so the reorder modal and the settings tab's resize both use
-  it and each decide for themselves what applying means.
+  list it is bound to and nothing else, so the reorder modal, the settings tab's resize and the
+  add-a-set tab all use it and each decide for themselves what applying means.
 -->
 <script lang="ts">
   import ArrowDownIcon from '@lucide/svelte/icons/arrow-down'
@@ -19,6 +19,7 @@
     DIRECTION_LABELS,
     newCriterion,
     RARITY_KEY_LABELS,
+    REORDER_KEYS,
     type CriterionKey,
     type RarityKey,
     type SortCriterion,
@@ -28,13 +29,13 @@
   interface Props {
     /** The criteria, most significant first. Bindable: this is what the editor edits. */
     criteria: SortCriterion[]
+    /** The criteria on offer, which a dropped one can be put back from. The reorder's by default. */
+    keys?: readonly CriterionKey[]
   }
 
-  let { criteria = $bindable() }: Props = $props()
+  let { criteria = $bindable(), keys = REORDER_KEYS }: Props = $props()
 
-  const ALL_KEYS: CriterionKey[] = ['set', 'rarity', 'name']
-
-  const dropped = $derived(ALL_KEYS.filter((key) => !criteria.some((c) => c.key === key)))
+  const dropped = $derived(keys.filter((key) => !criteria.some((c) => c.key === key)))
 
   // The row being dragged, and the row it would land on -- the one that lights up.
   let dragging = $state<number | null>(null)
@@ -98,7 +99,9 @@
       }}
       ondragend={() => (dragging = over = null)}
     >
-      <div class="flex items-center gap-2">
+      <!-- @container: whether the switches fit beside the name depends on how wide this card is,
+           not the window -- the add-a-set tab's column is far narrower than the reorder modal. -->
+      <div class="@container flex flex-wrap items-center gap-2">
         <GripVerticalIcon class="size-4 shrink-0 cursor-grab opacity-50" aria-hidden="true" />
         <span
           class="flex size-6 shrink-0 items-center justify-center rounded-full preset-filled-primary-500 text-xs font-bold"
@@ -109,49 +112,56 @@
         <!-- A fixed width, so every row's switches start at the same place and read as a column. -->
         <span class="w-24 shrink-0 font-semibold">{CRITERION_NAMES[criterion.key]}</span>
 
-        <SegmentedControl
-          value={criterion.direction}
-          onValueChange={(details) => {
-            if (details.value) criterion.direction = details.value as SortDirection
-          }}
+        <!-- Beside the name when the card is wide enough. In a narrow card they take a line of their
+             own under it, lined up with the name, and wrap among themselves if even that is too
+             narrow; the rank buttons stay at the end of the first line either way. -->
+        <div
+          class="order-last flex basis-full flex-wrap items-center gap-2 pl-14 @3xl:order-none @3xl:basis-auto @3xl:flex-1 @3xl:pl-0"
         >
-          <SegmentedControl.Label class="sr-only">
-            {CRITERION_NAMES[criterion.key]} direction
-          </SegmentedControl.Label>
-          <SegmentedControl.Control class={segmentControl}>
-            {#each directionsOf(criterion.key) as direction (direction)}
-              <SegmentedControl.Item value={direction} class={segmentItem}>
-                <SegmentedControl.ItemText>
-                  {DIRECTION_LABELS[criterion.key][direction]}
-                </SegmentedControl.ItemText>
-                <SegmentedControl.ItemHiddenInput />
-              </SegmentedControl.Item>
-            {/each}
-          </SegmentedControl.Control>
-        </SegmentedControl>
-
-        <!-- Which ordering Rarity reads. Its own control, and exclusive: one criterion with a
-             choice of key, never two criteria competing for a slot. -->
-        {#if criterion.key === 'rarity'}
           <SegmentedControl
-            value={criterion.rarityKey}
+            value={criterion.direction}
             onValueChange={(details) => {
-              if (details.value && criterion.key === 'rarity') {
-                criterion.rarityKey = details.value as RarityKey
-              }
+              if (details.value) criterion.direction = details.value as SortDirection
             }}
           >
-            <SegmentedControl.Label class="sr-only">Rarity ordering</SegmentedControl.Label>
+            <SegmentedControl.Label class="sr-only">
+              {CRITERION_NAMES[criterion.key]} direction
+            </SegmentedControl.Label>
             <SegmentedControl.Control class={segmentControl}>
-              {#each Object.entries(RARITY_KEY_LABELS) as [key, label] (key)}
-                <SegmentedControl.Item value={key} class={segmentItem}>
-                  <SegmentedControl.ItemText>{label}</SegmentedControl.ItemText>
+              {#each directionsOf(criterion.key) as direction (direction)}
+                <SegmentedControl.Item value={direction} class={segmentItem}>
+                  <SegmentedControl.ItemText>
+                    {DIRECTION_LABELS[criterion.key][direction]}
+                  </SegmentedControl.ItemText>
                   <SegmentedControl.ItemHiddenInput />
                 </SegmentedControl.Item>
               {/each}
             </SegmentedControl.Control>
           </SegmentedControl>
-        {/if}
+
+          <!-- Which ordering Rarity reads. Its own control, and exclusive: one criterion with a
+               choice of key, never two criteria competing for a slot. -->
+          {#if criterion.key === 'rarity'}
+            <SegmentedControl
+              value={criterion.rarityKey}
+              onValueChange={(details) => {
+                if (details.value && criterion.key === 'rarity') {
+                  criterion.rarityKey = details.value as RarityKey
+                }
+              }}
+            >
+              <SegmentedControl.Label class="sr-only">Rarity ordering</SegmentedControl.Label>
+              <SegmentedControl.Control class={segmentControl}>
+                {#each Object.entries(RARITY_KEY_LABELS) as [key, label] (key)}
+                  <SegmentedControl.Item value={key} class={segmentItem}>
+                    <SegmentedControl.ItemText>{label}</SegmentedControl.ItemText>
+                    <SegmentedControl.ItemHiddenInput />
+                  </SegmentedControl.Item>
+                {/each}
+              </SegmentedControl.Control>
+            </SegmentedControl>
+          {/if}
+        </div>
 
         <button
           type="button"

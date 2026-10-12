@@ -1,5 +1,4 @@
-using FluentValidation;
-using PokeBinder.Features.Binder.ReorderBinder.Models;
+﻿using FluentValidation;
 
 namespace PokeBinder.Features.Binder.Shared.Arrangement;
 
@@ -10,8 +9,19 @@ namespace PokeBinder.Features.Binder.Shared.Arrangement;
 /// </summary>
 internal static class SortCriteriaRules
 {
-    /// <summary>One, two or three criteria: Set, Rarity and Card name, each at most once.</summary>
+    /// <summary>One, two or three criteria, each at most once.</summary>
     internal const int MaxCriteria = 3;
+
+    /// <summary>What a sort of the whole binder offers: its cards come from any number of sets.</summary>
+    internal static readonly IReadOnlySet<CriterionKey> BinderKeys =
+        new HashSet<CriterionKey> { CriterionKey.Set, CriterionKey.Rarity, CriterionKey.Name };
+
+    /// <summary>
+    /// What ordering one set's cards offers. No Set, since there is only the one; Number instead,
+    /// which only means something inside a set.
+    /// </summary>
+    internal static readonly IReadOnlySet<CriterionKey> SetKeys =
+        new HashSet<CriterionKey> { CriterionKey.Rarity, CriterionKey.Name, CriterionKey.Number };
 
     /// <summary>
     /// The list as a whole. Chain it after the caller's own <c>Cascade(CascadeMode.Stop)</c> and
@@ -22,8 +32,13 @@ internal static class SortCriteriaRules
     /// The request's list type, nullable or not -- a list the request may leave out is still one
     /// this checks once it is there.
     /// </typeparam>
+    /// <param name="offered">
+    /// The criteria this sort offers -- <see cref="BinderKeys"/> or <see cref="SetKeys"/>. Anything
+    /// else is a client that has confused one sort for the other.
+    /// </param>
     internal static IRuleBuilderOptions<T, TList> MakeASort<T, TList>(
-        this IRuleBuilderOptions<T, TList> rule)
+        this IRuleBuilderOptions<T, TList> rule,
+        IReadOnlySet<CriterionKey> offered)
         where TList : IReadOnlyList<SortCriterion>? =>
         rule
             .Must(criteria => criteria!.Count is >= 1 and <= MaxCriteria)
@@ -32,7 +47,9 @@ internal static class SortCriteriaRules
                 .WithMessage("A criterion is empty.")
             // A criterion a second time could only break ties it has already broken.
             .Must(criteria => criteria!.Select(criterion => criterion.Key).Distinct().Count() == criteria!.Count)
-                .WithMessage("The same criterion is used twice.");
+                .WithMessage("The same criterion is used twice.")
+            .Must(criteria => criteria!.All(criterion => offered.Contains(criterion.Key)))
+                .WithMessage("That sort cannot use one of those criteria.");
 
     /// <summary>Each criterion on its own, for <c>RuleForEach(...).ChildRules(...)</c>.</summary>
     internal static void Criterion(InlineValidator<SortCriterion> criterion)

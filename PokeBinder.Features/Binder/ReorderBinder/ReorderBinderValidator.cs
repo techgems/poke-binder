@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Features.Binder.Shared.Arrangement;
@@ -34,7 +34,7 @@ public class ReorderBinderValidator : AbstractValidator<ReorderBinder.Request>
         RuleFor(request => request.Criteria)
             .Cascade(CascadeMode.Stop)
             .NotNull()
-            .MakeASort();
+            .MakeASort(SortCriteriaRules.BinderKeys);
 
         RuleForEach(request => request.Criteria).ChildRules(SortCriteriaRules.Criterion);
     }

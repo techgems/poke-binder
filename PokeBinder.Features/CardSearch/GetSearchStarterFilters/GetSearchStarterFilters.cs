@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using PokeBinder.Features.CardSearch.GetSearchStarterFilters.Models;
 using PokeBinder.Features.CardSearch.GetSearchStarterFilters.Utils;
@@ -349,7 +349,8 @@ public static class GetSearchStarterFilters
         {
             Id = set.Id,
             Name = set.Name,
-            SeriesId = set.SeriesId
+            SeriesId = set.SeriesId,
+            ImageUrl = set.ImageUrl
         };
 
     private static readonly Expression<Func<PokemonFilterOption, PokemonFilter>> MapPokemon =

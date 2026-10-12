@@ -1,5 +1,5 @@
-using PokeBinder.Features.Binder.ReorderBinder;
-using PokeBinder.Features.Binder.ReorderBinder.Models;
+﻿using PokeBinder.Features.Binder.ReorderBinder;
+using PokeBinder.Features.Binder.Shared.Arrangement;
 
 namespace PokeBinder.Features.Tests.Binder;
 
@@ -381,6 +381,21 @@ public class ReorderBinderTests
             Key = CriterionKey.Set,
             Direction = SortDirection.Desc,
             RarityKey = RarityKey.PullRate,
+        }));
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task Card_number_is_refused_as_a_criterion()
+    {
+        using var fixture = new BinderFixture().WithBinder();
+
+        // Only one set's cards are sorted by number; across a binder it is the last tiebreak only.
+        var result = await ValidateAsync(fixture, Reorder(new SortCriterion
+        {
+            Key = CriterionKey.Number,
+            Direction = SortDirection.Asc,
         }));
 
         Assert.False(result.IsValid);

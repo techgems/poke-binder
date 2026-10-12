@@ -1,7 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Features.Binder.Shared.Arrangement;
-using PokeBinder.Features.Binder.ReorderBinder.Models;
 using PokeBinder.TcgCatalog.DbContext;
 
 namespace PokeBinder.Features.Binder.ReorderBinder;
@@ -20,7 +19,7 @@ namespace PokeBinder.Features.Binder.ReorderBinder;
 /// </summary>
 public static class ReorderBinder
 {
-    /// <summary>One, two or three criteria: Set, Rarity and Card name, each at most once.</summary>
+    /// <summary>One, two or three criteria, each at most once: Set, Rarity and Card name.</summary>
     public const int MaxCriteria = SortCriteriaRules.MaxCriteria;
 
     public record Request

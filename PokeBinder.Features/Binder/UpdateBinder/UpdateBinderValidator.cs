@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Features.Binder.Shared.Arrangement;
@@ -60,7 +60,7 @@ public class UpdateBinderValidator : AbstractValidator<UpdateBinder.Request>
                 .Cascade(CascadeMode.Stop)
                 .NotNull()
                     .WithMessage("A sort has to say what it sorts by.")
-                .MakeASort();
+                .MakeASort(SortCriteriaRules.BinderKeys);
 
             RuleForEach(request => request.Criteria).ChildRules(SortCriteriaRules.Criterion);
         });

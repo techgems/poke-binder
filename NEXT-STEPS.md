@@ -74,18 +74,8 @@ whole-binder claim. Because the server reads the set's cards itself, `SearchCard
    refined before anything sits behind it. The tab is a new member of `WorkspaceTab`
    (`components/workspace-tab.ts`, `'add' | 'binder'` today), plus a `Tabs.Trigger` and a
    `Tabs.Content` in `WorkspacePanel.svelte`. Both existing panels stay mounted, and that file's
-   comment on why no `display` utility may go on `Tabs.Content` applies to the new one too. Set
-   images are not available until substep 2.
-2. **Set images through the sets filter.** `GetSearchStarterFilters` maps sets to `SetsFilter`
-   (`Id`, `Name`, `SeriesId`) and leaves the image out. `Set.ImageUrl` / `sets.imageUrl` exists, but
-   it is **empty for all 136 sets** in the catalog today. The images are being supplied
-   separately. Writing them into `sets.imageUrl` is catalog data, so per "Rules for catalog data"
-   in `CLAUDE.md` it is a re-runnable script in `Scripts/` that resolves sets by code, not a
-   migration. The client's `SetsFilter` in
-   `clients/CardSearchClient.ts` gains the field too. Sets is a cached filter group: a browser
-   holding a copy stamped before the change keeps serving it without images until the `Sets`
-   stamp is bumped.
-3. **The write and the undo.** The slice and its endpoint under `PokeBinder.Features/Binder/`,
+   comment on why no `display` utility may go on `Tabs.Content` applies to the new one too.
+2. **The write and the undo.** The slice and its endpoint under `PokeBinder.Features/Binder/`,
    beside `ReorderBinder`, with a validator and tests (see "Rules for controllers" and "Rules for
    tests" in `CLAUDE.md`). Then the client call, the snapshots in the history, the tab switch and
    the toast.
@@ -335,11 +325,6 @@ behaviour, and the tests pass unchanged before and after.
 
 Found in passing, not by a scan, so the list is a start rather than the whole of it:
 
-- **The sort criteria models** -- `SortCriterion`, `CriterionKey`, `SortDirection`, `RarityKey` --
-  live in `Binder/ReorderBinder/Models`, and `UpdateBinder` and `Binder/Shared/Arrangement` both
-  use them.
-- **`ReorderedCard`**, in the same folder, is what `BinderArrangement.LayOutFromFirstPocket`
-  returns, so `Shared` currently reaches into a slice.
 - **A binder's limits** -- `MaxNameLength`, `MaxDescriptionLength`, `MaxPages` -- are constants on
   `CreateBinder`, which `UpdateBinderValidator` reads.
 - **Two `CardSearchResult` models**, one under `SearchCardsByFilter` and one under

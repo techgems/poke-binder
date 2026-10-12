@@ -1,6 +1,6 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
-namespace PokeBinder.Features.Binder.ReorderBinder.Models;
+namespace PokeBinder.Features.Binder.Shared.Arrangement;
 
 /// <summary>What a criterion sorts by.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<CriterionKey>))]
@@ -14,6 +14,13 @@ public enum CriterionKey
 
     /// <summary>The card's name.</summary>
     Name,
+
+    /// <summary>
+    /// The card's number, compared naturally. Only offered where every card comes from one set --
+    /// adding a whole set -- because a number means nothing across sets. Elsewhere it is still the
+    /// last tiebreak of every sort.
+    /// </summary>
+    Number,
 }
 
 /// <summary>
@@ -42,7 +49,7 @@ public enum RarityKey
     Name,
 }
 
-/// <summary>One criterion of a reorder.</summary>
+/// <summary>One criterion of a sort.</summary>
 public record SortCriterion
 {
     public CriterionKey Key { get; init; }

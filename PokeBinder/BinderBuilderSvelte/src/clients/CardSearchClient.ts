@@ -19,6 +19,11 @@ export interface SetsFilter {
   id: number
   name: string
   seriesId: number
+  /**
+   * The set's image, or null when it has none. Optional as well: a browser holding a copy of the
+   * group cached before the field existed has rows without it, until the Sets stamp next moves.
+   */
+  imageUrl?: string | null
 }
 
 export interface PokemonFilter {
@@ -150,6 +155,21 @@ export interface CardSearchPage {
   hasMore: boolean
 }
 
+/** One rarity of a set and how many cards it has of it. Mirrors GetSetRarityCounts.RarityCount. */
+export interface SetRarityCount {
+  /** Null for cards the catalog has no rarity for. */
+  rarity: string | null
+  count: number
+  /** The rarity's weight in the set, or null when nobody has weighted it. */
+  pullRateRarityOrder: number | null
+}
+
+/** Mirrors GetSetRarityCounts.Response: commonest first, unweighted rarities last. */
+export interface SetRarityCounts {
+  setId: number
+  rarities: SetRarityCount[]
+}
+
 /** Query-string name for each group's stamp, matching GetSearchStarterFilters.Request. */
 const STAMP_PARAMETERS: Record<CachedFilterGroup, string> = {
   pokemon: 'pokemonCacheStamp',
@@ -246,5 +266,20 @@ export const CardSearchClient = {
     }
 
     return (await response.json()) as CardSearchPage
+  },
+
+  /** How many cards a set has of each rarity. An unknown set answers with none. */
+  async getSetRarityCounts(setId: number, signal?: AbortSignal): Promise<SetRarityCounts> {
+    const response = await fetch(`/api/cardSearch/sets/${setId}/rarityCounts`, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to count the set's cards (${response.status} ${response.statusText}).`)
+    }
+
+    return (await response.json()) as SetRarityCounts
   },
 }

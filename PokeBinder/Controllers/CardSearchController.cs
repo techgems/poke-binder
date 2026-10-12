@@ -1,6 +1,7 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PokeBinder.Features.CardImages;
+using PokeBinder.Features.CardSearch.GetSetRarityCounts;
 using PokeBinder.Features.CardSearch.SearchCardsByFilter;
 using PokeBinder.Features.CardSearch.SearchCardWithSimpleSearch;
 using PokeBinder.TcgCatalog.DbContext;
@@ -39,6 +40,17 @@ public class CardSearchController(
         CancellationToken ct)
     {
         var response = await SearchCardWithSimpleSearch.Handler(request, context, imageUrls, ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>How many cards a set has of each rarity, for the add-a-set wizard.</summary>
+    [HttpGet("sets/{setId:int}/rarityCounts")]
+    public async Task<ActionResult<GetSetRarityCounts.Response>> SetRarityCounts(
+        int setId,
+        CancellationToken ct)
+    {
+        var response = await GetSetRarityCounts.Handler(new GetSetRarityCounts.Request(setId), context, ct);
 
         return Ok(response);
     }
