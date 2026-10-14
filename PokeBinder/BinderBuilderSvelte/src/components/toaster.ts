@@ -4,8 +4,8 @@ import { createToaster } from '@skeletonlabs/skeleton-svelte'
  * The workspace's toasts. One store for the whole app, rendered once by `App.svelte`.
  *
  * `bottom-end`, which is the corner furthest from everything the workspace puts under the cursor —
- * the action rail is top-left, the tray strip runs along the bottom of the binder, and the tab
- * strip is at the top. `overlap` so a run of them stacks into one card instead of climbing the
+ * the action rail is top-left, and the tab strip and the card tray that opens under it are at the
+ * top. `overlap` so a run of them stacks into one card instead of climbing the
  * side of the screen; a save that fails tends to fail again, and three identical notices in a
  * column say no more than one.
  *
