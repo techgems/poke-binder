@@ -6,6 +6,7 @@
   import PlusIcon from '@lucide/svelte/icons/plus'
   import RedoIcon from '@lucide/svelte/icons/redo-2'
   import SearchIcon from '@lucide/svelte/icons/search'
+  import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
   import UndoIcon from '@lucide/svelte/icons/undo-2'
 
@@ -17,6 +18,7 @@
   import ReorderModal from './features/binder/sort/ReorderModal.svelte'
   import { binderPage } from './stores/binder-page.svelte'
   import { clickAdd } from './stores/click-add.svelte'
+  import { clipboard } from './stores/clipboard.svelte'
   import { history } from './stores/history.svelte'
   import { save } from './stores/save.svelte'
   import { spotlight } from './stores/spotlight.svelte'
@@ -29,6 +31,20 @@
   // A write that replaces the binder with what the server answers is out: an undo landing first
   // would be an edit it never saw.
   const rewriting = $derived(reordering || addingSet)
+
+  // Mirror the paste conflict as a bound-open flag the Modal can write back through, so the
+  // modal's X close trigger (or Escape, or a backdrop click) drops the pending paste. The two
+  // effects keep this in step with the clipboard store: the first opens the modal when a conflict
+  // appears, the second cancels the conflict when the modal closes without an answer.
+  let pasteConflictOpen = $state(false)
+
+  $effect(() => {
+    pasteConflictOpen = clipboard.conflict !== null
+  })
+
+  $effect(() => {
+    if (!pasteConflictOpen && clipboard.conflict !== null) clipboard.cancelConflict()
+  })
 
   // Failures already reported. The save store counts them; this decides which are news.
   let toastedFailures = 0
@@ -59,20 +75,51 @@
   // Held here rather than inside the panel so the sidebar can switch tabs as well as the tab strip.
   let tab = $state<WorkspaceTab>(DEFAULT_WORKSPACE_TAB)
 
+  // Last known pointer position, so Ctrl/Cmd+C and Ctrl/Cmd+V can look up the pocket under the
+  // pointer at key time without needing a hover-tracking handler on every pocket. Plain, not
+  // $state: nothing renders from it. Starts off-screen so a stale read before the first move
+  // finds nothing.
+  let pointerX = -1
+  let pointerY = -1
+
+  function trackPointer(event: PointerEvent): void {
+    pointerX = event.clientX
+    pointerY = event.clientY
+  }
+
+  /** The pocket the pointer is currently over, or null if the pointer is elsewhere on the page. */
+  function pocketUnderPointer(): number | null {
+    if (pointerX < 0) return null
+
+    const element = document.elementFromPoint(pointerX, pointerY)
+
+    if (!element) return null
+
+    const pocket = element.closest('[data-pocket-index]')
+
+    if (!pocket) return null
+
+    const parsed = Number(pocket.getAttribute('data-pocket-index'))
+
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
   /**
-   * Ctrl/Cmd+Z and its redo pair, bound to the window because what they undo is the binder rather
-   * than whatever has focus -- but not while focus is in a field, where the browser's own undo is
-   * the one the user means.
+   * Window-level keyboard shortcuts for the binder: Undo and Redo, Copy and Paste. Bound to the
+   * window because what they act on is the binder rather than whatever has focus -- but not while
+   * focus is in a field, where the browser's own shortcuts are the ones the user means.
+   *
+   * Spotlight does not block any of these: the mode is only about what a click on a card does,
+   * not what the binder may change into. The `rewriting` guard still holds for all four, since a
+   * reorder or add-set in flight is a write the server has not seen.
    */
   function onKeyDown(event: KeyboardEvent): void {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return
 
     const key = event.key.toLowerCase()
 
-    if (key !== 'z' && key !== 'y') return
+    if (key !== 'z' && key !== 'y' && key !== 'c' && key !== 'v') return
 
-    // Not while a reorder or a set is out -- see `rewriting`. Spotlight does not block undo:
-    // the mode is only about what a click on a card does, not what the binder may change into.
     if (rewriting) return
 
     // instanceof rather than a cast: a keydown can be dispatched at the window itself, which has no
@@ -84,14 +131,40 @@
       return
     }
 
-    event.preventDefault()
+    if (key === 'z' || key === 'y') {
+      event.preventDefault()
 
-    if (key === 'y' || event.shiftKey) history.redo()
-    else history.undo()
+      if (key === 'y' || event.shiftKey) history.redo()
+      else history.undo()
+
+      return
+    }
+
+    // Copy and Paste: both read the pocket under the pointer; outside a pocket they do nothing and
+    // leave the browser's own clipboard behaviour alone. Copy on an empty pocket is also a no-op,
+    // since there is nothing to put on the clipboard.
+    const pocket = pocketUnderPointer()
+
+    if (pocket === null) return
+
+    if (key === 'c') {
+      const card = binderPage.slots[pocket]
+
+      if (!card) return
+
+      event.preventDefault()
+      clipboard.copy(card, pocket)
+    } else {
+      // v
+      if (!clipboard.hasCopy) return
+
+      event.preventDefault()
+      clipboard.paste(pocket)
+    }
   }
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} onpointermove={trackPointer} />
 
 <!-- The page frame -- theme, background, blobs and app bar -- belongs to the Razor layout
      (Pages/Shared/_BinderLayout.cshtml). What is left here is the workspace itself. -->
@@ -235,4 +308,44 @@
 <Modal bind:open={searchOpen} title="Search cards">
   <input class="input" type="search" placeholder="Search by card name…" />
   <p class="opacity-75 text-sm">Start typing to look up a card in the catalog.</p>
+</Modal>
+
+<!-- Paste over a different card: the one slot change the drag path never forces. Either answer
+     is a destruction the user has to pick, so the paste is held in `clipboard.conflict` until
+     Send to Tray or Remove from Binder is chosen; the Modal's own close trigger (X in the
+     header) drops the paste on the floor, which is why there is no separate Cancel button down
+     here. -->
+<Modal
+  bind:open={pasteConflictOpen}
+  title="Replace this card?"
+  width="max-w-md"
+>
+  {#if clipboard.conflict}
+    {@const displaced = clipboard.conflict.displaced}
+    {@const incoming = clipboard.copied}
+    <p class="text-sm">
+      Pasting <strong>{incoming?.name ?? 'the copied card'}</strong> into this pocket replaces
+      <strong>{displaced.name ?? 'the card already there'}</strong>. What should happen to it?
+    </p>
+
+    <footer class="flex justify-end gap-2">
+      <button
+        type="button"
+        class="btn btn-sm preset-filled-error-500"
+        onclick={() => clipboard.resolveConflict('discard')}
+      >
+        <Trash2Icon class="size-4" />
+        <span>Remove from Binder</span>
+      </button>
+      <button
+        type="button"
+        class="btn btn-sm preset-filled-primary-500"
+        autofocus
+        onclick={() => clipboard.resolveConflict('tray')}
+      >
+        <ShoppingBasketIcon class="size-4" />
+        <span>Send to Tray</span>
+      </button>
+    </footer>
+  {/if}
 </Modal>

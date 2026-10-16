@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ClipboardPasteIcon from '@lucide/svelte/icons/clipboard-paste'
+  import CopyIcon from '@lucide/svelte/icons/copy'
   import EyeIcon from '@lucide/svelte/icons/eye'
   import EyeOffIcon from '@lucide/svelte/icons/eye-off'
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
@@ -8,6 +10,7 @@
   import { CARD_BACK_URL } from '../../card-art'
   import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
   import { clickAdd } from '../../stores/click-add.svelte'
+  import { clipboard } from '../../stores/clipboard.svelte'
   import { spotlight } from '../../stores/spotlight.svelte'
 
   interface Props {
@@ -128,8 +131,10 @@
             <!-- A wrapper rather than the button alone, so the hover toolbox can sit beside the
                  pocket instead of inside it -- buttons cannot nest. group is what the toolbox's
                  group-hover/group-focus-within read; relative is the box its absolute overlay
-                 covers. -->
-            <div class="group relative">
+                 covers. data-pocket-index lets the keyboard copy/paste shortcuts find the pocket
+                 the pointer is over via document.elementFromPoint, without needing per-pocket
+                 pointerenter handlers. -->
+            <div class="group relative" data-pocket-index={index}>
               <!-- A button, so a pocket is reachable and operable without a drag: clicking a full
                    one sends its card back to the tray, or lifts it for a look with click-add mode
                    off. p-0 because a native button carries its own padding, which on a pocket this
@@ -211,6 +216,25 @@
                 {/if}
               </button>
 
+              {#if clipboard.flash?.index === index}
+                <!-- The copy flash: a bright glint sweeps up through the card art, confirming the
+                     copy on the pocket the eye is already on. The outer span is clipped to the
+                     pocket shape (overflow-hidden rounded-container) and sits above the hover
+                     toolbox in the stacking order via z-index, so the glint reads even when the
+                     cursor is still on the toolbox button that fired it. `{#key}` on the nonce
+                     re-mounts the band on every copy, so repeating the same pocket re-triggers it
+                     instead of being a no-op. aria-hidden because screen readers get nothing from
+                     a visual flash. -->
+                {#key clipboard.flash.nonce}
+                  <span
+                    aria-hidden="true"
+                    class="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-container"
+                  >
+                    <span class="copy-flash-band"></span>
+                  </span>
+                {/key}
+              {/if}
+
               {#if card && !spotlight.enabled && !binderPage.dragged}
                 <!-- The hover toolbox: edit actions for the card, revealed on hover and on
                      focus-within so a keyboard reaches it too. pointer-events-none on the
@@ -234,6 +258,18 @@
                     onclick={fire(() => binderPage.returnToTray(index))}
                   >
                     <ShoppingBasketIcon />
+                  </button>
+                  <!-- Copy holds the card for the next paste. The toolbox and Ctrl/Cmd+C are two
+                       paths to the same `clipboard.copy`; see `stores/clipboard.svelte.ts`. The
+                       pocket index is passed so the flash below fires on this pocket. -->
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-xl pointer-events-auto preset-filled-surface-100-900"
+                    title="Copy {card.name ?? 'card'} — paste it into any pocket"
+                    aria-label="Copy {card.name ?? 'card'}"
+                    onclick={fire(() => clipboard.copy(card, index))}
+                  >
+                    <CopyIcon />
                   </button>
                   <!-- One button that toggles: a missing pocket is one the collector has flagged
                        for a card they do not own yet, and pressing again says they have it after
@@ -271,6 +307,26 @@
                   </button>
                 </div>
               {/if}
+
+              {#if !card && clipboard.hasCopy && !spotlight.enabled && !binderPage.dragged}
+                <!-- The empty-pocket toolbox: just Paste, and only while something is copied. Same
+                     position as the full-pocket toolbox so the eye lands in the same place either
+                     way. Ctrl/Cmd+V reaches the same `clipboard.paste(index)` from the keyboard. -->
+                <div
+                  class="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-center gap-1 p-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                >
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-xl pointer-events-auto preset-filled-primary-500"
+                    title="Paste {clipboard.copied?.name ?? 'the copied card'} here"
+                    aria-label="Paste {clipboard.copied?.name ?? 'the copied card'} into pocket {index +
+                      1}"
+                    onclick={fire(() => clipboard.paste(index))}
+                  >
+                    <ClipboardPasteIcon />
+                  </button>
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -278,3 +334,43 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* The copy flash: a bright band sweeps up through the card art, like a glint catching the holo.
+     The band is a vertical slice with soft edges; translateY moves it from fully below the pocket
+     to fully above it in one pass. `forwards` keeps it off-screen afterwards so it does not sit on
+     the card between presses. The wrapping span's overflow:hidden crops the band to the card
+     shape. The band is bright and tall enough to stay legible behind the toolbox icons that are
+     usually right under the pointer when Copy was pressed. */
+  .copy-flash-band {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 60%;
+    background: linear-gradient(
+      to top,
+      transparent 0%,
+      rgb(255 255 255 / 0.7) 50%,
+      transparent 100%
+    );
+    animation: copy-flash-sweep 300ms ease-out forwards;
+    will-change: transform;
+    transform: translateY(167%);
+  }
+
+  @keyframes copy-flash-sweep {
+    from {
+      transform: translateY(167%);
+    }
+
+    to {
+      transform: translateY(-100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .copy-flash-band {
+      animation-duration: 1ms;
+    }
+  }
+</style>

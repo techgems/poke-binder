@@ -429,6 +429,31 @@ export const binderPage = {
   },
 
   /**
+   * Places a card into a pocket from the clipboard. Assumes the caller has already decided what
+   * happens to any displaced card -- `clipboard.paste` is the orchestrator that makes that choice,
+   * directly for an empty pocket or through the conflict dialog for an occupied one.
+   *
+   * A paste onto the same card id is a no-op, so a stray press on the source pocket neither
+   * mutates nor records. A paste onto an empty pocket arrives with `missing: false`: the collector
+   * is placing a card they consider present, like a tray drop.
+   *
+   * @param displacedTo What to do with the card already in the pocket. `tray` adds it as a copy
+   *   there, matching the drag path; `discard` drops it from the binder altogether. Ignored for an
+   *   empty pocket.
+   */
+  pasteCard(index: number, card: CardSearchResult, displacedTo: 'tray' | 'discard'): void {
+    const existing = slots[index] ?? null
+
+    if (existing && existing.card.id === card.id) return
+
+    history.act(() => {
+      if (existing && displacedTo === 'tray') tray.add(existing.card)
+
+      changeSlot(index, { card, missing: false })
+    })
+  },
+
+  /**
    * Flips the missing flag on a pocket. A missing pocket is one the collector has marked as held
    * for a card they do not own yet; unmarking it says they have the card after all. The slot's
    * card stays put: only the flag moves, and undo puts it back.

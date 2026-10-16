@@ -16,39 +16,7 @@ moment it runs.
 
 ---
 
-## 1. Copy and paste
-
-A toolbox action that **copies a card**, and a **Paste** on empty pockets that places a copy of it.
-
-### What it does
-
-- **Copy** holds the card until another is copied, so one copy can be pasted into **as many empty
-  pockets as you like**.
-- **Paste appears on hover over an empty pocket** while there is something to paste, in the same
-  toolbox position as on a full one.
-- **A paste is the card only:** the same catalog card, with no label and not missing, whatever the
-  source pocket had.
-- **A paste never touches the tray.** The copy is a new placement, not a card taken from anywhere.
-- **Undoable and saved** like any other slot change. The toolbox is hidden in Spotlight mode, so
-  neither action is reachable there -- the mode's own guard, not a separate one.
-
-### Where it plugs in
-
-- **What is copied** is a module like `click-add.svelte.ts`, holding one `CardSearchResult`. It
-  lives for the page, so it is per binder and gone on a reload.
-- **A paste** is `changeSlot(index, card)` inside `history.act`, the same path a tray drop takes
-  minus the tray.
-- **The same card in several pockets** is already allowed: placing a tray card with a quantity
-  above one does it.
-
-### Open questions
-
-- **Showing what is copied.** Does anything say which card is waiting to be pasted (a chip in the
-  sidebar, or the card's art on the Paste button), or is the Paste button enough?
-
----
-
-## 2. Card labels
+## 1. Card labels
 
 A toolbox action that opens a modal to **give a card a label**: a short text and one of **8
 colours**. The label shows as a chip in the card's **bottom-left corner**.
@@ -61,7 +29,7 @@ colours**. The label shows as a chip in the card's **bottom-left corner**.
   remove it.
 - **The label belongs to the card in that pocket:** it travels with the card when it moves between
   pockets or is reordered, and Delete from binder takes it away. Undo restores it.
-- **Copy does not carry it** (step 1).
+- **Copy does not carry it.**
 - **The spotlight does not show it.** Spotlight mode is for looking at the art; the chip hides
   while a card is lifted.
 
@@ -96,9 +64,9 @@ colours**. The label shows as a chip in the card's **bottom-left corner**.
 
 ---
 
-## 3. One code per data source on `sets`
+## 2. One code per data source on `sets`
 
-Before LoadSet (step 4): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
+Before LoadSet (step 3): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
 **adds `tcgDexCode`**, and the changes to carry both through the app. Today's one code is
 TCGplayer's (`ME02`, `ME-AH`); TCGdex has ids of its own (`me02`), and more data sources may follow,
 so each source gets its own column rather than a single code that means whichever source wrote it.
@@ -131,7 +99,7 @@ so each source gets its own column rather than a single code that means whicheve
 
 ---
 
-## 4. LoadSet: loading a set from the TCGdex API
+## 3. LoadSet: loading a set from the TCGdex API
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
@@ -154,7 +122,7 @@ Checked against the live API on 2026-09-30; worth re-checking when the work star
 
 - **A set** is `GET /v2/en/sets/{id}`: `id` (`me02`), `name`, `releaseDate` (`2025-11-14`),
   `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. The `id` is
-  what goes in `sets.tcgDexCode` (step 3). The TCGplayer code is usually the same id upper-cased
+  what goes in `sets.tcgDexCode` (step 2). The TCGplayer code is usually the same id upper-cased
   (`ME02`, `SV01`), but not always: Ascended Heroes is `ME-AH` in the catalog.
 - **The set's `cards` are briefs** -- `id`, `localId`, `name`, `image` -- with no rarity or category,
   so the full card is a second request each: `GET /v2/en/cards/{id}`, one per card, 130 for ME02.
@@ -217,7 +185,7 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 ### Open questions
 
 - **Where do `tcgPlayerCode` and `fullName` come from?** `tcgDexCode` is the TCGdex set id, but
-  `sets.tcgPlayerCode` (today's `code`, renamed in step 3) is what the ETL upserts sets on (`ME03`,
+  `sets.tcgPlayerCode` (today's `code`, renamed in step 2) is what the ETL upserts sets on (`ME03`,
   `SV01`), and `fullName` is the long form ("Mega Evolution: Perfect Order" against "ME: Perfect
   Order"). Either the form grows two fields or something derives them.
 - **Which series is "currently running"?** `series.endDateUnix` holds **0** for the open one, not
@@ -248,12 +216,12 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
   direction -- for every card in it.
 - **Prices: where they live and how they stay current.** They need a home in the schema, which
   variants and which market to keep, and a decision on freshness: a set is loaded once, but prices
-  move daily, so the load's prices are a snapshot from that day and step 5 is what refreshes them.
+  move daily, so the load's prices are a snapshot from that day and step 4 is what refreshes them.
 - **Reloading.** Does loading a set that already exists update it, or is that refused outright?
 
 ---
 
-## 5. Refreshing a set's card prices from TCGdex
+## 4. Refreshing a set's card prices from TCGdex
 
 An admin action that does one thing: **tell the backend to update the prices of every card in one
 set**. It fetches that set's cards from TCGdex and writes their prices onto the catalog cards they
@@ -272,22 +240,22 @@ every admin page.
   validator and tests per "Rules for tests" in `CLAUDE.md`. The TCGdex call goes behind something
   the tests can replace, since a test never reaches a real service any more than it reaches a real
   database.
-- **What TCGdex gives** is in step 4: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
+- **What TCGdex gives** is in step 3: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
   `pricing` on each full card (`GET /v2/en/cards/{id}`), one request per card.
 - **Matching.** `thirdParty.tcgplayer` on a TCGdex card against `cards.tcgPlayerId`, which is
   `UNIQUE` -- the one key both sides already carry. The catalog set's TCGdex id is
-  `sets.tcgDexCode` (step 3).
+  `sets.tcgDexCode` (step 2).
 
 ### Open questions
 
-- **Where the prices are stored.** The catalog has no price column or table yet. Step 4 raises the
+- **Where the prices are stored.** The catalog has no price column or table yet. Step 3 raises the
   same question; whichever step is built first answers it for both.
 - **What the result reports.** Cards updated, catalog cards TCGdex had no price for, and TCGdex
   cards that matched nothing are the obvious three.
 
 ---
 
-## 6. Move code shared between slices into each section's `Shared` folder
+## 5. Move code shared between slices into each section's `Shared` folder
 
 Scan `PokeBinder.Features` for code that more than one slice of a section uses, and move it into
 that section's `Shared` folder, following "Rules for code shared between slices" in `CLAUDE.md`.
