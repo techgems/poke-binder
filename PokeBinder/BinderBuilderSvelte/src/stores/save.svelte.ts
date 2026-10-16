@@ -164,10 +164,9 @@ function buildRequest(pages: number[]): BinderSaveRequest | null {
       cards.push({
         cardId: slot.card.id,
         indexInBinder: slot.index,
-        // Round-tripped rather than decided here: nothing in the workspace sets this flag, so what
-        // the server sent is what it gets back. Leaving it out would clear it on every pocket the
-        // save covers.
-        isMissing: binderPage.isMissing(slot.index),
+        // Straight off the slot now that the toolbox can toggle it. Leaving it out would clear it
+        // on every pocket the save covers.
+        isMissing: slot.missing,
       })
     }
   }

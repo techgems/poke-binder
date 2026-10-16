@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Toast } from '@skeletonlabs/skeleton-svelte'
   import ArrowDownWideNarrowIcon from '@lucide/svelte/icons/arrow-down-wide-narrow'
+  import EyeIcon from '@lucide/svelte/icons/eye'
   import MousePointerClickIcon from '@lucide/svelte/icons/mouse-pointer-click'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import RedoIcon from '@lucide/svelte/icons/redo-2'
@@ -18,6 +19,7 @@
   import { clickAdd } from './stores/click-add.svelte'
   import { history } from './stores/history.svelte'
   import { save } from './stores/save.svelte'
+  import { spotlight } from './stores/spotlight.svelte'
 
   let searchOpen = $state(false)
   let reorderOpen = $state(false)
@@ -69,7 +71,8 @@
 
     if (key !== 'z' && key !== 'y') return
 
-    // Not while a reorder or a set is out -- see `rewriting`.
+    // Not while a reorder or a set is out -- see `rewriting`. Spotlight does not block undo:
+    // the mode is only about what a click on a card does, not what the binder may change into.
     if (rewriting) return
 
     // instanceof rather than a cast: a keydown can be dispatched at the window itself, which has no
@@ -114,6 +117,22 @@
     >
       <SearchIcon class="size-6" />
     </button>
+    <!-- A switch like click-add below, and for the same reasons: aria-pressed, the filled state,
+         and a place in the rail. It is only about clicks: edits -- drags, click-add, undo, redo,
+         reorder, add-set -- all keep working, and spotlight simply takes a plain click on a
+         placed card for itself, with the hover toolbox out of the way. -->
+    <button
+      type="button"
+      class="btn-icon btn-icon-lg {spotlight.enabled ? 'preset-tonal-primary' : 'hover:preset-tonal'}"
+      title={spotlight.enabled
+        ? 'Spotlight mode is on — click a card to lift it; the hover toolbox is off'
+        : 'Spotlight mode is off — the hover toolbox is how a card is acted on'}
+      aria-label="Spotlight mode"
+      aria-pressed={spotlight.enabled}
+      onclick={() => spotlight.toggle()}
+    >
+      <EyeIcon class="size-6" />
+    </button>
     <!-- A switch, not an action: aria-pressed is what says so, and the filled state is the same
          claim made in colour. It sits with the other rail buttons rather than in the binder view
          because it governs both halves of that view -- the pockets and the tray strip. -->
@@ -122,7 +141,7 @@
       class="btn-icon btn-icon-lg {clickAdd.enabled ? 'preset-tonal-primary' : 'hover:preset-tonal'}"
       title={clickAdd.enabled
         ? 'Click-add mode is on — clicking a card moves it'
-        : 'Click-add mode is off — clicking a card opens it for a look'}
+        : 'Click-add mode is off — cards move by dragging'}
       aria-label="Click-add mode"
       aria-pressed={clickAdd.enabled}
       onclick={() => clickAdd.toggle()}

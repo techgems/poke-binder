@@ -1,8 +1,9 @@
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import {
   applyArrangement,
-  applySlotCard,
+  applySlot,
   binderPage,
+  type ArrangedPocket,
   type Arrangement,
 } from './binder-page.svelte'
 import { save } from './save.svelte'
@@ -46,12 +47,13 @@ export interface TrayDelta {
   to: number
 }
 
-/** A change to one pocket, addressed by the absolute index the stores and the server both use. */
+/** A change to one pocket, addressed by the absolute index the stores and the server both use.
+ * The whole slot is captured so undo restores both the card and the missing flag together. */
 export interface SlotDelta {
   store: 'slot'
   index: number
-  from: CardSearchResult | null
-  to: CardSearchResult | null
+  from: ArrangedPocket | null
+  to: ArrangedPocket | null
 }
 
 /**
@@ -174,7 +176,7 @@ function replay(entry: HistoryEntry, direction: 'undo' | 'redo'): void {
       } else if (delta.store === 'arrangement') {
         applyArrangement(direction === 'undo' ? delta.before : delta.after)
       } else {
-        applySlotCard(delta.index, direction === 'undo' ? delta.from : delta.to)
+        applySlot(delta.index, direction === 'undo' ? delta.from : delta.to)
       }
     }
   } finally {

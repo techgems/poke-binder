@@ -8,16 +8,9 @@
 
   import { CARD_BACK_URL } from '../../card-art'
   import type { CardSearchResult } from '../../clients/CardSearchClient'
-  import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
+  import { binderPage } from '../../stores/binder-page.svelte'
   import { clickAdd } from '../../stores/click-add.svelte'
   import { tray } from '../../stores/tray.svelte'
-
-  interface Props {
-    /** A tile was clicked with click-add mode off, which lifts the card rather than moving it. */
-    onspotlight?: (source: DragSource) => void
-  }
-
-  let { onspotlight }: Props = $props()
 
   /** How far an arrow press travels, as a share of the visible strip. */
   const SCROLL_STEP = 0.8
@@ -86,7 +79,7 @@
 
     return clickAdd.enabled
       ? `${name} — drag onto a pocket, or click to use the first free one`
-      : `${name} — drag onto a pocket, or click to take a closer look`
+      : `${name} — drag onto a pocket`
   }
 
   // Removing takes the whole tile with it, copies and all, so the label counts them rather than
@@ -103,6 +96,18 @@
     if (!scroller) return
 
     scroller.scrollBy({ left: direction * scroller.clientWidth * SCROLL_STEP, behavior: 'smooth' })
+  }
+
+  /**
+   * Takes focus off a hover button after it fires. See BinderPage.svelte for why -- same
+   * group-focus-within trick, same cure.
+   */
+  function fire(action: () => void): (event: MouseEvent) => void {
+    return (event) => {
+      action()
+
+      if (event.currentTarget instanceof HTMLElement) event.currentTarget.blur()
+    }
   }
 </script>
 
@@ -175,15 +180,17 @@
           <li class="group relative w-[calc(var(--pocket)*0.6)] shrink-0">
             <!-- A button as well as a drag source: with click-add mode on, clicking drops the
                  card into the first free pocket, which is the same transfer without needing a
-                 mouse to complete it. With the mode off it lifts the card instead, and the
-                 transfer moves to the overlay below. -->
+                 mouse to complete it. With the mode off a click does nothing, and the transfer
+                 moves to the buttons below. A tile is never lifted into the spotlight: that is
+                 Spotlight mode's, and only for placed cards -- tray tiles are not looked at,
+                 they are placed. -->
             <button
               type="button"
               class="block w-full cursor-grab active:cursor-grabbing"
               title={tileTitle(card)}
               aria-label={clickAdd.enabled
                 ? `Place ${card.name ?? 'card'} in the first free pocket`
-                : `Take a closer look at ${card.name ?? 'card'}`}
+                : (card.name ?? 'Card')}
               draggable="true"
               ondragstart={(event) => {
                 // Firefox will not start a drag without something on the DataTransfer, even
@@ -193,13 +200,7 @@
               }}
               ondragend={() => binderPage.endDrag()}
               onclick={() => {
-                if (clickAdd.enabled) {
-                  binderPage.placeInFirstFreeSlot(card)
-
-                  return
-                }
-
-                onspotlight?.({ kind: 'tray', card })
+                if (clickAdd.enabled) binderPage.placeInFirstFreeSlot(card)
               }}
             >
               <!-- The card's own ratio gives every tile its height before lazy art has loaded, so
@@ -216,9 +217,7 @@
               <!-- What the click used to do, said out loud instead: the two transfers a tile has,
                    as buttons you have to aim at. Revealed on hover and on focus-within both --
                    the second is what keeps them off the mouse, since a button at opacity 0 is
-                   still in the tab order and tabbing to one brings the pair into view. A touch
-                   screen has no hover at all, and reaches the same two actions under the lifted
-                   card instead.
+                   still in the tab order and tabbing to one brings the pair into view.
 
                    pointer-events-none on the wrapper so the gaps around the buttons still belong
                    to the tile underneath, which is the drag handle.
@@ -246,7 +245,7 @@
                     : 'Every pocket on this spread is full'}
                   aria-label="Place {card.name ?? 'card'} in the first free pocket"
                   disabled={!hasFreePocket}
-                  onclick={() => binderPage.placeInFirstFreeSlot(card)}
+                  onclick={fire(() => binderPage.placeInFirstFreeSlot(card))}
                 >
                   <BetweenHorizontalStartIcon />
                 </button>
@@ -255,7 +254,7 @@
                   class="btn-icon btn-icon-xl pointer-events-auto preset-filled-error-500"
                   title={removeLabel(entry)}
                   aria-label={removeLabel(entry)}
-                  onclick={() => tray.remove(card.id)}
+                  onclick={fire(() => tray.remove(card.id))}
                 >
                   <Trash2Icon />
                 </button>

@@ -23,10 +23,12 @@ import { tray } from './tray.svelte'
 const DEFAULT_COLUMNS = 3
 const DEFAULT_ROWS = 3
 
-/** One pocket on screen: the card in it, and the index the binder and the server know it by. */
+/** One pocket on screen: the card in it, the index the binder and the server know it by, and
+ * whether the pocket is flagged as a card the collector does not own yet. */
 export interface BinderSlotView {
   index: number
   card: CardSearchResult | null
+  missing: boolean
 }
 
 /** One page on screen. */
@@ -59,44 +61,34 @@ let binderId = $state<number | null>(null)
 let columns = $state(DEFAULT_COLUMNS)
 let rows = $state(DEFAULT_ROWS)
 let pages = $state(1)
-let slots = $state<(CardSearchResult | null)[]>(Array(DEFAULT_COLUMNS * DEFAULT_ROWS).fill(null))
+let slots = $state<(ArrangedPocket | null)[]>(Array(DEFAULT_COLUMNS * DEFAULT_ROWS).fill(null))
 
 // Which spread is open, counted from zero. A binder opens on one page and then falls open in
 // pairs, so spread 0 is page 1 alone and spread n is pages 2n and 2n+1 -- the same way the sheets
 // are actually bound.
 let spread = $state(0)
 
-// Pockets the server flagged as reserved for a card the collector does not own yet. Kept beside
-// the slots rather than in them because nothing in the workspace sets the flag: what this holds is
-// what the server sent, so a save can hand it back instead of clearing it. Only a reorder moves
-// one, carrying it with its card. A control for it is a reason to move the flag into the slot
-// itself.
-let missingPockets = new Set<number>()
-
 // The drag lives here rather than in the DataTransfer because dragover has to decide whether a
 // drop is allowed, and the payload cannot be read until the drop itself.
 let dragged = $state<DragSource | null>(null)
 
 /**
- * Puts a card in a pocket, or empties it.
+ * Puts a slot in a pocket, or empties it.
  *
  * The one write every change to the slots goes through, whether it is an action the user took or
- * an undo replaying one.
+ * an undo replaying one. The slot carries both the card and the missing flag, so the two always
+ * move together and undo restores whichever state the user left behind.
  */
-export function applySlotCard(index: number, card: CardSearchResult | null): void {
-  slots[index] = card
+export function applySlot(index: number, slot: ArrangedPocket | null): void {
+  slots[index] = slot
 }
 
 /**
  * Lays the whole binder out as a snapshot says, missing flags included. The write a reorder and its
- * undo and redo go through -- the one edit that moves a missing flag, which travels with its card.
+ * undo and redo go through -- a snapshot is the right size when every pocket could have moved.
  */
 export function applyArrangement(arrangement: Arrangement): void {
-  slots = arrangement.map((pocket) => pocket?.card ?? null)
-
-  missingPockets = new Set(
-    arrangement.flatMap((pocket, index) => (pocket?.missing ? [index] : [])),
-  )
+  slots = [...arrangement]
 }
 
 /**
@@ -116,13 +108,13 @@ function openSpread(next: number): void {
 }
 
 /** The same write, recorded. Nothing changed is nothing to record. */
-function changeSlot(index: number, to: CardSearchResult | null): void {
+function changeSlot(index: number, to: ArrangedPocket | null): void {
   const from = slots[index] ?? null
 
   if (from === to) return
 
   history.record({ store: 'slot', index, from, to })
-  applySlotCard(index, to)
+  applySlot(index, to)
 }
 
 /**
@@ -139,8 +131,8 @@ function adoptLayout(layout: readonly ReorderedCard[], added: readonly CardSearc
 
   const cards = new Map<number, CardSearchResult>()
 
-  for (const card of slots) {
-    if (card) cards.set(card.id, card)
+  for (const slot of slots) {
+    if (slot) cards.set(slot.card.id, slot.card)
   }
 
   for (const card of added) cards.set(card.id, card)
@@ -183,9 +175,10 @@ export const binderPage = {
     return pages
   },
 
-  /** Every pocket in the binder, in order. */
+  /** Every pocket in the binder, in order, each as the card it holds -- the missing flag lives on
+   * the slot itself, read through `isMissing` or straight off a `BinderSlotView`. */
   get slots(): readonly (CardSearchResult | null)[] {
-    return slots
+    return slots.map((slot) => slot?.card ?? null)
   },
 
   /** Which spread is open, counted from zero. */
@@ -194,11 +187,12 @@ export const binderPage = {
   },
 
   /**
-   * Whether a pocket is flagged as reserved for a card that is not owned yet -- as the server said,
-   * since nothing here can change it. Read when a save is built, so the flag survives the save.
+   * Whether a pocket is flagged as reserved for a card the collector does not own yet. Read when a
+   * save is built, so the flag survives the save; `BinderSlotView.missing` is the same answer for a
+   * pocket that is already on screen.
    */
   isMissing(index: number): boolean {
-    return missingPockets.has(index)
+    return slots[index]?.missing ?? false
   },
 
   /**
@@ -229,10 +223,15 @@ export const binderPage = {
 
     return {
       pageNumber,
-      slots: Array.from({ length: this.cardsPerPage }, (_, offset) => ({
-        index: start + offset,
-        card: slots[start + offset] ?? null,
-      })),
+      slots: Array.from({ length: this.cardsPerPage }, (_, offset) => {
+        const slot = slots[start + offset] ?? null
+
+        return {
+          index: start + offset,
+          card: slot?.card ?? null,
+          missing: slot?.missing ?? false,
+        }
+      }),
     }
   },
 
@@ -303,9 +302,7 @@ export const binderPage = {
     pages = summary.pages
     spread = 0
 
-    const placed: (CardSearchResult | null)[] = Array(summary.cardCount).fill(null)
-
-    missingPockets = new Set()
+    const placed: (ArrangedPocket | null)[] = Array(summary.cardCount).fill(null)
 
     for (const placement of preloaded.cards) {
       // A card the catalog no longer has, or a pocket outside the binder's current size — the
@@ -313,9 +310,7 @@ export const binderPage = {
       // here is better than rendering a hole halfway down the page.
       if (!placement.card || placement.indexInBinder >= placed.length) continue
 
-      placed[placement.indexInBinder] = placement.card
-
-      if (placement.isMissing) missingPockets.add(placement.indexInBinder)
+      placed[placement.indexInBinder] = { card: placement.card, missing: placement.isMissing }
     }
 
     slots = placed
@@ -358,11 +353,13 @@ export const binderPage = {
         if (source.index === index) return
 
         // A straight exchange: whatever was in the target lands where the dragged card came from,
-        // which for an empty target is the same as moving it.
-        const displaced = slots[index] ?? null
+        // which for an empty target is the same as moving it. The whole slot moves rather than just
+        // the card, so the missing flag travels with it.
+        const sourceSlot = slots[source.index] ?? null
+        const targetSlot = slots[index] ?? null
 
-        changeSlot(index, source.card)
-        changeSlot(source.index, displaced)
+        changeSlot(index, sourceSlot)
+        changeSlot(source.index, targetSlot)
 
         return
       }
@@ -370,10 +367,12 @@ export const binderPage = {
       const displaced = slots[index]
 
       if (displaced) {
-        tray.add(displaced)
+        tray.add(displaced.card)
       }
 
-      changeSlot(index, source.card)
+      // A card placed from the tray is not missing: the collector is putting one in. If the pocket
+      // was flagged missing for an older card, that flag went with the displaced slot above.
+      changeSlot(index, { card: source.card, missing: false })
 
       // Placing spends one of the copies waiting in the tray; setQuantity drops the entry when the
       // last one leaves.
@@ -381,7 +380,9 @@ export const binderPage = {
     })
   },
 
-  /** Drops the card being dragged back into the tray. Only a card from a pocket has anywhere to go. */
+  /** Drops the card being dragged back into the tray. Only a card from a pocket has anywhere to go.
+   * The missing flag is left behind -- a tray entry is one card with a count, with nowhere to keep
+   * it -- and an undo brings it back with its slot. */
   dropOnTray(): void {
     const source = dragged
 
@@ -400,23 +401,51 @@ export const binderPage = {
 
   /**
    * Takes a card out of a pocket without a drag — the same transfer the drop above performs, for
-   * anyone not using a mouse.
+   * anyone not using a mouse. Same rule for the missing flag: dropped on the tray, restored by undo.
    */
   returnToTray(index: number): void {
-    const card = slots[index]
+    const slot = slots[index]
 
-    if (!card) return
+    if (!slot) return
 
     history.act(() => {
       changeSlot(index, null)
 
-      tray.add(card)
+      tray.add(slot.card)
+    })
+  },
+
+  /**
+   * Empties the pocket. The card goes nowhere -- not to the tray -- which is what sets this apart
+   * from `returnToTray`. Undo brings the slot back as it was, missing flag included, like any other
+   * slot change, so there is no confirmation to carry.
+   */
+  deleteFromBinder(index: number): void {
+    if (!slots[index]) return
+
+    history.act(() => {
+      changeSlot(index, null)
+    })
+  },
+
+  /**
+   * Flips the missing flag on a pocket. A missing pocket is one the collector has marked as held
+   * for a card they do not own yet; unmarking it says they have the card after all. The slot's
+   * card stays put: only the flag moves, and undo puts it back.
+   */
+  toggleMissing(index: number): void {
+    const current = slots[index]
+
+    if (!current) return
+
+    history.act(() => {
+      changeSlot(index, { card: current.card, missing: !current.missing })
     })
   },
 
   /** The binder as it stands, every pocket, as a snapshot that later edits do not reach into. */
   get arrangement(): Arrangement {
-    return slots.map((card, index) => (card ? { card, missing: missingPockets.has(index) } : null))
+    return slots.map((slot) => (slot ? { card: slot.card, missing: slot.missing } : null))
   },
 
   /**
@@ -463,7 +492,7 @@ export const binderPage = {
     if (!free) return false
 
     history.act(() => {
-      changeSlot(free.index, card)
+      changeSlot(free.index, { card, missing: false })
       tray.setQuantity(card.id, tray.quantityOf(card.id) - 1)
     })
 

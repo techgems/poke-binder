@@ -4,9 +4,6 @@
   and between pockets. What is still missing is the saving: nothing here is written back yet.
 -->
 <script lang="ts">
-  import BetweenHorizontalStartIcon from '@lucide/svelte/icons/between-horizontal-start'
-  import CornerUpLeftIcon from '@lucide/svelte/icons/corner-up-left'
-  import Trash2Icon from '@lucide/svelte/icons/trash-2'
 
   import { cubicInOut } from 'svelte/easing'
   import { slide } from 'svelte/transition'
@@ -18,7 +15,6 @@
   import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
   import CardSpotlight from '../../components/tilt/CardSpotlight.svelte'
   import { prefersReducedMotion } from '../../components/tilt/prefers-reduced-motion.svelte'
-  import { tray } from '../../stores/tray.svelte'
 
   interface Props {
     /**
@@ -60,32 +56,15 @@
 
   const overlaySlide = $derived({ duration: prefersReducedMotion() ? 0 : 200, easing: cubicInOut })
 
-  // The card being looked at, and which end of the transfer it sits at. A card alone would not be
-  // enough: "return this to the tray" and "put this on a page" are the same button in two places,
-  // and only the source says which one is on offer.
+  // The placed card being looked at. Only ever set in Spotlight mode -- a click on a placed card
+  // there lifts it instead of acting on it; nothing else opens the spotlight.
   let spotlit = $state<DragSource | null>(null)
 
-  const hasFreePocket = $derived(binderPage.visibleSlots.some((slot) => slot.card === null))
-
-  // Every action here moves the card somewhere else, which leaves the lifted copy showing a card
-  // that is no longer where the overlay says it is. Closing is the honest end to all of them.
-  function returnToTray() {
-    if (spotlit?.kind === 'slot') binderPage.returnToTray(spotlit.index)
-
-    spotlit = null
-  }
-
-  function placeInFirstFreePocket() {
-    if (spotlit) binderPage.placeInFirstFreeSlot(spotlit.card)
-
-    spotlit = null
-  }
-
-  function removeFromTray() {
-    if (spotlit) tray.remove(spotlit.card.id)
-
-    spotlit = null
-  }
+  // Whether the lifted pocket is flagged missing, read live from the store so the dim and the chip
+  // update if the slot changes under the spotlight (e.g. an undo).
+  const spotlitMissing = $derived(
+    spotlit?.kind === 'slot' && binderPage.isMissing(spotlit.index),
+  )
 </script>
 
 <svelte:document onclickcapture={closeTrayOnOutsideClick} />
@@ -120,7 +99,7 @@
               class="absolute inset-x-0 -top-8 z-10 {spotlit ? 'invisible' : ''}"
               transition:slide={overlaySlide}
             >
-              <BinderTrayStrip onspotlight={(source) => (spotlit = source)} />
+              <BinderTrayStrip />
             </div>
           {/if}
         {/snippet}
@@ -130,18 +109,27 @@
     <BinderPageNav />
   </section>
 
-  <!-- What a click does with click-add mode off. The moves it replaces are all here as buttons, so
-       nothing the mode takes away goes missing — it just stops happening by accident, and stays
-       reachable from the keyboard and from a touch screen, neither of which has a hover overlay. -->
+  <!-- What a click on a placed card does in Spotlight mode, and the only place a card is lifted
+       at all. It is for looking, so it moves nothing: Close is its one action. The hover toolbox
+       is how a card is acted on, which is off in this mode by design. -->
   <CardSpotlight
     open={spotlit !== null}
     src={spotlit?.card.imageUrl ?? CARD_BACK_URL}
     alt={spotlit?.card.imageUrl ? (spotlit.card.name ?? 'Card') : 'No image available'}
     label={spotlit?.card.name ? `${spotlit.card.name} preview` : 'Card preview'}
-    tilt={spotlit?.card.imageUrl != null}
+    tilt={spotlit?.card.imageUrl != null && !spotlitMissing}
+    cardClass="h-full max-h-full {spotlitMissing ? 'opacity-40 grayscale' : ''}"
     onclose={() => (spotlit = null)}
   >
     {#snippet details()}
+      {#if spotlitMissing}
+        <span
+          title="This pocket is held for a card the collector does not own yet"
+          class="badge preset-filled-warning-500 mb-2 text-xs font-semibold shadow"
+        >
+          Missing
+        </span>
+      {/if}
       <p class="font-semibold">{spotlit?.card.name}</p>
       <p class="text-sm opacity-60">
         {[spotlit?.card.setName, spotlit?.card.rarity, spotlit?.card.cardNumber]
@@ -151,39 +139,6 @@
     {/snippet}
 
     {#snippet actions()}
-      {#if spotlit?.kind === 'slot'}
-        <button
-          type="button"
-          class="btn btn-lg preset-filled-primary-500 min-w-64 shadow-lg shadow-primary-500/30"
-          onclick={returnToTray}
-        >
-          <CornerUpLeftIcon class="size-5" />
-          <span>Send back to the tray</span>
-        </button>
-      {:else if spotlit}
-        <button
-          type="button"
-          class="btn btn-lg preset-filled-primary-500 min-w-64 shadow-lg shadow-primary-500/30"
-          disabled={!hasFreePocket}
-          onclick={placeInFirstFreePocket}
-        >
-          <BetweenHorizontalStartIcon class="size-5" />
-          <span>
-            {hasFreePocket
-              ? 'Place in the first free pocket'
-              : 'Every pocket on this spread is full'}
-          </span>
-        </button>
-        <button type="button" class="btn btn-lg preset-tonal-error" onclick={removeFromTray}>
-          <Trash2Icon class="size-5" />
-          <span>
-            {spotlit && tray.quantityOf(spotlit.card.id) > 1
-              ? `Remove all ${tray.quantityOf(spotlit.card.id)} from the tray`
-              : 'Remove from the tray'}
-          </span>
-        </button>
-      {/if}
-
       <button type="button" class="btn btn-lg preset-tonal" onclick={() => (spotlit = null)}>
         Close
       </button>
