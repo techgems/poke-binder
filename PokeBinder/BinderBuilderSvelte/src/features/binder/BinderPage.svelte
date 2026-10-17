@@ -4,6 +4,7 @@
   import EyeIcon from '@lucide/svelte/icons/eye'
   import EyeOffIcon from '@lucide/svelte/icons/eye-off'
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
+  import TagIcon from '@lucide/svelte/icons/tag'
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
   import type { Snippet } from 'svelte'
 
@@ -11,7 +12,23 @@
   import { binderPage, type DragSource } from '../../stores/binder-page.svelte'
   import { clickAdd } from '../../stores/click-add.svelte'
   import { clipboard } from '../../stores/clipboard.svelte'
+  import { pocketLabels, type LabelColor } from '../../stores/labels.svelte'
   import { spotlight } from '../../stores/spotlight.svelte'
+
+  /**
+   * The chip background per colour name, so stored rows carry a short word and the look lives in
+   * one place. 500 shade over white text reads at this size on any card art.
+   */
+  const CHIP_CLASS: Record<LabelColor, string> = {
+    red: 'bg-red-600 text-white',
+    orange: 'bg-orange-600 text-white',
+    amber: 'bg-amber-500 text-black',
+    green: 'bg-green-600 text-white',
+    teal: 'bg-teal-600 text-white',
+    blue: 'bg-blue-600 text-white',
+    purple: 'bg-purple-600 text-white',
+    pink: 'bg-pink-600 text-white',
+  }
 
   interface Props {
     /**
@@ -203,14 +220,29 @@
                     <!-- aria-hidden because the slot's own aria-label already says "(missing)";
                          the chip is for the eye, not the screen reader. The title is a tooltip
                          for the pointer: a chip saying "Missing" is cryptic until you know what
-                         marking a pocket as missing means. Bottom-right so step 3's label chip can
-                         have the bottom-left corner it is specced for. -->
+                         marking a pocket as missing means. Bottom-right so the label chip can
+                         have the bottom-left corner. -->
                     <span
                       aria-hidden="true"
                       title="This pocket is held for a card the collector does not own yet"
                       class="badge preset-filled-warning-500 absolute right-1 bottom-1 text-xs font-semibold shadow"
                     >
                       Missing
+                    </span>
+                  {/if}
+                  {#if pocketLabels.get(index)}
+                    {@const label = pocketLabels.get(index)!}
+                    <!-- The label chip, bottom-left so Missing's bottom-right has its own corner.
+                         max-w cuts off any value that squeaked past MAX_LABEL_LENGTH, which the
+                         editor already clamps -- a belt alongside the braces. truncate keeps the
+                         chip to one line and lets the ellipsis stand in for anything cut. -->
+                    <span
+                      title={label.text}
+                      class="badge absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate text-xs font-semibold shadow {CHIP_CLASS[
+                        label.color
+                      ]}"
+                    >
+                      {label.text}
                     </span>
                   {/if}
                 {/if}
@@ -270,6 +302,22 @@
                     onclick={fire(() => clipboard.copy(card, index))}
                   >
                     <CopyIcon />
+                  </button>
+                  <!-- Label opens the editor modal for this pocket. See `stores/labels.svelte.ts`
+                       for the editor state. The modal lives in `App.svelte` so it is not clipped
+                       to this pocket's size. -->
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-xl pointer-events-auto preset-filled-surface-100-900"
+                    title={pocketLabels.get(index)
+                      ? `Edit the label on ${card.name ?? 'card'}`
+                      : `Label ${card.name ?? 'card'}`}
+                    aria-label={pocketLabels.get(index)
+                      ? `Edit the label on ${card.name ?? 'card'}`
+                      : `Label ${card.name ?? 'card'}`}
+                    onclick={fire(() => pocketLabels.openEditor(index))}
+                  >
+                    <TagIcon />
                   </button>
                   <!-- One button that toggles: a missing pocket is one the collector has flagged
                        for a card they do not own yet, and pressing again says they have it after

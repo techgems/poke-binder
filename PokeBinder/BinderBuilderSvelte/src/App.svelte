@@ -15,6 +15,7 @@
   import { toaster } from './components/toaster'
   import WorkspacePanel from './components/WorkspacePanel.svelte'
   import { DEFAULT_WORKSPACE_TAB, type WorkspaceTab } from './components/workspace-tab'
+  import LabelModal from './features/binder/LabelModal.svelte'
   import ReorderModal from './features/binder/sort/ReorderModal.svelte'
   import { binderPage } from './stores/binder-page.svelte'
   import { clickAdd } from './stores/click-add.svelte'
@@ -193,7 +194,11 @@
     <!-- A switch like click-add below, and for the same reasons: aria-pressed, the filled state,
          and a place in the rail. It is only about clicks: edits -- drags, click-add, undo, redo,
          reorder, add-set -- all keep working, and spotlight simply takes a plain click on a
-         placed card for itself, with the hover toolbox out of the way. -->
+         placed card for itself, with the hover toolbox out of the way.
+
+         Spotlight and click-add are mutually exclusive: both decide what a click on a card does,
+         and leaving both on means one has to win silently. Turning one on turns the other off,
+         right here at the switch, so the state the user picks is the state that holds. -->
     <button
       type="button"
       class="btn-icon btn-icon-lg {spotlight.enabled ? 'preset-tonal-primary' : 'hover:preset-tonal'}"
@@ -202,13 +207,18 @@
         : 'Spotlight mode is off — the hover toolbox is how a card is acted on'}
       aria-label="Spotlight mode"
       aria-pressed={spotlight.enabled}
-      onclick={() => spotlight.toggle()}
+      onclick={() => {
+        if (!spotlight.enabled) clickAdd.enabled = false
+
+        spotlight.toggle()
+      }}
     >
       <EyeIcon class="size-6" />
     </button>
     <!-- A switch, not an action: aria-pressed is what says so, and the filled state is the same
          claim made in colour. It sits with the other rail buttons rather than in the binder view
-         because it governs both halves of that view -- the pockets and the tray strip. -->
+         because it governs both halves of that view -- the pockets and the tray strip. The mutex
+         with Spotlight is handled above. -->
     <button
       type="button"
       class="btn-icon btn-icon-lg {clickAdd.enabled ? 'preset-tonal-primary' : 'hover:preset-tonal'}"
@@ -217,7 +227,11 @@
         : 'Click-add mode is off — cards move by dragging'}
       aria-label="Click-add mode"
       aria-pressed={clickAdd.enabled}
-      onclick={() => clickAdd.toggle()}
+      onclick={() => {
+        if (!clickAdd.enabled) spotlight.enabled = false
+
+        clickAdd.toggle()
+      }}
     >
       <MousePointerClickIcon class="size-6" />
     </button>
@@ -304,6 +318,10 @@
 </Toast.Group>
 
 <ReorderModal bind:open={reorderOpen} bind:busy={reordering} />
+
+<!-- Opens from the Label button in the pocket toolbox and reads `pocketLabels.editingIndex`. The
+     component owns its own open-state sync with the store. -->
+<LabelModal />
 
 <Modal bind:open={searchOpen} title="Search cards">
   <input class="input" type="search" placeholder="Search by card name…" />
