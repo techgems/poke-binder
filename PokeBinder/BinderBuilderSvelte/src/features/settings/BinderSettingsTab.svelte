@@ -6,13 +6,17 @@
 -->
 <script lang="ts">
   import ArrowDownWideNarrowIcon from '@lucide/svelte/icons/arrow-down-wide-narrow'
+  import CheckIcon from '@lucide/svelte/icons/check'
   import EraserIcon from '@lucide/svelte/icons/eraser'
   import ListOrderedIcon from '@lucide/svelte/icons/list-ordered'
   import MinusIcon from '@lucide/svelte/icons/minus'
+  import PencilIcon from '@lucide/svelte/icons/pencil'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import ShoppingBasketIcon from '@lucide/svelte/icons/shopping-basket'
+  import TagIcon from '@lucide/svelte/icons/tag'
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
   import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert'
+  import XIcon from '@lucide/svelte/icons/x'
   import type { Component } from 'svelte'
   import { fade } from 'svelte/transition'
 
@@ -22,6 +26,12 @@
   import { toaster } from '../../components/toaster'
   import { preloadedBinder } from '../../preloads/preload'
   import { binderPage } from '../../stores/binder-page.svelte'
+  import {
+    LABEL_COLORS,
+    MAX_LABEL_LENGTH,
+    pocketLabels,
+    type LabelColor,
+  } from '../../stores/labels.svelte'
   import { MAX_CARDS, tray } from '../../stores/tray.svelte'
   import type { SortCriterion } from '../binder/sort/reorder-criteria'
   import SortCriteriaEditor from '../binder/sort/SortCriteriaEditor.svelte'
@@ -49,6 +59,86 @@
   let criteria = $state<SortCriterion[]>(sortSession.criteria)
 
   let deleteOpen = $state(false)
+
+  // Labels panel state. The row the editor is on, or null when nothing is being edited; `-1`
+  // means the "new label" row is open. Draft name and colour drive both inline edits and the new
+  // row. `deletingLabelId` opens the delete-confirmation modal; the modal pulls name and usage
+  // count from the label at the time it opens so the prose does not race the user clearing it.
+  const SWATCH_CLASS: Record<LabelColor, string> = {
+    red: 'bg-red-600',
+    orange: 'bg-orange-600',
+    amber: 'bg-amber-500',
+    green: 'bg-green-600',
+    teal: 'bg-teal-600',
+    blue: 'bg-blue-600',
+    purple: 'bg-purple-600',
+    pink: 'bg-pink-600',
+  }
+
+  let editingLabelId = $state<number | null>(null)
+  let draftLabelName = $state('')
+  let draftLabelColor = $state<LabelColor>('blue')
+
+  let deletingLabelId = $state<number | null>(null)
+
+  const labelsList = $derived(pocketLabels.all)
+
+  const nameClashes = $derived(
+    draftLabelName.trim().length > 0 &&
+      pocketLabels.nameTaken(draftLabelName, editingLabelId === -1 ? undefined : (editingLabelId ?? undefined)),
+  )
+  const canSaveLabel = $derived(draftLabelName.trim().length > 0 && !nameClashes)
+
+  function startNewLabel(): void {
+    editingLabelId = -1
+    draftLabelName = ''
+    draftLabelColor = 'blue'
+  }
+
+  function startEditLabel(id: number): void {
+    const label = pocketLabels.get(id)
+
+    if (!label) return
+
+    editingLabelId = id
+    draftLabelName = label.name
+    draftLabelColor = label.color
+  }
+
+  function cancelLabelEdit(): void {
+    editingLabelId = null
+    draftLabelName = ''
+    draftLabelColor = 'blue'
+  }
+
+  function saveLabelEdit(): void {
+    if (!canSaveLabel) return
+
+    if (editingLabelId === -1) {
+      pocketLabels.createLabel({ name: draftLabelName, color: draftLabelColor })
+    } else if (editingLabelId !== null) {
+      pocketLabels.renameLabel(editingLabelId, draftLabelName)
+      pocketLabels.recolorLabel(editingLabelId, draftLabelColor)
+    }
+
+    cancelLabelEdit()
+  }
+
+  function confirmDeleteLabel(): void {
+    if (deletingLabelId === null) return
+
+    pocketLabels.deleteLabel(deletingLabelId)
+    deletingLabelId = null
+  }
+
+  // Pulled while the confirm modal is open so the prose quotes the right name even if a race
+  // changes the label underneath.
+  const deletingLabel = $derived(
+    deletingLabelId === null ? null : pocketLabels.get(deletingLabelId) ?? null,
+  )
+  const deletingUsageCount = $derived(
+    deletingLabelId === null ? 0 : pocketLabels.usageCount(deletingLabelId),
+  )
 
   // Out to the server, and then -- once it has answered -- waiting on the refresh. Either way the
   // form is done with.
@@ -534,6 +624,206 @@
             {/if}
           </section>
         {/if}
+
+        <!-- Labels panel: the binder's full list of labels, where the collector renames, recolors
+             and deletes them. Up to three labels per card is enforced at the pocket (the Label
+             modal); this section is where new ones are added and old ones are managed. Nothing
+             here is wired to the server yet -- substep 4 of step 1 does that. -->
+        <section class="space-y-3" aria-labelledby="labels-heading">
+          <header class="flex items-center justify-between">
+            <h2 id="labels-heading" class="h5">Labels</h2>
+            <button
+              type="button"
+              class="btn btn-sm preset-filled-primary-500"
+              disabled={editingLabelId !== null}
+              onclick={startNewLabel}
+            >
+              <PlusIcon class="size-4" />
+              <span>New label</span>
+            </button>
+          </header>
+
+          <p class="text-sm opacity-60">
+            Short tags for the cards in this binder. Rename or recolor a label and every chip of
+            it follows; delete it and every assignment of it goes with it.
+          </p>
+
+          <!-- The create row sits at the top of the list so new labels land where the eye
+               already is. In edit mode a row swaps for the same form. -->
+          {#if editingLabelId === -1}
+            <div
+              class="card flex flex-col gap-3 border border-primary-500/50 bg-primary-500/5 p-3"
+            >
+              <div class="flex items-center gap-3">
+                <span class="size-5 shrink-0 rounded-full {SWATCH_CLASS[draftLabelColor]}"></span>
+                <input
+                  type="text"
+                  class="input"
+                  maxlength={MAX_LABEL_LENGTH}
+                  placeholder="Label name"
+                  autofocus
+                  bind:value={draftLabelName}
+                  onkeydown={(event) => {
+                    if (event.key === 'Enter' && canSaveLabel) {
+                      event.preventDefault()
+                      saveLabelEdit()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      cancelLabelEdit()
+                    }
+                  }}
+                />
+              </div>
+              <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Label colour">
+                {#each LABEL_COLORS as swatch (swatch)}
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={draftLabelColor === swatch}
+                    aria-label={swatch}
+                    title={swatch}
+                    onclick={() => (draftLabelColor = swatch)}
+                    class="size-7 rounded-full ring-offset-2 ring-offset-surface-50-950 transition-shadow {SWATCH_CLASS[
+                      swatch
+                    ]} {draftLabelColor === swatch ? 'ring-2 ring-primary-500' : ''}"
+                  ></button>
+                {/each}
+              </div>
+              {#if nameClashes}
+                <span class="text-xs text-error-500">
+                  That name is already used in this binder.
+                </span>
+              {/if}
+              <div class="flex items-center justify-end gap-2">
+                <button type="button" class="btn btn-sm preset-tonal" onclick={cancelLabelEdit}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm preset-filled-primary-500"
+                  disabled={!canSaveLabel}
+                  onclick={saveLabelEdit}
+                >
+                  <TagIcon class="size-4" />
+                  <span>Create label</span>
+                </button>
+              </div>
+            </div>
+          {/if}
+
+          {#if labelsList.length === 0 && editingLabelId !== -1}
+            <p
+              class="rounded-container border border-surface-200-800/50 p-3 text-sm opacity-75"
+            >
+              No labels yet. Press <strong>New label</strong> to add the first one.
+            </p>
+          {:else}
+            <ul class="space-y-1">
+              {#each labelsList as label (label.id)}
+                {@const usage = pocketLabels.usageCount(label.id)}
+                {@const editing = editingLabelId === label.id}
+                <li>
+                  {#if editing}
+                    <!-- Edit mode: same form as the new row, pre-filled. Save writes rename and
+                         recolor in one entry (substep 4 collapses them into a `LabelDelta`). -->
+                    <div
+                      class="card flex flex-col gap-3 border border-primary-500/50 bg-primary-500/5 p-3"
+                    >
+                      <div class="flex items-center gap-3">
+                        <span class="size-5 shrink-0 rounded-full {SWATCH_CLASS[draftLabelColor]}"></span>
+                        <input
+                          type="text"
+                          class="input"
+                          maxlength={MAX_LABEL_LENGTH}
+                          autofocus
+                          bind:value={draftLabelName}
+                          onkeydown={(event) => {
+                            if (event.key === 'Enter' && canSaveLabel) {
+                              event.preventDefault()
+                              saveLabelEdit()
+                            } else if (event.key === 'Escape') {
+                              event.preventDefault()
+                              cancelLabelEdit()
+                            }
+                          }}
+                        />
+                      </div>
+                      <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Label colour">
+                        {#each LABEL_COLORS as swatch (swatch)}
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={draftLabelColor === swatch}
+                            aria-label={swatch}
+                            title={swatch}
+                            onclick={() => (draftLabelColor = swatch)}
+                            class="size-7 rounded-full ring-offset-2 ring-offset-surface-50-950 transition-shadow {SWATCH_CLASS[
+                              swatch
+                            ]} {draftLabelColor === swatch ? 'ring-2 ring-primary-500' : ''}"
+                          ></button>
+                        {/each}
+                      </div>
+                      {#if nameClashes}
+                        <span class="text-xs text-error-500">
+                          That name is already used in this binder.
+                        </span>
+                      {/if}
+                      <div class="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          class="btn btn-sm preset-tonal"
+                          onclick={cancelLabelEdit}
+                        >
+                          <XIcon class="size-4" />
+                          <span>Cancel</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm preset-filled-primary-500"
+                          disabled={!canSaveLabel}
+                          onclick={saveLabelEdit}
+                        >
+                          <CheckIcon class="size-4" />
+                          <span>Save</span>
+                        </button>
+                      </div>
+                    </div>
+                  {:else}
+                    <div
+                      class="flex items-center gap-3 rounded-container border border-surface-200-800/50 p-3"
+                    >
+                      <span class="size-5 shrink-0 rounded-full {SWATCH_CLASS[label.color]}"></span>
+                      <span class="flex-1 truncate text-sm font-medium">{label.name}</span>
+                      <span class="text-xs opacity-60">
+                        {usage === 1 ? 'on 1 card' : `on ${usage} cards`}
+                      </span>
+                      <button
+                        type="button"
+                        class="btn-icon btn-icon-sm hover:preset-tonal"
+                        disabled={editingLabelId !== null}
+                        title="Edit {label.name}"
+                        aria-label="Edit {label.name}"
+                        onclick={() => startEditLabel(label.id)}
+                      >
+                        <PencilIcon class="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon btn-icon-sm hover:preset-tonal-error"
+                        disabled={editingLabelId !== null}
+                        title="Delete {label.name}"
+                        aria-label="Delete {label.name}"
+                        onclick={() => (deletingLabelId = label.id)}
+                      >
+                        <Trash2Icon class="size-4 text-error-500" />
+                      </button>
+                    </div>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
       </div>
     </div>
 
@@ -603,3 +893,44 @@
     </footer>
   </Modal>
 {/if}
+
+<!-- Delete-label confirmation, count-aware so the collector knows what the delete reaches. The
+     modal reads its text from `deletingLabel` / `deletingUsageCount`, which are derived from the
+     label at the time it opens, so a race (the chip count ticking up as another tab plays with
+     the same binder) does not leave stale prose on the dialog. -->
+<Modal
+  open={deletingLabelId !== null}
+  title="Delete this label?"
+  width="max-w-md"
+>
+  {#if deletingLabel}
+    <p class="text-sm">
+      Delete <strong>{deletingLabel.name}</strong>?
+      {#if deletingUsageCount === 0}
+        No cards use it right now.
+      {:else if deletingUsageCount === 1}
+        This removes it from <strong>1 card</strong>.
+      {:else}
+        This removes it from <strong>{deletingUsageCount} cards</strong>.
+      {/if}
+    </p>
+
+    <footer class="flex justify-end gap-2">
+      <button
+        type="button"
+        class="btn btn-sm preset-tonal"
+        onclick={() => (deletingLabelId = null)}
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="btn btn-sm preset-filled-error-500"
+        onclick={confirmDeleteLabel}
+      >
+        <Trash2Icon class="size-4" />
+        <span>Delete label</span>
+      </button>
+    </footer>
+  {/if}
+</Modal>

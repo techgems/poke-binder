@@ -3,6 +3,7 @@ import type { ReorderedCard } from '../clients/BinderReorderClient'
 import type { CardSearchResult } from '../clients/CardSearchClient'
 import type { PreloadedBinder } from '../preloads/preload'
 import { history } from './history.svelte'
+import { pocketLabels } from './labels.svelte'
 import { save } from './save.svelte'
 import { tray } from './tray.svelte'
 
@@ -361,6 +362,10 @@ export const binderPage = {
         changeSlot(index, sourceSlot)
         changeSlot(source.index, targetSlot)
 
+        // Labels follow their card. Substep 4 moves this into the slot delta so it ends up
+        // undoable like the rest; for now the client-only store is swapped alongside the slot.
+        pocketLabels.swapPockets(source.index, index)
+
         return
       }
 
@@ -374,6 +379,10 @@ export const binderPage = {
       // was flagged missing for an older card, that flag went with the displaced slot above.
       changeSlot(index, { card: source.card, missing: false })
 
+      // Displaced goes to the tray; labels do not travel to the tray, so clear whatever was on
+      // this pocket. The new card starts with no labels.
+      pocketLabels.clearPocket(index)
+
       // Placing spends one of the copies waiting in the tray; setQuantity drops the entry when the
       // last one leaves.
       tray.setQuantity(source.card.id, tray.quantityOf(source.card.id) - 1)
@@ -382,7 +391,7 @@ export const binderPage = {
 
   /** Drops the card being dragged back into the tray. Only a card from a pocket has anywhere to go.
    * The missing flag is left behind -- a tray entry is one card with a count, with nowhere to keep
-   * it -- and an undo brings it back with its slot. */
+   * it -- and an undo brings it back with its slot. Labels follow the same rule. */
   dropOnTray(): void {
     const source = dragged
 
@@ -396,12 +405,14 @@ export const binderPage = {
       changeSlot(index, null)
 
       tray.add(card)
+
+      pocketLabels.clearPocket(index)
     })
   },
 
   /**
    * Takes a card out of a pocket without a drag — the same transfer the drop above performs, for
-   * anyone not using a mouse. Same rule for the missing flag: dropped on the tray, restored by undo.
+   * anyone not using a mouse. Same rule for the missing flag and the labels: dropped on the tray.
    */
   returnToTray(index: number): void {
     const slot = slots[index]
@@ -412,19 +423,23 @@ export const binderPage = {
       changeSlot(index, null)
 
       tray.add(slot.card)
+
+      pocketLabels.clearPocket(index)
     })
   },
 
   /**
    * Empties the pocket. The card goes nowhere -- not to the tray -- which is what sets this apart
    * from `returnToTray`. Undo brings the slot back as it was, missing flag included, like any other
-   * slot change, so there is no confirmation to carry.
+   * slot change, so there is no confirmation to carry. Labels on the pocket go with the card.
    */
   deleteFromBinder(index: number): void {
     if (!slots[index]) return
 
     history.act(() => {
       changeSlot(index, null)
+
+      pocketLabels.clearPocket(index)
     })
   },
 
@@ -450,6 +465,10 @@ export const binderPage = {
       if (existing && displacedTo === 'tray') tray.add(existing.card)
 
       changeSlot(index, { card, missing: false })
+
+      // Displaced card -- whether sent to tray or discarded -- loses its labels; the pasted card
+      // starts with none, same as a tray drop.
+      pocketLabels.clearPocket(index)
     })
   },
 

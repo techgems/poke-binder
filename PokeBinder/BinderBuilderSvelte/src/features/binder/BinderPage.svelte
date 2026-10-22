@@ -230,20 +230,26 @@
                       Missing
                     </span>
                   {/if}
-                  {#if pocketLabels.get(index)}
-                    {@const label = pocketLabels.get(index)!}
-                    <!-- The label chip, bottom-left so Missing's bottom-right has its own corner.
-                         max-w cuts off any value that squeaked past MAX_LABEL_LENGTH, which the
-                         editor already clamps -- a belt alongside the braces. truncate keeps the
-                         chip to one line and lets the ellipsis stand in for anything cut. -->
-                    <span
-                      title={label.text}
-                      class="badge absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate text-xs font-semibold shadow {CHIP_CLASS[
-                        label.color
-                      ]}"
+                  {@const pocketChips = pocketLabels.forPocket(index)}
+                  {#if pocketChips.length > 0}
+                    <!-- Label chips, bottom-left so Missing's bottom-right has its own corner.
+                         Up to three fit side-by-side at the standard pocket size; the row wraps
+                         onto a second line when a tag is long. Each chip is `truncate` with a
+                         max-w so one long tag does not push the others off-screen. -->
+                    <div
+                      class="pointer-events-none absolute bottom-1 left-1 flex max-w-[calc(100%-0.5rem)] flex-wrap gap-1"
                     >
-                      {label.text}
-                    </span>
+                      {#each pocketChips as chip (chip.id)}
+                        <span
+                          title={chip.name}
+                          class="badge pointer-events-auto max-w-full truncate text-xs font-semibold shadow {CHIP_CLASS[
+                            chip.color
+                          ]}"
+                        >
+                          {chip.name}
+                        </span>
+                      {/each}
+                    </div>
                   {/if}
                 {/if}
               </button>
@@ -303,18 +309,14 @@
                   >
                     <CopyIcon />
                   </button>
-                  <!-- Label opens the editor modal for this pocket. See `stores/labels.svelte.ts`
-                       for the editor state. The modal lives in `App.svelte` so it is not clipped
-                       to this pocket's size. -->
+                  <!-- Label opens the picker modal for this pocket. The modal shows every label
+                       the binder owns and lets the collector toggle up to three on this card, or
+                       create a new one in place. See `stores/labels.svelte.ts`. -->
                   <button
                     type="button"
                     class="btn-icon btn-icon-xl pointer-events-auto preset-filled-surface-100-900"
-                    title={pocketLabels.get(index)
-                      ? `Edit the label on ${card.name ?? 'card'}`
-                      : `Label ${card.name ?? 'card'}`}
-                    aria-label={pocketLabels.get(index)
-                      ? `Edit the label on ${card.name ?? 'card'}`
-                      : `Label ${card.name ?? 'card'}`}
+                    title="Labels on {card.name ?? 'card'}"
+                    aria-label="Labels on {card.name ?? 'card'}"
                     onclick={fire(() => pocketLabels.openEditor(index))}
                   >
                     <TagIcon />

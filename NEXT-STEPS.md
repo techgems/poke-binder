@@ -18,49 +18,140 @@ moment it runs.
 
 ## 1. Card labels
 
-A toolbox action that opens a modal to **give a card a label**: a short text and one of **8
-colours**. The label shows as a chip in the card's **bottom-left corner**.
+Short tags you give the cards in a binder -- up to **three per card**, in the pocket's bottom-left
+corner -- picked from a list of labels **the binder owns**. A label is a short name and one of
+**eight colours**; the collector creates them, applies them to as many cards as they like, and
+manages them from Settings. Rename a label and every chip of it in the binder follows; delete it
+and every assignment of it goes with it.
+
+The per-pocket mockup (first attempt, in the code since commit 82079ba) and the binder-scoped UI
+reshape (substep 1 below, in the code since the local commit after it) are both done. **Substeps 2–3
+are the server work; substep 4 is the client wiring that replaces the session-only state with the
+real round trip.**
 
 ### What it does
 
-- **A short tag, about 20 characters** ("Trade", "PSA 10"), so it fits the corner at small pocket
-  sizes without covering the art.
-- **One label per pocket.** On a card that already has one, the action edits it, and the modal can
-  remove it.
-- **The label belongs to the card in that pocket:** it travels with the card when it moves between
-  pockets or is reordered, and Delete from binder takes it away. Undo restores it.
-- **Copy does not carry it.**
-- **The spotlight does not show it.** Spotlight mode is for looking at the art; the chip hides
-  while a card is lifted.
+- **A chip per label**, each a short tag (around 20 characters) in a bright background, in the
+  pocket's bottom-left corner. Three chips fit side-by-side at the standard pocket size and wrap
+  onto two lines when a tag is long. Missing's chip stays bottom-right.
+- **Up to three labels per card.** The schema's `CHECK` and the validator both say so; the picker
+  disables the fourth row while three are checked.
+- **The picker lives in the Label modal**, opened from the Tag button in the toolbox. Two tabs:
+  **Assign** (default) shows the labels on this card at the top and the labels available in the
+  binder below; drag from Available onto the card, or click a row to add. Each chip on the card
+  has an X that returns it to Available; Clear all empties the card side in one press. **Create
+  label** is a tab for the inline create form; Save there creates the label on the binder (one
+  dedicated slice call -- see below) and, as long as the card has room, applies it to this
+  pocket, then switches back to Assign.
+- **Pending-until-close for freshly created labels.** A label created in the modal is pending
+  while the modal is open: dropping it off the card with its chip-X before the modal closes
+  discards it entirely rather than returning it to Available, which is the typo / wrong-colour /
+  accidental-creation escape. Once the modal closes, pending labels are committed and that path
+  is gone.
+- **Settings owns rename, recolor and delete.** A Labels section in `BinderSettingsTab.svelte`
+  lists every label with its name, swatch and usage count, with per-row Edit (inline rename and
+  recolor) and Delete -- Delete asks first with the count ("Delete 'Trade'? This removes it from
+  12 cards."). Settings' Save button is what sends the labels sync -- edits do not fire per
+  press.
+- **Label names are unique per binder**, enforced in the validator and by a `UNIQUE(binderId,
+  name)` index.
+- **No cap on how many labels a binder has.** Collector prunes from Settings.
+- **A label stays once created**, even when no card uses it; orphans are not auto-cleaned.
+- **Labels travel with their card** on a drag, a reorder and `returnToTray` -- same rule the
+  missing flag already follows. **Deleting the card drops its labels** (the delete and the
+  paste-conflict Remove both set the slot to null, so the assignments go with it). **Copy does
+  not carry them**, matching the copy-no-label rule for everything that is not on the catalog
+  card.
+- **The spotlight does not show the chips.** Spotlight is for looking at the art.
+- **The eight colours stay as the Tailwind-named set** -- red, orange, amber, green, teal, blue,
+  purple, pink. The user does not pick their own, so the eight are what they are and new ones can
+  be added without rewriting any stored row.
+- **Spotlight / Click-add mutex** stays in effect; label edits happen through the toolbox and the
+  modal, not through plain card clicks.
 
 ### Where it plugs in
 
-- **The modal** is `components/Modal.svelte` (Skeleton `Dialog` in a `Portal`). The delete-binder
-  dialog in `BinderSettingsTab.svelte` uses it at `max-w-lg`.
-- **Nothing like it exists yet:** no label, note or colour on a binder card anywhere -- schema,
-  slices or SPA. So this one has server work, which goes after the UI per the usual order:
-  - **a migration** adding the label and its colour to `binderCards` -- schema, so a migration,
-    not a script;
-  - the `BinderCard` entity and its mapping in `BinderDbContext`;
-  - `PlacedCard` and the `SaveBinderChanges` diff and validator (length, colour from the set);
-  - `BinderPlacement` in `GetFullBinder`, and the preload that carries it to the client;
-  - **every slice that rewrites pockets has to carry it or it is lost:** the reorder
-    (`Shared/Arrangement`, `ReorderedCard`) and `AddSetToBinder`;
-  - on the client, the slot, `ArrangedPocket`, the history deltas and the save request.
-- **Store the colour as a name, not a hex**, so the 8 swatches can be restyled without rewriting
-  stored rows.
+- **The chip and the picker** live in `BinderPage.svelte` (chips in the pocket) and
+  `LabelModal.svelte` (the Assign + Create tabs). Both exist today in the substep-1 shape.
+- **The Settings section** is in `BinderSettingsTab.svelte` as its own panel. Also already in the
+  substep-1 shape; substep 4 swaps its per-edit writes for the Save-button sync.
+- **The join table carries the three-cap.** A per-pocket array on the client, a join row per
+  assignment on the server, so a cascade on the card or on the label cleans itself up.
 
 ### Substeps
 
-1. **The UI, with nothing wired:** the modal, the 8 swatches and the chip on the card.
-2. **The schema, the slices and the client wiring**, with tests per "Rules for tests" in
-   `CLAUDE.md`.
-
-### Open questions
-
-- **Which 8 colours.** The theme's named colours, or a set of their own?
-- **Moving to the tray.** Tray entries are one per card with a count, so a labelled card sent to
-  the tray has nowhere to keep its label. Is it dropped, or does Move to tray warn first?
+1. ✅ **(DONE) Binder-scoped labels, UI only.** `stores/labels.svelte.ts` holds two SvelteMaps:
+   the binder's labels (keyed by a local id, carrying name and color) and the pocket assignments
+   (keyed by pocket index, with an ordered list of up to three label ids). `LabelModal.svelte` has
+   the Assign / Create tabs with drag-and-drop between the two lists, pending-until-close for
+   freshly created labels, and chip-X-discards-pending. `BinderSettingsTab.svelte` has the Labels
+   panel. `binder-page.svelte.ts` clears or swaps pocket assignments on delete, return-to-tray,
+   drops and paste; substep 4 moves those into `changeSlot`. Per-session only; nothing posted.
+2. **Schema and entity.** Migration under `PokeBinder.Migrations/Scripts/BinderDb/` adding:
+   - `binderCardLabels(id INTEGER PK, binderId INTEGER NOT NULL REFERENCES binders(id) ON DELETE
+     CASCADE, name TEXT NOT NULL, color TEXT NOT NULL)`, with `UNIQUE(binderId, name)` and an
+     index on `binderId`.
+   - `binderCardLabelAssignments(binderCardId INTEGER NOT NULL REFERENCES binderCards(id) ON
+     DELETE CASCADE, labelId INTEGER NOT NULL REFERENCES binderCardLabels(id) ON DELETE CASCADE,
+     orderIndex INTEGER NOT NULL CHECK (orderIndex BETWEEN 0 AND 2), PRIMARY KEY (binderCardId,
+     labelId))`. The three-cap and the cascade on both sides live in the schema.
+   - New `BinderCardLabel` and `BinderCardLabelAssignment` entities under
+     `PokeBinder.Binder.DbContext/Entities/` and their mappings in `BinderDbContext.cs`.
+3. **Slices, validators and tests.** Three touchpoints; no CRUD-per-action for labels.
+   - **New slice `CreateBinderCardLabel`**: `{ binderId, name, color }` → `{ id }`. The one
+     dedicated label slice. Fires from Create-and-apply in the modal and from Settings' "New
+     label" press. Validator: name length, colour whitelist, unique `(binderId, name)`. A label
+     always has a real id before anything else can reference it.
+   - **`SaveBinderSettings` grows `labels: { id, name, color }[]`** -- a sync of the binder's
+     labels. Every id is real (no nulls). The server reconciles:
+     - id in DB and in payload → **update** (rename and recolor).
+     - id in DB but not in payload → **delete**; `ON DELETE CASCADE` strips the join rows and
+       with them any `labelIds` on `binderCards`.
+     - id in payload but not in DB → validator rejects. No inserts through this field; new labels
+       only come through `CreateBinderCardLabel`.
+   - **`SaveBinderChanges.SavedCard` grows `labelIds: int[]`** -- 0–3 ids, each already in this
+     binder. Snapshot semantics match `isMissing`: within the save's `pages`, whatever labels the
+     pocket had are replaced by the request's array; an emptied pocket is absent from `cards` and
+     its join rows cascade. Validator: each id exists on this binder, no duplicates per pocket,
+     no more than three per pocket. `.Cascade(CascadeMode.Stop)` + null-return on every list rule.
+   - **`ReorderBinder` and `AddSetToBinder`** carry `labelIds` on `ReorderedCard` /
+     `ArrangedPocket` so labels travel with their cards through a reorder or add-set.
+   - **`GetFullBinder`** returns the binder's labels and each `BinderPlacement`'s ordered
+     `labelIds`.
+   - **Tests** per "Rules for tests":
+     - `CreateBinderCardLabel`: happy path, duplicate name, invalid colour, binder not found.
+     - `SaveBinderSettings` labels field: rename, recolor, delete-by-omission + cascade of join
+       rows, dangling id rejection, name-collision rejection across the state the request leaves
+       behind.
+     - `SaveBinderChanges`: assignments by id, cap enforcement, duplicates, labels travel through
+       a reorder, labels disappear when a pocket is emptied.
+4. **Client wiring.** Three write paths; only one of them calls the dedicated label slice.
+   - **Pending-labels staging stays client-only.** `pocketLabels.pending: SvelteMap<number,
+     Label>` with local negative ids, separate from the committed `labels`. The picker merges
+     them. Chip-X on a pending label drops it from both maps; nothing is sent.
+   - **Create-and-apply (modal) → `CreateBinderCardLabel` right away.** On success, swap the
+     negative id for the real id in `pocketAssignments`, move the entry from `pending` into
+     `labels`, record a `LabelCreateDelta`. On failure, error toast ("Could not create '{name}'.
+     Try again."), pending entry dropped, no card change.
+   - **Modal close** records the assignment changes in history and arms the debounced
+     `SaveBinderChanges`, which now carries each affected pocket's `labelIds` alongside its card
+     and missing flag. One save, same existing debounce window.
+   - **Settings panel's labels list** round-trips through `SaveBinderSettings` on its Save button:
+     the full `labels` field with every id, carrying any renames and recolors; omission is a
+     delete. Settings' "New label" still calls `CreateBinderCardLabel` first so the id exists
+     before Save sends the sync.
+   - **`SlotDelta` gains `labelIds: readonly number[]`** on `ArrangedPocket`, next to the missing
+     flag. `pocketDiffers` compares the arrays. The explicit `pocketLabels.clearPocket` /
+     `swapPockets` calls in `binder-page.svelte.ts` go away -- `changeSlot` carries the whole
+     slot (card + missing + labelIds).
+   - **Preload**: `PreloadedBinder` lands the binder's labels and each pocket's `labelIds` at
+     load, replacing the substep-1 local-only state.
+   - **History deltas**:
+     - Assignment changes: existing `SlotDelta` with the new `labelIds` field. Fully undoable via
+       the existing save flow.
+     - `LabelCreateDelta`: one entry per `CreateBinderCardLabel` success.
+     - Settings edits (rename, recolor, delete) are not Ctrl+Z undoable in this round; Settings
+       has its own Save and Discard controls, and the delete has the count-aware confirmation.
 
 ---
 
