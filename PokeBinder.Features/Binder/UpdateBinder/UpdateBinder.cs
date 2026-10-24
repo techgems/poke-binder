@@ -61,18 +61,18 @@ public static class UpdateBinder
         /// <summary>
         /// The binder's labels as they should stand after this save. A sync, not a CRUD:
         /// <list type="bullet">
-        ///   <item>A positive id already on the binder is an update: a different name or colour
+        ///   <item>A non-null id already on the binder is an update: a different name or colour
         ///   lands as a rename or recolor.</item>
-        ///   <item>A non-positive id is an insert -- the Settings tab stages new labels locally
-        ///   until Save, so a row the panel added arrives here with a negative client id and the
-        ///   handler creates it with a real one.</item>
+        ///   <item>A null id is an insert -- the Settings tab stages new labels locally until
+        ///   Save, so a row the panel added arrives here with its id unset and the handler
+        ///   creates it with a real one.</item>
         ///   <item>An id in the DB but absent from the payload is a delete-by-omission, which
         ///   cascades through the join to remove every chip of it.</item>
         /// </list>
-        /// Null leaves the labels alone, which is what a client that opened Settings without
-        /// touching the Labels panel sends. The dedicated <c>CreateBinderCardLabel</c> endpoint is
-        /// still the modal's path -- that one commits a chip-applied label on close, which happens
-        /// before any Settings Save would.
+        /// A null outer list leaves the labels alone, which is what a client that opened Settings
+        /// without touching the Labels panel sends. The dedicated <c>CreateBinderCardLabel</c>
+        /// endpoint is still the modal's path -- that one commits a chip-applied label on close,
+        /// which happens before any Settings Save would.
         /// </summary>
         public IReadOnlyList<SavedLabel>? Labels { get; init; }
     }
@@ -142,13 +142,13 @@ public static class UpdateBinder
     /// <summary>
     /// Reconciles the binder's labels against the Settings-tab payload.
     /// <list type="bullet">
-    ///   <item>Positive id in DB and in payload → update name and colour.</item>
-    ///   <item>Positive id in DB but not in payload → delete; the FK's ON DELETE CASCADE strips
+    ///   <item>Non-null id in DB and in payload → update name and colour.</item>
+    ///   <item>Non-null id in DB but not in payload → delete; the FK's ON DELETE CASCADE strips
     ///   the join rows and takes every chip of it with the row.</item>
-    ///   <item>Positive id in payload but not in DB → the validator has already refused this; the
-    ///   lookup below falls through and does nothing.</item>
-    ///   <item>Non-positive id in payload → insert. New labels in the Settings panel stage locally
-    ///   until Save, so they arrive here with the client's negative placeholder.</item>
+    ///   <item>Non-null id in payload but not in DB → the validator has already refused this;
+    ///   the lookup below falls through and does nothing.</item>
+    ///   <item>Null id in payload → insert. New labels in the Settings panel stage locally until
+    ///   Save, so they arrive here with their id unset.</item>
     /// </list>
     /// Deletes are applied before inserts so a payload that renames one label and gives another
     /// its old name does not trip the <c>(binderId, name)</c> unique index on the way through.
@@ -168,13 +168,13 @@ public static class UpdateBinder
 
         foreach (var entry in payload)
         {
-            if (entry.Id <= 0)
+            if (entry.Id is null)
             {
                 // Insert carried below, after the deletes have cleared any name clashes.
                 continue;
             }
 
-            if (!byId.Remove(entry.Id, out var existing))
+            if (!byId.Remove(entry.Id.Value, out var existing))
             {
                 // Validator-refused case; nothing to do here.
                 continue;
@@ -198,7 +198,7 @@ public static class UpdateBinder
 
         foreach (var entry in payload)
         {
-            if (entry.Id > 0) continue;
+            if (entry.Id is not null) continue;
 
             context.BinderCardLabels.Add(new BinderCardLabel
             {

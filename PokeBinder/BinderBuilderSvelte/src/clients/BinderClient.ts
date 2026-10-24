@@ -7,13 +7,12 @@ import type { SortCriterion } from '../features/binder/sort/reorder-criteria'
 export type Rearrangement = 'Keep' | 'Sort' | 'Tray' | 'Drop'
 
 /**
- * One label in the Settings-tab sync. A positive id is an existing row on the binder; a
- * non-positive id is the Settings panel's local placeholder for a label the collector added in
- * this session and which `UpdateBinder` will insert, assigning the real id. Mirrors
- * `UpdateBinder.Models.SavedLabel`.
+ * One label in the Settings-tab sync. A number is the server's id for an existing row on the
+ * binder; `null` is a label the Settings panel added locally in this session, which
+ * `UpdateBinder` will insert and assign a real id to. Mirrors `UpdateBinder.Models.SavedLabel`.
  */
 export interface SavedBinderLabel {
-  id: number
+  id: number | null
   name: string
   color: string
 }

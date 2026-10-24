@@ -120,6 +120,16 @@ export const pocketLabels = {
     return [...labels.values(), ...pending.values()]
   },
 
+  /**
+   * The labels the server knows about, in insertion order. Does not include anything in
+   * `pending` -- that is the Label modal's short-lived scratch space, resolved on Apply. The
+   * Settings tab reads this instead of `all` so a modal session in flight on another tab cannot
+   * leak into Settings' labels list.
+   */
+  get committed(): readonly Label[] {
+    return [...labels.values()]
+  },
+
   /** One label by id, or undefined if it was deleted. Committed and pending both. */
   get(id: number): Label | undefined {
     return labels.get(id) ?? pending.get(id)

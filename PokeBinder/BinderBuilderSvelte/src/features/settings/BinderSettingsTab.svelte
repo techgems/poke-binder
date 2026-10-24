@@ -70,12 +70,18 @@
 
   let deleteOpen = $state(false)
 
-  // Labels panel state. `editingLabelId` is the id of the row being edited (committed or
-  // pending), or null when nothing is. `creatingLabel` is the separate "new label" row -- kept
-  // apart from `editingLabelId` because a pending label's id is also negative and would collide
-  // with any sentinel in that space. Draft name and colour drive both inline edits and the new
-  // row. `deletingLabelId` opens the delete-confirmation modal; the modal pulls name and usage
-  // count from the label at the time it opens so the prose does not race the user clearing it.
+  // Labels panel state. The panel reads the binder's own labels from `pocketLabels.committed` --
+  // which only ever holds rows the server has acknowledged -- and keeps its own list of
+  // uncreated-this-session rows in `unrealizedLabels`. The two merge into the Save payload: real
+  // labels keep their numeric id, unrealized ones go on the wire as `{ id: null, ... }` and the
+  // server inserts them. Switching to another workspace tab and back preserves the unrealized
+  // list because WorkspacePanel keeps every tab mounted (see its comment).
+  //
+  // `editingLabelId` picks the committed row being edited; `editingTempKey` picks the unrealized
+  // row being edited; `creatingLabel` is the separate "new label" row at the top of the list.
+  // Exactly one of those three may be active at a time. `deletingLabelId` opens the committed-
+  // only delete-confirmation modal; an unrealized row deletes inline because its usage is zero
+  // and no server round-trip is involved.
   const SWATCH_CLASS: Record<LabelColor, string> = {
     red: 'bg-red-600',
     orange: 'bg-orange-600',
@@ -87,69 +93,140 @@
     pink: 'bg-pink-600',
   }
 
+  interface UnrealizedLabel {
+    tempKey: string
+    name: string
+    color: LabelColor
+  }
+
+  let unrealizedLabels = $state<UnrealizedLabel[]>([])
+  let nextTempKey = 0
+
   let editingLabelId = $state<number | null>(null)
+  let editingTempKey = $state<string | null>(null)
   let creatingLabel = $state(false)
   let draftLabelName = $state('')
   let draftLabelColor = $state<LabelColor>('blue')
 
   let deletingLabelId = $state<number | null>(null)
 
-  // Any row-level edit is in progress: creating or editing. Used to lock the New-label button and
-  // the per-row Edit/Delete buttons so only one editor is ever open at a time.
-  const labelEditInProgress = $derived(creatingLabel || editingLabelId !== null)
-
-  const labelsList = $derived(pocketLabels.all)
-
-  const nameClashes = $derived(
-    draftLabelName.trim().length > 0 &&
-      pocketLabels.nameTaken(draftLabelName, editingLabelId ?? undefined),
+  // Any row-level edit is in progress: creating, editing a committed row, or editing an
+  // unrealized one. Used to lock the New-label button and the per-row Edit/Delete buttons so
+  // only one editor is ever open at a time.
+  const labelEditInProgress = $derived(
+    creatingLabel || editingLabelId !== null || editingTempKey !== null,
   )
+
+  type LabelRow =
+    | { kind: 'committed'; id: number; name: string; color: LabelColor; usage: number }
+    | { kind: 'unrealized'; tempKey: string; name: string; color: LabelColor }
+
+  // The display list for the Labels panel: committed first, then unrealized. The row's kind is
+  // what the Edit, Delete, Save and name-clash paths branch on, so iteration keys and handlers
+  // never confuse a numeric id with a tempKey.
+  const labelRows = $derived<LabelRow[]>([
+    ...pocketLabels.committed.map((label): LabelRow => ({
+      kind: 'committed',
+      id: label.id,
+      name: label.name,
+      color: label.color,
+      usage: pocketLabels.usageCount(label.id),
+    })),
+    ...unrealizedLabels.map((label): LabelRow => ({
+      kind: 'unrealized',
+      tempKey: label.tempKey,
+      name: label.name,
+      color: label.color,
+    })),
+  ])
+
+  /**
+   * Whether the draft name is already in use. Checks both committed and unrealized rows, skipping
+   * the row currently being edited so a rename to its own name is not a clash.
+   */
+  const nameClashes = $derived.by(() => {
+    const needle = draftLabelName.trim().toLowerCase()
+
+    if (needle.length === 0) return false
+
+    for (const label of pocketLabels.committed) {
+      if (editingLabelId === label.id) continue
+      if (label.name.trim().toLowerCase() === needle) return true
+    }
+
+    for (const label of unrealizedLabels) {
+      if (editingTempKey === label.tempKey) continue
+      if (label.name.trim().toLowerCase() === needle) return true
+    }
+
+    return false
+  })
   const canSaveLabel = $derived(draftLabelName.trim().length > 0 && !nameClashes)
 
   function startNewLabel(): void {
     creatingLabel = true
     editingLabelId = null
+    editingTempKey = null
     draftLabelName = ''
     draftLabelColor = 'blue'
   }
 
-  function startEditLabel(id: number): void {
-    const label = pocketLabels.get(id)
-
-    if (!label) return
-
+  function startEditLabel(row: LabelRow): void {
     creatingLabel = false
-    editingLabelId = id
-    draftLabelName = label.name
-    draftLabelColor = label.color
+
+    if (row.kind === 'committed') {
+      editingLabelId = row.id
+      editingTempKey = null
+    } else {
+      editingLabelId = null
+      editingTempKey = row.tempKey
+    }
+
+    draftLabelName = row.name
+    draftLabelColor = row.color
   }
 
   function cancelLabelEdit(): void {
     creatingLabel = false
     editingLabelId = null
+    editingTempKey = null
     draftLabelName = ''
     draftLabelColor = 'blue'
   }
 
   /**
-   * Renames or recolors an existing label in-place, or -- for the new-label row -- stages it in
-   * `pocketLabels.pending` with a negative client id. The Settings tab's Save sends the whole
-   * labels list through <c>UpdateBinder</c>, which treats a non-positive id as an insert and
-   * assigns a real one; the refresh afterwards brings the stored row back under its new id. No
-   * server call here: pressing Cancel on the editor row (or Discard on the whole tab) throws the
-   * draft away without the server ever seeing it.
+   * Commits the editor row. A new row joins `unrealizedLabels` and is sent to the server with
+   * `id: null` on the next Save; a committed row is renamed and recoloured in place on
+   * `pocketLabels` so its chips in the binder follow at once. No server round-trip here --
+   * everything travels in the Settings tab's own Save press (or is thrown away by Discard /
+   * leaving the tab without saving, in which case the committed-side edits are rolled back by
+   * `discard` and the unrealized-side ones only ever existed in component state).
    */
   function saveLabelEdit(): void {
     if (!canSaveLabel) return
 
+    const name = draftLabelName.trim()
+
     if (creatingLabel) {
-      pocketLabels.createLabel({ name: draftLabelName, color: draftLabelColor })
+      unrealizedLabels = [
+        ...unrealizedLabels,
+        { tempKey: `u${nextTempKey++}`, name, color: draftLabelColor },
+      ]
     } else if (editingLabelId !== null) {
-      pocketLabels.renameLabel(editingLabelId, draftLabelName)
+      pocketLabels.renameLabel(editingLabelId, name)
       pocketLabels.recolorLabel(editingLabelId, draftLabelColor)
+    } else if (editingTempKey !== null) {
+      const key = editingTempKey
+      unrealizedLabels = unrealizedLabels.map((label) =>
+        label.tempKey === key ? { ...label, name, color: draftLabelColor } : label,
+      )
     }
 
     cancelLabelEdit()
+  }
+
+  function deleteUnrealized(tempKey: string): void {
+    unrealizedLabels = unrealizedLabels.filter((label) => label.tempKey !== tempKey)
   }
 
   function confirmDeleteLabel(): void {
@@ -160,7 +237,7 @@
   }
 
   // Pulled while the confirm modal is open so the prose quotes the right name even if a race
-  // changes the label underneath.
+  // changes the label underneath. Committed-only: unrealized rows delete inline without a modal.
   const deletingLabel = $derived(
     deletingLabelId === null ? null : pocketLabels.get(deletingLabelId) ?? null,
   )
@@ -201,13 +278,16 @@
   const pagesValid = $derived(Number.isInteger(pages) && pages >= 1 && pages <= MAX_PAGES)
 
   /**
-   * Whether the Labels panel is holding changes not yet sent. An add, a rename, a recolor and a
-   * delete all land as writes on the live `pocketLabels` store, so the diff is between that store
-   * and the snapshot taken when the tab opened. Covers extra ids (a new label), missing ids (a
-   * dropped label) and a changed name or colour on an id that is in both.
+   * Whether the Labels panel is holding changes not yet sent. Any unrealized row counts; for the
+   * committed rows, the diff is between the live `pocketLabels.committed` and the snapshot taken
+   * when the tab opened -- covers deleted ids (missing) and renamed or recoloured rows (same id,
+   * different name or colour). Added rows always come in through `unrealizedLabels`, so a diff on
+   * committed length catches a delete and nothing else.
    */
   const labelsDirty = $derived.by(() => {
-    const current = pocketLabels.all
+    if (unrealizedLabels.length > 0) return true
+
+    const current = pocketLabels.committed
 
     if (current.length !== savedLabels.length) return true
 
@@ -265,13 +345,16 @@
     choice = 'keep'
     criteria = sortSession.criteria
 
-    // Labels panel too: restore the binder's committed labels to what the page was opened with.
-    // The chips that `pocketLabels.deleteLabel` stripped off slots do not come back -- Discard
-    // repairs the Labels list, not the pockets. If that gap matters, Save sends the list the
-    // server has, and the refresh brings the slot state back with it.
+    // Labels panel too: restore the binder's committed labels to what the page was opened with,
+    // and throw away every unrealized row the panel staged in this session. The chips that
+    // `pocketLabels.deleteLabel` stripped off slots do not come back -- Discard repairs the
+    // Labels list, not the pockets. If that gap matters, Save sends the list the server has, and
+    // the refresh brings the slot state back with it.
     pocketLabels.resetCommitted(savedLabels)
+    unrealizedLabels = []
     creatingLabel = false
     editingLabelId = null
+    editingTempKey = null
     draftLabelName = ''
     draftLabelColor = 'blue'
   }
@@ -304,14 +387,23 @@
           pages,
           rearrange,
           criteria: rearrange === 'Sort' ? criteria.map((criterion) => ({ ...criterion })) : null,
-          // The current labels on the binder, as the Save press leaves them: committed ids with
-          // whatever rename or recolor the Labels panel made in this session, and any omissions
-          // the panel's Delete pressed through. The server reconciles against what it has.
-          labels: pocketLabels.all.map((label) => ({
-            id: label.id,
-            name: label.name,
-            color: label.color,
-          })),
+          // The current labels on the binder, as the Save press leaves them: committed rows
+          // (with their real ids and whatever rename or recolor the panel made in this session)
+          // followed by the unrealized rows the panel staged, each with `id: null` for the server
+          // to insert. Any committed id the panel's Delete removed is simply absent here; the
+          // server reconciles delete-by-omission against what it has.
+          labels: [
+            ...pocketLabels.committed.map((label) => ({
+              id: label.id as number | null,
+              name: label.name,
+              color: label.color,
+            })),
+            ...unrealizedLabels.map((label) => ({
+              id: null,
+              name: label.name,
+              color: label.color,
+            })),
+          ],
         },
         () => {
           if (rearrange === 'Sort') sortSession.remember(criteria)
@@ -782,7 +874,7 @@
             </div>
           {/if}
 
-          {#if labelsList.length === 0 && !creatingLabel}
+          {#if labelRows.length === 0 && !creatingLabel}
             <p
               class="rounded-container border border-surface-200-800/50 p-3 text-sm opacity-75"
             >
@@ -790,9 +882,10 @@
             </p>
           {:else}
             <ul class="space-y-1">
-              {#each labelsList as label (label.id)}
-                {@const usage = pocketLabels.usageCount(label.id)}
-                {@const editing = editingLabelId === label.id}
+              {#each labelRows as row (row.kind === 'committed' ? `c:${row.id}` : `u:${row.tempKey}`)}
+                {@const editing = row.kind === 'committed'
+                  ? editingLabelId === row.id
+                  : editingTempKey === row.tempKey}
                 <li>
                   {#if editing}
                     <!-- Edit mode: same form as the new row, pre-filled. Save writes rename and
@@ -863,18 +956,23 @@
                     <div
                       class="flex items-center gap-3 rounded-container border border-surface-200-800/50 p-3"
                     >
-                      <span class="size-5 shrink-0 rounded-full {SWATCH_CLASS[label.color]}"></span>
-                      <span class="flex-1 truncate text-sm font-medium">{label.name}</span>
+                      <span class="size-5 shrink-0 rounded-full {SWATCH_CLASS[row.color]}"></span>
+                      <span class="flex-1 truncate text-sm font-medium">{row.name}</span>
                       <span class="text-xs opacity-60">
-                        {usage === 1 ? 'on 1 card' : `on ${usage} cards`}
+                        {#if row.kind === 'committed'}
+                          {row.usage === 1 ? 'on 1 card' : `on ${row.usage} cards`}
+                        {:else}
+                          <!-- Unrealized: no server row, so no slot can reference it yet. -->
+                          not yet created
+                        {/if}
                       </span>
                       <button
                         type="button"
                         class="btn-icon btn-icon-sm hover:preset-tonal"
                         disabled={labelEditInProgress}
-                        title="Edit {label.name}"
-                        aria-label="Edit {label.name}"
-                        onclick={() => startEditLabel(label.id)}
+                        title="Edit {row.name}"
+                        aria-label="Edit {row.name}"
+                        onclick={() => startEditLabel(row)}
                       >
                         <PencilIcon class="size-4" />
                       </button>
@@ -882,9 +980,15 @@
                         type="button"
                         class="btn-icon btn-icon-sm hover:preset-tonal-error"
                         disabled={labelEditInProgress}
-                        title="Delete {label.name}"
-                        aria-label="Delete {label.name}"
-                        onclick={() => (deletingLabelId = label.id)}
+                        title="Delete {row.name}"
+                        aria-label="Delete {row.name}"
+                        onclick={() => {
+                          if (row.kind === 'committed') {
+                            deletingLabelId = row.id
+                          } else {
+                            deleteUnrealized(row.tempKey)
+                          }
+                        }}
                       >
                         <Trash2Icon class="size-4 text-error-500" />
                       </button>

@@ -186,10 +186,13 @@ public class UpdateBinderValidator : AbstractValidator<UpdateBinder.Request>
                     return;
                 }
 
-                // Positive ids are updates and must already belong to this binder; non-positive
-                // ids are client placeholders for new labels the Settings panel is creating in
-                // this save, and the handler assigns them real ids.
-                var existingIds = labels.Where(l => l.Id > 0).Select(l => l.Id).Distinct().ToList();
+                // A non-null id is an update and must already belong to this binder; a null id is
+                // the Settings panel staging a new label for the handler to create.
+                var existingIds = labels
+                    .Where(l => l.Id is not null)
+                    .Select(l => l.Id!.Value)
+                    .Distinct()
+                    .ToList();
 
                 if (existingIds.Count == 0)
                 {

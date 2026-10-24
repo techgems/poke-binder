@@ -444,13 +444,13 @@ public class UpdateBinderTests
     }
 
     [Fact]
-    public async Task A_non_positive_label_id_is_inserted_as_a_new_label()
+    public async Task A_null_label_id_is_inserted_as_a_new_label()
     {
         using var fixture = Binder();
 
         await HandleAsync(fixture, Unchanged() with
         {
-            Labels = [new SavedLabel { Id = -1, Name = "Review", Color = "amber" }],
+            Labels = [new SavedLabel { Id = null, Name = "Review", Color = "amber" }],
         });
 
         var stored = await fixture.StoredLabelsAsync();
@@ -469,7 +469,7 @@ public class UpdateBinderTests
             Labels =
             [
                 new SavedLabel { Id = 1, Name = "For Trade", Color = "blue" },
-                new SavedLabel { Id = -1, Name = "Review", Color = "amber" },
+                new SavedLabel { Id = null, Name = "Review", Color = "amber" },
             ],
         });
 
