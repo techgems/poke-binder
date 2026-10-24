@@ -423,4 +423,54 @@ public class ReorderBinderTests
         Assert.False(result.IsValid);
         Assert.Contains("no longer exists", result.ToString());
     }
+
+    // -------------------------------------------------------------------------------------------
+    // Labels travel with their card
+    // -------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Labels_follow_their_card_to_its_new_pocket()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithSet(1, "Alpha", releaseDateUnix: 100)
+            .WithSet(2, "Beta", releaseDateUnix: 200)
+            .WithCard(10, setId: 1, "Common", "A", "1")
+            .WithCard(20, setId: 2, "Common", "B", "1")
+            .WithLabel(1, "Trade", "blue")
+            .WithLabel(2, "PSA 10", "red")
+            // Alpha card at pocket 0 with two labels, Beta card at pocket 1 unlabelled.
+            .WithPlacements((0, 10), (1, 20))
+            .WithLabelsOn(0, 1, 2);
+
+        // Sort by set descending: the Beta card lands at pocket 0, the Alpha card at pocket 1.
+        // Alpha's labels should ride along to pocket 1.
+        await HandleAsync(fixture, Reorder(BySet(SortDirection.Desc)));
+
+        var placements = await fixture.StoredPlacementsAsync();
+        var assignments = await fixture.StoredAssignmentsAsync();
+
+        Assert.Equal(20, placements[0]);
+        Assert.Equal(10, placements[1]);
+        Assert.False(assignments.ContainsKey(0));
+        Assert.Equal(new[] { 1, 2 }, assignments[1]);
+    }
+
+    [Fact]
+    public async Task A_card_without_labels_stays_without_labels_after_a_reorder()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithSet(1, "Alpha", releaseDateUnix: 100)
+            .WithSet(2, "Beta", releaseDateUnix: 200)
+            .WithCard(10, setId: 1, "Common", "A", "1")
+            .WithCard(20, setId: 2, "Common", "B", "1")
+            .WithPlacements((0, 10), (1, 20));
+
+        await HandleAsync(fixture, Reorder(BySet(SortDirection.Desc)));
+
+        var assignments = await fixture.StoredAssignmentsAsync();
+
+        Assert.Empty(assignments);
+    }
 }

@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
+using PokeBinder.Features.Binder.CreateBinderCardLabel;
 using PokeBinder.Features.Binder.Shared.Arrangement;
 using PokeBinder.Features.Binder.UpdateBinder.Models;
 
@@ -129,6 +130,85 @@ public class UpdateBinderValidator : AbstractValidator<UpdateBinder.Request>
                         $"This binder holds {capacity} cards at that size, and {stranded} " +
                         $"{(stranded == 1 ? "card sits" : "cards sit")} past that. Choose what " +
                         "happens to the placed cards.");
+                }
+            });
+
+        // Labels sync. Each entry must point at a label this binder already has (no inserts
+        // through this path), carry a valid name and colour, and the state the sync leaves behind
+        // must not have duplicate names: a rename that collides with another kept row is refused.
+        RuleForEach(request => request.Labels)
+            .ChildRules(label =>
+            {
+                label.RuleFor(l => l.Name)
+                    .NotEmpty()
+                        .WithMessage("Give the label a name.")
+                    .MaximumLength(CreateBinderCardLabel.CreateBinderCardLabel.MaxNameLength)
+                        .WithMessage($"A label name can be at most {CreateBinderCardLabel.CreateBinderCardLabel.MaxNameLength} characters.");
+
+                label.RuleFor(l => l.Color)
+                    .NotEmpty()
+                        .WithMessage("Pick a colour.")
+                    .Must(color => color is not null && CreateBinderCardLabel.CreateBinderCardLabel.AllowedColors.Contains(color))
+                        .WithMessage("Pick a colour from the eight shown.");
+            })
+            .When(request => request.Labels is not null);
+
+        RuleFor(request => request.Labels)
+            .CustomAsync(async (labels, validation, ct) =>
+            {
+                if (labels is null)
+                {
+                    return;
+                }
+
+                // The parent rule carries BinderId; the custom rule has it off the model.
+                var request = (UpdateBinder.Request)validation.InstanceToValidate;
+
+                // Normalised names for the duplicate check, so "Trade" and "trade " do not land as
+                // two rows.
+                var trimmed = labels.Select(l => (l.Id, Name: (l.Name ?? string.Empty).Trim())).ToList();
+
+                var duplicates = trimmed
+                    .Where(l => !string.IsNullOrEmpty(l.Name))
+                    .GroupBy(l => l.Name, StringComparer.Ordinal)
+                    .Where(group => group.Count() > 1)
+                    .Select(group => group.Key)
+                    .ToList();
+
+                if (duplicates.Count > 0)
+                {
+                    validation.AddFailure(
+                        nameof(UpdateBinder.Request.Labels),
+                        $"{(duplicates.Count == 1 ? "A label name" : "Label names")} " +
+                        $"{string.Join(", ", duplicates.Select(name => $"'{name}'"))} " +
+                        $"{(duplicates.Count == 1 ? "appears" : "appear")} twice.");
+
+                    return;
+                }
+
+                // Positive ids are updates and must already belong to this binder; non-positive
+                // ids are client placeholders for new labels the Settings panel is creating in
+                // this save, and the handler assigns them real ids.
+                var existingIds = labels.Where(l => l.Id > 0).Select(l => l.Id).Distinct().ToList();
+
+                if (existingIds.Count == 0)
+                {
+                    return;
+                }
+
+                var known = await context.BinderCardLabels
+                    .Where(label => label.BinderId == request.BinderId && existingIds.Contains(label.Id))
+                    .Select(label => label.Id)
+                    .ToListAsync(ct);
+
+                var unknown = existingIds.Except(known).ToList();
+
+                if (unknown.Count > 0)
+                {
+                    validation.AddFailure(
+                        nameof(UpdateBinder.Request.Labels),
+                        $"{(unknown.Count == 1 ? "Label" : "Labels")} {string.Join(", ", unknown)} " +
+                        $"{(unknown.Count == 1 ? "is" : "are")} not on this binder.");
                 }
             });
     }

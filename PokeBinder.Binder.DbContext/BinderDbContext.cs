@@ -11,6 +11,9 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<BinderSize> BinderSizes => Set<BinderSize>();
     public DbSet<BinderCard> BinderCards => Set<BinderCard>();
     public DbSet<BinderTray> BinderTray => Set<BinderTray>();
+    public DbSet<BinderCardLabel> BinderCardLabels => Set<BinderCardLabel>();
+    public DbSet<BinderCardLabelAssignment> BinderCardLabelAssignments =>
+        Set<BinderCardLabelAssignment>();
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
@@ -73,6 +76,11 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.HasMany(e => e.Tray)
                 .WithOne(t => t.Binder)
                 .HasForeignKey(t => t.BinderId);
+
+            entity.HasMany(e => e.Labels)
+                .WithOne(l => l.Binder)
+                .HasForeignKey(l => l.BinderId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<BinderCard>(entity =>
@@ -83,6 +91,12 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.CardId).HasColumnName("cardId");
             entity.Property(e => e.IndexInBinder).HasColumnName("indexInBinder");
             entity.Property(e => e.IsMissing).HasColumnName("isMissing");
+
+            entity.HasMany(e => e.LabelAssignments)
+                .WithOne(a => a.Card)
+                .HasForeignKey(a => new { a.BinderId, a.IndexInBinder })
+                .HasPrincipalKey(e => new { e.BinderId, e.IndexInBinder })
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<BinderTray>(entity =>
@@ -93,6 +107,47 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(e => e.BinderId).HasColumnName("binderId");
             entity.Property(e => e.CardId).HasColumnName("cardId");
             entity.Property(e => e.Quantity).HasColumnName("quantity");
+        });
+
+        modelBuilder.Entity<BinderCardLabel>(entity =>
+        {
+            entity.ToTable("binderCardLabels");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.BinderId).HasColumnName("binderId");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.Color).HasColumnName("color");
+
+            entity.HasIndex(e => new { e.BinderId, e.Name })
+                .IsUnique()
+                .HasDatabaseName("IX_binderCardLabels_binderId_name");
+
+            entity.HasIndex(e => e.BinderId)
+                .HasDatabaseName("IX_binderCardLabels_binderId");
+
+            entity.HasMany(e => e.Assignments)
+                .WithOne(a => a.Label)
+                .HasForeignKey(a => a.LabelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BinderCardLabelAssignment>(entity =>
+        {
+            entity.ToTable("binderCardLabelAssignments", t =>
+                t.HasCheckConstraint(
+                    "CK_binderCardLabelAssignments_orderIndex",
+                    "[orderIndex] BETWEEN 0 AND 2"));
+            entity.HasKey(e => new { e.BinderId, e.IndexInBinder, e.LabelId });
+            entity.Property(e => e.BinderId).HasColumnName("binderId");
+            entity.Property(e => e.IndexInBinder).HasColumnName("indexInBinder");
+            entity.Property(e => e.LabelId).HasColumnName("labelId");
+            entity.Property(e => e.OrderIndex).HasColumnName("orderIndex");
+
+            // The PK's leading (binderId, indexInBinder) covers the save-path read "the
+            // assignments on one card"; the index below covers the delete-label path "the
+            // assignments of one label", which the PK does not lead with.
+            entity.HasIndex(e => e.LabelId)
+                .HasDatabaseName("IX_binderCardLabelAssignments_labelId");
         });
 
         modelBuilder.Entity<User>(entity =>

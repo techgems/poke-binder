@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using PokeBinder.Auth;
 using PokeBinder.Binders.DbContext;
+using PokeBinder.Features.Binder.CreateBinderCardLabel;
 using PokeBinder.Features.Binder.DeleteBinder;
 using PokeBinder.Features.Binder.UpdateBinder;
 using PokeBinder.TcgCatalog.DbContext;
@@ -82,6 +83,42 @@ public class BindersController(
         await DeleteBinder.Handler(request, userId, binderContext, ct);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Creates one label on a binder. The one dedicated label slice: a label has a real id before
+    /// anything else can reference it, so the Create-and-apply flow in the pocket's Label modal
+    /// calls this first and lands the real id in the next debounced SaveBinderChanges. Rename,
+    /// recolor and delete are handled by <see cref="Update"/>'s labels sync -- a Save-button
+    /// operation rather than a per-action write.
+    /// </summary>
+    /// <param name="binderId">The binder to add the label to. Must be one of the caller's own.</param>
+    /// <param name="body">
+    /// The slice's own request. Its <see cref="CreateBinderCardLabel.Request.BinderId"/> is
+    /// overwritten by the route's, so the field is not part of what this endpoint asks for.
+    /// </param>
+    [HttpPost("{binderId:int}/labels")]
+    public async Task<ActionResult<CreateBinderCardLabel.Response>> CreateLabel(
+        int binderId,
+        [FromBody] CreateBinderCardLabel.Request body,
+        CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+
+        // The URL wins, before anything reads the request.
+        var request = body with { BinderId = binderId };
+
+        var validation = await new CreateBinderCardLabelValidator(binderContext, userId)
+            .ValidateAsync(request, ct);
+
+        if (!validation.IsValid)
+        {
+            return ValidationProblem(ToModelState(validation.Errors));
+        }
+
+        var response = await CreateBinderCardLabel.Handler(request, userId, binderContext, ct);
+
+        return Ok(response);
     }
 
     /// <summary>

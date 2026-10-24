@@ -27,15 +27,20 @@ public static class GetFullBinder
     /// <param name="Binder">Null when the binder does not exist or is not the caller's.</param>
     /// <param name="Cards">Placements in pocket order.</param>
     /// <param name="Tray">Cards picked out for this binder but not yet placed.</param>
+    /// <param name="Labels">
+    /// Every label the binder owns, in whatever order the database returns them in. The client
+    /// keys them by id and reads them from <see cref="BinderPlacement.LabelIds"/>.
+    /// </param>
     public record Response(
         BinderSummary? Binder,
         IReadOnlyList<BinderPlacement> Cards,
-        IReadOnlyList<BinderTrayCard> Tray)
+        IReadOnlyList<BinderTrayCard> Tray,
+        IReadOnlyList<BinderLabel> Labels)
     {
         /// <summary>There was no such binder for this user. Everything else is empty.</summary>
         public bool Found => Binder is not null;
 
-        internal static Response NotFound() => new(null, [], []);
+        internal static Response NotFound() => new(null, [], [], []);
     }
 
     /// <param name="userId">
@@ -98,6 +103,29 @@ public static class GetFullBinder
             .Select(entry => new { entry.CardId, entry.Quantity })
             .ToListAsync(ct);
 
+        var labelRows = await binderContext.BinderCardLabels
+            .Where(label => label.BinderId == binder.Id)
+            .Select(label => new BinderLabel
+            {
+                Id = label.Id,
+                Name = label.Name,
+                Color = label.Color,
+            })
+            .ToListAsync(ct);
+
+        // Per-pocket assignments, grouped by pocket in chip-strip order. One query for the binder,
+        // the same shape the save path uses.
+        var assignmentRows = await binderContext.BinderCardLabelAssignments
+            .Where(a => a.BinderId == binder.Id)
+            .OrderBy(a => a.IndexInBinder)
+            .ThenBy(a => a.OrderIndex)
+            .Select(a => new { a.IndexInBinder, a.LabelId })
+            .ToListAsync(ct);
+
+        var assignmentsByPocket = assignmentRows
+            .GroupBy(a => a.IndexInBinder)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<int>)group.Select(a => a.LabelId).ToList());
+
         var cardIds = placementRows
             .Select(row => row.CardId)
             .Concat(trayRows.Select(row => row.CardId))
@@ -117,6 +145,7 @@ public static class GetFullBinder
                 Page = row.IndexInBinder / binder.CardsPerPage + 1,
                 SlotOnPage = row.IndexInBinder % binder.CardsPerPage,
                 IsMissing = row.IsMissing ?? false,
+                LabelIds = assignmentsByPocket.GetValueOrDefault(row.IndexInBinder, []),
                 Card = cards.GetValueOrDefault(row.CardId),
             })
             .ToList();
@@ -129,7 +158,7 @@ public static class GetFullBinder
             })
             .ToList();
 
-        return new Response(binder, placements, tray);
+        return new Response(binder, placements, tray, labelRows);
     }
 
     private static async Task<Dictionary<int, BinderCardDetails>> LoadCardsAsync(

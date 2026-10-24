@@ -95,6 +95,12 @@ let timer: ReturnType<typeof setTimeout> | null = null
 // Set once the server's copy has moved on without this page -- see `retire`. Nothing is sent after.
 let retired = false
 
+// How many holds are currently in force -- the Label modal takes one out while it is open so a
+// save armed on a label toggle cannot fire with the pending (negative) label id still in the slot.
+// `send` refuses to go while this is non-zero, and the release at the end of a hold starts whatever
+// is waiting the moment the count returns to zero.
+let holdCount = 0
+
 // When the oldest change this save is still holding arrived, which is what SAVE_MAX_WAIT_MS counts
 // from.
 let oldestPendingAt = 0
@@ -167,6 +173,9 @@ function buildRequest(pages: number[]): BinderSaveRequest | null {
         // Straight off the slot now that the toolbox can toggle it. Leaving it out would clear it
         // on every pocket the save covers.
         isMissing: slot.missing,
+        // Carried wholesale, same as isMissing. The modal commits pending labels before the save
+        // is armed, so every id in this list is a real one the server already has.
+        labelIds: [...slot.labelIds],
       })
     }
   }
@@ -206,6 +215,15 @@ function schedule(): void {
  */
 function send(): void {
   if (retired || !dirty || (scope.size === 0 && !wholeBinder)) return
+
+  // Held by an open Label modal (or similar): the slots still carry negative, not-yet-created label
+  // ids. The flag is noted so the release at the end of the hold sends what is waiting straight
+  // away rather than waiting out another debounce window.
+  if (holdCount > 0) {
+    sendWhenFree = true
+
+    return
+  }
 
   if (inFlight !== null) {
     sendWhenFree = true
@@ -435,6 +453,29 @@ export const save = {
     )
 
     return done
+  },
+
+  /**
+   * Pauses sending for the duration of some side task that is about to swap ids in slots -- the
+   * Label modal takes one out while it is open, so a save armed on a label toggle cannot fire with
+   * the pending negative id still in the slot before the modal's commit has replaced it. Returns a
+   * release function; call it exactly once, after the task that needs the hold is done. Timers keep
+   * running while the hold is in force, so the moment the last release lands whatever is waiting is
+   * sent at once.
+   */
+  hold(): () => void {
+    holdCount += 1
+
+    let released = false
+
+    return () => {
+      if (released) return
+
+      released = true
+      holdCount -= 1
+
+      if (holdCount === 0 && dirty && sendWhenFree) send()
+    }
   },
 
   /**

@@ -6,6 +6,18 @@ import type { SortCriterion } from '../features/binder/sort/reorder-criteria'
 /** What an edit does with the placed cards. Mirrors UpdateBinder's Rearrangement. */
 export type Rearrangement = 'Keep' | 'Sort' | 'Tray' | 'Drop'
 
+/**
+ * One label in the Settings-tab sync. A positive id is an existing row on the binder; a
+ * non-positive id is the Settings panel's local placeholder for a label the collector added in
+ * this session and which `UpdateBinder` will insert, assigning the real id. Mirrors
+ * `UpdateBinder.Models.SavedLabel`.
+ */
+export interface SavedBinderLabel {
+  id: number
+  name: string
+  color: string
+}
+
 /** One edit to a binder. Mirrors UpdateBinder.Request, less the id, which travels in the URL. */
 export interface BinderUpdateRequest {
   name: string
@@ -16,6 +28,14 @@ export interface BinderUpdateRequest {
   rearrange: Rearrangement | null
   /** Only with a sort, which requires them. */
   criteria: SortCriterion[] | null
+  /**
+   * The binder's labels as they should stand after this save. A sync: an id present with a
+   * different name or colour is a rename or recolor; an id absent from the list is a
+   * delete-by-omission that cascades through the join to remove every chip of it. Null leaves
+   * the labels alone -- what a client that opened Settings without touching the Labels panel
+   * sends.
+   */
+  labels: SavedBinderLabel[] | null
 }
 
 export const BinderClient = {

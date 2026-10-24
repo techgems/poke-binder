@@ -120,12 +120,30 @@ function commit(): void {
   save.arm(slotIndexes(entry.deltas))
 }
 
-/** Whether two snapshots disagree about a pocket: a different card, or the same one flagged differently. */
+/** Whether two snapshots disagree about a pocket: a different card, the same one flagged
+ * differently, or the same one wearing different labels. */
 function pocketDiffers(arrangement: ArrangementDelta, index: number): boolean {
   const before = arrangement.before[index] ?? null
   const after = arrangement.after[index] ?? null
 
-  return before?.card.id !== after?.card.id || (before?.missing ?? false) !== (after?.missing ?? false)
+  if (before?.card.id !== after?.card.id) return true
+  if ((before?.missing ?? false) !== (after?.missing ?? false)) return true
+
+  return !sameLabelIds(before?.labelIds, after?.labelIds)
+}
+
+/** Shallow sequence-equal on two label-id lists, treating missing as empty. */
+function sameLabelIds(a: readonly number[] | undefined, b: readonly number[] | undefined): boolean {
+  const left = a ?? []
+  const right = b ?? []
+
+  if (left.length !== right.length) return false
+
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false
+  }
+
+  return true
 }
 
 /**
@@ -278,5 +296,47 @@ export const history = {
     entries = []
     applied = 0
     buffer = []
+  },
+
+  /**
+   * Rewrites a label id across every recorded delta.
+   *
+   * When the Label modal commits a pending label and the server hands back a real id, the slot's
+   * live state is swapped straight over -- but the deltas captured during the modal session still
+   * point at the negative id in their `to` snapshots. Undo would unwind the slot through its
+   * `from` snapshot and be fine, but a later redo would try to lay back a labelId that no longer
+   * resolves. So the commit calls here to rewrite the id in every slot and arrangement delta too,
+   * so the whole timeline is consistent.
+   */
+  rewriteLabelId(from: number, to: number): void {
+    const rewriteList = (ids: readonly number[]): readonly number[] =>
+      ids.includes(from) ? ids.map((id) => (id === from ? to : id)) : ids
+
+    const rewritePocket = (pocket: ArrangedPocket | null): ArrangedPocket | null => {
+      if (!pocket) return pocket
+
+      const rewritten = rewriteList(pocket.labelIds)
+
+      return rewritten === pocket.labelIds ? pocket : { ...pocket, labelIds: rewritten }
+    }
+
+    const rewriteDelta = (delta: Delta): Delta => {
+      if (delta.store === 'slot') {
+        return { ...delta, from: rewritePocket(delta.from), to: rewritePocket(delta.to) }
+      }
+
+      if (delta.store === 'arrangement') {
+        return {
+          ...delta,
+          before: delta.before.map(rewritePocket),
+          after: delta.after.map(rewritePocket),
+        }
+      }
+
+      return delta
+    }
+
+    entries = entries.map((entry) => ({ deltas: entry.deltas.map(rewriteDelta) }))
+    buffer = buffer.map(rewriteDelta)
   },
 }

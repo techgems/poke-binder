@@ -9,17 +9,21 @@
     the binder list; Clear all empties the card side in one press. Three labels is the cap; the
     binder list disables once the cap is reached.
   - **Create label**: the inline create form. Save creates the label on the binder and, as long as
-    the card has room, applies it in the same action, then switches back to Assign.
+    the card has room, drops it into the draft in the same action, then switches back to Assign.
 
-  **Substep 1: nothing wired to the server or the save flow.** Writes go to
-  `stores/labels.svelte.ts`, which holds state for the session only. Substep 4 adds the server
-  wiring and makes every edit undoable.
+  **Everything in the modal is a draft until Apply.** Toggles, chip-X, Clear all and Create all
+  work on a local copy of the pocket's label ids and on `pocketLabels.pending` for new rows -- the
+  slot itself is untouched. Pressing **Apply** commits any new labels in the draft to the server
+  (swapping negative ids for real ones), writes the real ids to the slot in one history entry,
+  then closes. Pressing **Cancel** -- or the X, Escape, or a backdrop click -- throws the draft
+  away and the close effect calls `commitPending` with no draft, which silently drops every
+  pending label whose id no slot references.
 -->
 <script lang="ts">
+  import CheckIcon from '@lucide/svelte/icons/check'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import TagIcon from '@lucide/svelte/icons/tag'
   import XIcon from '@lucide/svelte/icons/x'
-  import { SvelteSet } from 'svelte/reactivity'
 
   import Modal from '../../components/Modal.svelte'
   import { binderPage } from '../../stores/binder-page.svelte'
@@ -28,6 +32,7 @@
     MAX_LABEL_LENGTH,
     MAX_LABELS_PER_POCKET,
     pocketLabels,
+    type Label,
     type LabelColor,
   } from '../../stores/labels.svelte'
 
@@ -59,18 +64,38 @@
   }
 
   /**
-   * Modal.svelte binds `open`, so dismissing from inside (the X, Escape, backdrop click) writes
-   * false back here; the second effect calls closeEditor so the same action does not re-open on
-   * the next tick.
+   * Modal.svelte binds `open`. Apply commits any new labels, writes the real ids to the slot,
+   * then sets `open = false`; the X, Escape, a backdrop click and the Cancel button all set
+   * `open = false` without the write, so the draft is thrown away. The close effect calls
+   * `closeEditor` and -- for the dismiss paths -- `commitPending` with no keep list, which drops
+   * every pending label whose id no slot references. On the Apply path pending is already drained
+   * by then, so that call is a no-op.
+   *
+   * No `save.hold` is needed: by the time `setPocketLabels` arms the debounced save, every id in
+   * the draft is a real server id. The save fires with real ids on its own schedule.
    */
   let open = $state(false)
+  let applying = $state(false)
 
   $effect(() => {
     open = pocketLabels.editingIndex !== null
   })
 
   $effect(() => {
-    if (!open && pocketLabels.editingIndex !== null) pocketLabels.closeEditor()
+    if (!open && pocketLabels.editingIndex !== null) {
+      const binderId = binderPage.binderId
+
+      pocketLabels.closeEditor()
+
+      // Cancel / X / Escape / backdrop paths come through here with the draft never written to a
+      // slot, so no pending id is in use and `commitPending` drops them all silently. On the Apply
+      // path, pending is already empty.
+      if (binderId !== null) {
+        void pocketLabels.commitPending(binderId).catch((error: unknown) => {
+          console.error('Failed to discard pending labels', error)
+        })
+      }
+    }
   })
 
   /** Which tab is active. Reset to assign on every open, as the step calls for. */
@@ -84,27 +109,32 @@
   let draftColor = $state<LabelColor>('blue')
 
   /**
-   * Labels created in the current open of this modal. While the modal is open these are
-   * considered pending -- not yet committed to the binder. If one is dropped (chip-X on the
-   * on-card list) before the modal closes, it vanishes entirely instead of returning to the
-   * Available list. On modal close they are committed; substep 4 wires that commit to the save
-   * round trip.
-   *
-   * `SvelteSet` so `.has(id)` / `.add` / `.delete` reads and writes are tracked -- a plain Set
-   * wrapped in `$state` would not re-render dependents when the set changes.
+   * The pocket's label ids as the modal has been editing them. Seeded from the slot on open and
+   * mutated by every toggle, chip-X, Clear all and Create-and-add; the slot itself is only
+   * rewritten on Apply, so a Cancel (or any other dismissal) leaves the pocket as it was.
    */
-  const createdThisOpen = new SvelteSet<number>()
+  let draftLabelIds = $state<number[]>([])
+
+  /**
+   * The pocket's label ids as the modal was opened on, for the dirty check that lights up Apply.
+   * Captured alongside the draft so a round-trip (add then remove the same chip) does not count.
+   */
+  let originalLabelIds: readonly number[] = []
 
   $effect(() => {
     const index = pocketLabels.editingIndex
 
     if (index === null) return
 
+    const slot = binderPage.pocketAt(index)
+    const seed = slot ? [...slot.labelIds] : []
+
+    originalLabelIds = seed
+    draftLabelIds = [...seed]
     activeTab = 'assign'
     draftName = ''
     draftColor = 'blue'
     dragOverCard = false
-    createdThisOpen.clear()
   })
 
   const cardName = $derived.by(() => {
@@ -115,61 +145,68 @@
     return binderPage.slots[idx]?.name ?? 'the card'
   })
 
+  /**
+   * The draft, resolved to full `Label` objects in chip-strip order. Ids that no longer point at
+   * a live label (would only happen if a Settings-side delete reached in while the modal was open)
+   * are skipped.
+   */
   const pocketAssignments = $derived.by(() => {
-    const idx = pocketLabels.editingIndex
+    const out: Label[] = []
 
-    if (idx === null) return []
+    for (const id of draftLabelIds) {
+      const label = pocketLabels.get(id)
 
-    return pocketLabels.forPocket(idx)
+      if (label) out.push(label)
+    }
+
+    return out
   })
 
-  const pocketCount = $derived(pocketAssignments.length)
+  const pocketCount = $derived(draftLabelIds.length)
   const atCap = $derived(pocketCount >= MAX_LABELS_PER_POCKET)
   const hasAny = $derived(pocketCount > 0)
 
   const labelsList = $derived(pocketLabels.all)
 
   /**
-   * Labels the binder owns that are not currently on this card. The Assign tab's binder list only
+   * Labels the binder owns that are not currently in the draft. The Assign tab's binder list only
    * shows these -- dragging from the on-card chips back to the binder list is modelled through
    * the chip's X, not through drag.
    */
   const availableLabels = $derived.by(() => {
-    const onCard = new Set(pocketAssignments.map((label) => label.id))
+    const onCard = new Set(draftLabelIds)
 
     return labelsList.filter((label) => !onCard.has(label.id))
   })
 
+  /** Whether the draft differs from the slot. Apply is only live while something has changed. */
+  const dirty = $derived.by(() => {
+    if (draftLabelIds.length !== originalLabelIds.length) return true
+
+    for (let i = 0; i < draftLabelIds.length; i += 1) {
+      if (draftLabelIds[i] !== originalLabelIds[i]) return true
+    }
+
+    return false
+  })
+
   function tryAdd(labelId: number): void {
-    const idx = pocketLabels.editingIndex
+    if (atCap || draftLabelIds.includes(labelId)) return
+    if (!pocketLabels.get(labelId)) return
 
-    if (idx === null || atCap) return
-
-    pocketLabels.toggleOnPocket(idx, labelId)
+    draftLabelIds = [...draftLabelIds, labelId]
   }
 
   function removeFromCard(labelId: number): void {
-    const idx = pocketLabels.editingIndex
+    if (!draftLabelIds.includes(labelId)) return
 
-    if (idx === null) return
-
-    pocketLabels.toggleOnPocket(idx, labelId)
-
-    // A pending label that is dropped before the modal closes never commits to the binder: a
-    // chip-X on it discards the whole label rather than sending it back to Available. That is
-    // the typo / wrong-colour escape hatch, in place of a separate trash control.
-    if (createdThisOpen.has(labelId)) {
-      pocketLabels.deleteLabel(labelId)
-      createdThisOpen.delete(labelId)
-    }
+    draftLabelIds = draftLabelIds.filter((id) => id !== labelId)
   }
 
   function clearAll(): void {
-    const idx = pocketLabels.editingIndex
+    if (draftLabelIds.length === 0) return
 
-    if (idx === null) return
-
-    pocketLabels.clearPocket(idx)
+    draftLabelIds = []
   }
 
   function onDragStart(event: DragEvent, labelId: number): void {
@@ -215,24 +252,68 @@
   const nameClashes = $derived(trimmedDraftLength > 0 && pocketLabels.nameTaken(draftName))
   const canCreate = $derived(trimmedDraftLength > 0 && !nameClashes)
 
+  /**
+   * Creates a label on the binder (as a pending row) and drops it into the pocket draft when there
+   * is room. On Cancel, `commitPending` discards any pending label with no slot pointing at it, so
+   * a label created here is kept only if the user then presses Apply.
+   */
   function createAndApply(): void {
-    const idx = pocketLabels.editingIndex
-
-    if (idx === null || !canCreate) return
+    if (!canCreate) return
 
     const newId = pocketLabels.createLabel({ name: draftName, color: draftColor })
 
-    // Fresh this open: the Available row for this label gets the trash button until the modal
-    // closes and the label is considered committed.
-    createdThisOpen.add(newId)
-
-    // Apply to this pocket as long as there is room; otherwise the label still lives on the
-    // binder for the collector to find on another card or in Settings.
-    if (!atCap) pocketLabels.toggleOnPocket(idx, newId)
+    if (!atCap) draftLabelIds = [...draftLabelIds, newId]
 
     draftName = ''
     draftColor = 'blue'
     activeTab = 'assign'
+  }
+
+  /**
+   * Commits any new labels in the draft to the server, translates the draft's negative ids to the
+   * real ones that come back, writes the whole list to the slot in one history entry, and closes.
+   * On a server failure the modal stays open with the draft intact so the user can retry.
+   */
+  async function apply(): Promise<void> {
+    const idx = pocketLabels.editingIndex
+
+    if (idx === null || applying) return
+
+    if (!dirty) {
+      open = false
+      return
+    }
+
+    const binderId = binderPage.binderId
+    applying = true
+
+    try {
+      let finalIds: readonly number[] = draftLabelIds
+
+      if (binderId !== null) {
+        const mapping = await pocketLabels.commitPending(binderId, draftLabelIds)
+
+        if (mapping.size > 0) {
+          finalIds = draftLabelIds.map((id) => mapping.get(id) ?? id)
+        }
+      }
+
+      binderPage.setPocketLabels(idx, finalIds)
+      open = false
+    } catch (error) {
+      // Keep the modal open so the collector can retry; the toast system isn't wired yet in this
+      // step, so for now a console error is what surfaces it.
+      console.error('Failed to commit labels', error)
+    } finally {
+      applying = false
+    }
+  }
+
+  /** Throws the draft away. The close effect then clears any unused pending labels. */
+  function cancel(): void {
+    if (applying) return
+
+    open = false
   }
 </script>
 
@@ -424,13 +505,42 @@
     <footer class="flex items-center justify-end gap-2">
       <button
         type="button"
-        class="btn btn-sm preset-filled-primary-500"
+        class="btn btn-sm preset-tonal"
         disabled={!canCreate}
         onclick={createAndApply}
       >
         <TagIcon class="size-4" />
-        <span>{atCap ? 'Create label' : 'Create and apply'}</span>
+        <span>{atCap ? 'Create label' : 'Create and add'}</span>
       </button>
     </footer>
   {/if}
+
+  <!-- Apply writes the whole draft to the slot in one history entry; Cancel throws it away. The X,
+       Escape and a backdrop click all land through Modal's `open` binding and so share the same
+       Cancel path. Shown in both tabs so the collector can save or back out from wherever they
+       are. -->
+  <footer
+    class="flex items-center justify-end gap-2 border-t border-surface-200-800/50 pt-3"
+  >
+    <p class="mr-auto text-sm opacity-60">
+      {#if dirty}
+        Unsaved changes.
+      {:else}
+        No changes.
+      {/if}
+    </p>
+    <button type="button" class="btn btn-sm preset-tonal" disabled={applying} onclick={cancel}>
+      <XIcon class="size-4" />
+      <span>Cancel</span>
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm preset-filled-primary-500"
+      disabled={!dirty || applying}
+      onclick={apply}
+    >
+      <CheckIcon class="size-4" />
+      <span>{applying ? 'Applying…' : 'Apply'}</span>
+    </button>
+  </footer>
 </Modal>

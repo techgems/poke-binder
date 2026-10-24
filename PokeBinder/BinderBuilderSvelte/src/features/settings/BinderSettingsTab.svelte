@@ -48,6 +48,16 @@
   // compared against never change while it is open.
   const saved = preloadedBinder()?.binder ?? null
 
+  // The binder's labels as the page was opened with, captured here so a diff against the live store
+  // can drive `labelsDirty` (and so Discard has somewhere to restore to). Shallow-copied up front
+  // for the same reason the rest of `saved` is read once -- what the form compares against must not
+  // drift as the Labels panel edits them.
+  const savedLabels = (preloadedBinder()?.labels ?? []).map((label) => ({
+    id: label.id,
+    name: label.name,
+    color: label.color,
+  }))
+
   let name = $state(saved?.name ?? '')
   let description = $state(saved?.description ?? '')
   let sizeId = $state(saved?.binderSizeId ?? 0)
@@ -60,8 +70,10 @@
 
   let deleteOpen = $state(false)
 
-  // Labels panel state. The row the editor is on, or null when nothing is being edited; `-1`
-  // means the "new label" row is open. Draft name and colour drive both inline edits and the new
+  // Labels panel state. `editingLabelId` is the id of the row being edited (committed or
+  // pending), or null when nothing is. `creatingLabel` is the separate "new label" row -- kept
+  // apart from `editingLabelId` because a pending label's id is also negative and would collide
+  // with any sentinel in that space. Draft name and colour drive both inline edits and the new
   // row. `deletingLabelId` opens the delete-confirmation modal; the modal pulls name and usage
   // count from the label at the time it opens so the prose does not race the user clearing it.
   const SWATCH_CLASS: Record<LabelColor, string> = {
@@ -76,21 +88,27 @@
   }
 
   let editingLabelId = $state<number | null>(null)
+  let creatingLabel = $state(false)
   let draftLabelName = $state('')
   let draftLabelColor = $state<LabelColor>('blue')
 
   let deletingLabelId = $state<number | null>(null)
 
+  // Any row-level edit is in progress: creating or editing. Used to lock the New-label button and
+  // the per-row Edit/Delete buttons so only one editor is ever open at a time.
+  const labelEditInProgress = $derived(creatingLabel || editingLabelId !== null)
+
   const labelsList = $derived(pocketLabels.all)
 
   const nameClashes = $derived(
     draftLabelName.trim().length > 0 &&
-      pocketLabels.nameTaken(draftLabelName, editingLabelId === -1 ? undefined : (editingLabelId ?? undefined)),
+      pocketLabels.nameTaken(draftLabelName, editingLabelId ?? undefined),
   )
   const canSaveLabel = $derived(draftLabelName.trim().length > 0 && !nameClashes)
 
   function startNewLabel(): void {
-    editingLabelId = -1
+    creatingLabel = true
+    editingLabelId = null
     draftLabelName = ''
     draftLabelColor = 'blue'
   }
@@ -100,21 +118,31 @@
 
     if (!label) return
 
+    creatingLabel = false
     editingLabelId = id
     draftLabelName = label.name
     draftLabelColor = label.color
   }
 
   function cancelLabelEdit(): void {
+    creatingLabel = false
     editingLabelId = null
     draftLabelName = ''
     draftLabelColor = 'blue'
   }
 
+  /**
+   * Renames or recolors an existing label in-place, or -- for the new-label row -- stages it in
+   * `pocketLabels.pending` with a negative client id. The Settings tab's Save sends the whole
+   * labels list through <c>UpdateBinder</c>, which treats a non-positive id as an insert and
+   * assigns a real one; the refresh afterwards brings the stored row back under its new id. No
+   * server call here: pressing Cancel on the editor row (or Discard on the whole tab) throws the
+   * draft away without the server ever seeing it.
+   */
   function saveLabelEdit(): void {
     if (!canSaveLabel) return
 
-    if (editingLabelId === -1) {
+    if (creatingLabel) {
       pocketLabels.createLabel({ name: draftLabelName, color: draftLabelColor })
     } else if (editingLabelId !== null) {
       pocketLabels.renameLabel(editingLabelId, draftLabelName)
@@ -172,12 +200,37 @@
 
   const pagesValid = $derived(Number.isInteger(pages) && pages >= 1 && pages <= MAX_PAGES)
 
+  /**
+   * Whether the Labels panel is holding changes not yet sent. An add, a rename, a recolor and a
+   * delete all land as writes on the live `pocketLabels` store, so the diff is between that store
+   * and the snapshot taken when the tab opened. Covers extra ids (a new label), missing ids (a
+   * dropped label) and a changed name or colour on an id that is in both.
+   */
+  const labelsDirty = $derived.by(() => {
+    const current = pocketLabels.all
+
+    if (current.length !== savedLabels.length) return true
+
+    const bySavedId = new Map(savedLabels.map((label) => [label.id, label]))
+
+    for (const label of current) {
+      const was = bySavedId.get(label.id)
+
+      if (!was) return true
+      if (was.name !== label.name) return true
+      if (was.color !== label.color) return true
+    }
+
+    return false
+  })
+
   const dirty = $derived(
     saved !== null &&
       (name.trim() !== saved.name ||
         (description.trim() || null) !== (saved.description ?? null) ||
         sizeId !== saved.binderSizeId ||
-        pages !== saved.pages),
+        pages !== saved.pages ||
+        labelsDirty),
   )
 
   // The tray choice is only on offer while the cards fit in it, and dropping only while they do
@@ -211,6 +264,16 @@
     pages = saved.pages
     choice = 'keep'
     criteria = sortSession.criteria
+
+    // Labels panel too: restore the binder's committed labels to what the page was opened with.
+    // The chips that `pocketLabels.deleteLabel` stripped off slots do not come back -- Discard
+    // repairs the Labels list, not the pockets. If that gap matters, Save sends the list the
+    // server has, and the refresh brings the slot state back with it.
+    pocketLabels.resetCommitted(savedLabels)
+    creatingLabel = false
+    editingLabelId = null
+    draftLabelName = ''
+    draftLabelColor = 'blue'
   }
 
   const REARRANGEMENTS: Record<ResizeChoice, Rearrangement> = {
@@ -241,6 +304,14 @@
           pages,
           rearrange,
           criteria: rearrange === 'Sort' ? criteria.map((criterion) => ({ ...criterion })) : null,
+          // The current labels on the binder, as the Save press leaves them: committed ids with
+          // whatever rename or recolor the Labels panel made in this session, and any omissions
+          // the panel's Delete pressed through. The server reconciles against what it has.
+          labels: pocketLabels.all.map((label) => ({
+            id: label.id,
+            name: label.name,
+            color: label.color,
+          })),
         },
         () => {
           if (rearrange === 'Sort') sortSession.remember(criteria)
@@ -635,7 +706,7 @@
             <button
               type="button"
               class="btn btn-sm preset-filled-primary-500"
-              disabled={editingLabelId !== null}
+              disabled={labelEditInProgress}
               onclick={startNewLabel}
             >
               <PlusIcon class="size-4" />
@@ -650,7 +721,7 @@
 
           <!-- The create row sits at the top of the list so new labels land where the eye
                already is. In edit mode a row swaps for the same form. -->
-          {#if editingLabelId === -1}
+          {#if creatingLabel}
             <div
               class="card flex flex-col gap-3 border border-primary-500/50 bg-primary-500/5 p-3"
             >
@@ -711,7 +782,7 @@
             </div>
           {/if}
 
-          {#if labelsList.length === 0 && editingLabelId !== -1}
+          {#if labelsList.length === 0 && !creatingLabel}
             <p
               class="rounded-container border border-surface-200-800/50 p-3 text-sm opacity-75"
             >
@@ -800,7 +871,7 @@
                       <button
                         type="button"
                         class="btn-icon btn-icon-sm hover:preset-tonal"
-                        disabled={editingLabelId !== null}
+                        disabled={labelEditInProgress}
                         title="Edit {label.name}"
                         aria-label="Edit {label.name}"
                         onclick={() => startEditLabel(label.id)}
@@ -810,7 +881,7 @@
                       <button
                         type="button"
                         class="btn-icon btn-icon-sm hover:preset-tonal-error"
-                        disabled={editingLabelId !== null}
+                        disabled={labelEditInProgress}
                         title="Delete {label.name}"
                         aria-label="Delete {label.name}"
                         onclick={() => (deletingLabelId = label.id)}

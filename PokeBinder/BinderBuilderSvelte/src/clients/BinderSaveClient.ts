@@ -6,6 +6,13 @@ export interface SavedCard {
   /** The pocket, counted from zero across the whole binder. */
   indexInBinder: number
   isMissing: boolean
+  /**
+   * 0–3 label ids, in chip-strip order. Each id is one the binder already has (see
+   * `BinderCardLabelClient.create`). Carried wholesale, like `isMissing`: within the claim, the
+   * server replaces whatever labels the pocket had with this array, and an empty list means the
+   * pocket has no labels now.
+   */
+  labelIds: number[]
 }
 
 /** One tray row, as the request carries it. Mirrors SaveBinderChanges' TrayCard. */

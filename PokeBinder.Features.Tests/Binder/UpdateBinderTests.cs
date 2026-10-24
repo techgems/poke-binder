@@ -370,4 +370,178 @@ public class UpdateBinderTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => HandleAsync(fixture, Unchanged() with { Name = "Mine now" }));
     }
+
+    // -------------------------------------------------------------------------------------------
+    // The labels sync: rename, recolor, delete-by-omission -- a sync, not a CRUD
+    // -------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_rename_rewrites_the_labels_name()
+    {
+        using var fixture = Binder()
+            .WithLabel(1, "Trade", "blue");
+
+        await HandleAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = 1, Name = "For Trade", Color = "blue" }],
+        });
+
+        var stored = await fixture.StoredLabelsAsync();
+
+        Assert.Equal(("For Trade", "blue"), stored[1]);
+    }
+
+    [Fact]
+    public async Task A_recolor_rewrites_the_labels_color()
+    {
+        using var fixture = Binder()
+            .WithLabel(1, "Trade", "blue");
+
+        await HandleAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = 1, Name = "Trade", Color = "red" }],
+        });
+
+        var stored = await fixture.StoredLabelsAsync();
+
+        Assert.Equal(("Trade", "red"), stored[1]);
+    }
+
+    [Fact]
+    public async Task Omitting_a_label_from_the_payload_deletes_it_and_cascades_its_assignments()
+    {
+        using var fixture = Binder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "Trade")
+            .WithLabel(2, "PSA 10")
+            .WithPlacements((0, 100))
+            .WithLabelsOn(0, 1, 2);
+
+        // Only label 1 in the payload. Label 2 is omitted, so it is deleted, and its join row at
+        // pocket 0 cascades away. The DB does the cascade; the test watches for it.
+        await HandleAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = 1, Name = "Trade", Color = "blue" }],
+        });
+
+        var storedLabels = await fixture.StoredLabelsAsync();
+        var storedAssignments = await fixture.StoredAssignmentsAsync();
+
+        Assert.False(storedLabels.ContainsKey(2));
+        Assert.Equal(new[] { 1 }, storedAssignments[0]);
+    }
+
+    [Fact]
+    public async Task A_null_labels_payload_leaves_the_binders_labels_alone()
+    {
+        using var fixture = Binder().WithLabel(1, "Trade", "blue");
+
+        await HandleAsync(fixture, Unchanged());
+
+        var stored = await fixture.StoredLabelsAsync();
+
+        Assert.Equal(("Trade", "blue"), stored[1]);
+    }
+
+    [Fact]
+    public async Task A_non_positive_label_id_is_inserted_as_a_new_label()
+    {
+        using var fixture = Binder();
+
+        await HandleAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = -1, Name = "Review", Color = "amber" }],
+        });
+
+        var stored = await fixture.StoredLabelsAsync();
+
+        Assert.Single(stored);
+        Assert.Equal(("Review", "amber"), stored.Values.Single());
+    }
+
+    [Fact]
+    public async Task An_insert_sits_alongside_a_rename_of_an_existing_label()
+    {
+        using var fixture = Binder().WithLabel(1, "Trade", "blue");
+
+        await HandleAsync(fixture, Unchanged() with
+        {
+            Labels =
+            [
+                new SavedLabel { Id = 1, Name = "For Trade", Color = "blue" },
+                new SavedLabel { Id = -1, Name = "Review", Color = "amber" },
+            ],
+        });
+
+        var stored = await fixture.StoredLabelsAsync();
+
+        Assert.Equal(("For Trade", "blue"), stored[1]);
+        Assert.Contains(("Review", "amber"), stored.Values);
+    }
+
+    [Fact]
+    public async Task A_positive_label_id_not_on_this_binder_is_refused()
+    {
+        using var fixture = Binder().WithLabel(1, "Trade", "blue");
+
+        var result = await ValidateAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = 99, Name = "Ghost", Color = "red" }],
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(UpdateBinder.Request.Labels)
+            && error.ErrorMessage.Contains("99"));
+    }
+
+    [Fact]
+    public async Task Two_labels_with_the_same_name_in_the_payload_are_refused()
+    {
+        using var fixture = Binder()
+            .WithLabel(1, "Trade", "blue")
+            .WithLabel(2, "PSA 10", "red");
+
+        var result = await ValidateAsync(fixture, Unchanged() with
+        {
+            Labels =
+            [
+                new SavedLabel { Id = 1, Name = "Trade", Color = "blue" },
+                new SavedLabel { Id = 2, Name = "Trade", Color = "red" },
+            ],
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(UpdateBinder.Request.Labels)
+            && error.ErrorMessage.Contains("Trade"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task A_blank_label_name_in_the_payload_is_refused(string? blank)
+    {
+        using var fixture = Binder().WithLabel(1, "Trade", "blue");
+
+        var result = await ValidateAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = 1, Name = blank, Color = "blue" }],
+        });
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task An_unknown_label_colour_is_refused()
+    {
+        using var fixture = Binder().WithLabel(1, "Trade", "blue");
+
+        var result = await ValidateAsync(fixture, Unchanged() with
+        {
+            Labels = [new SavedLabel { Id = 1, Name = "Trade", Color = "mauve" }],
+        });
+
+        Assert.False(result.IsValid);
+    }
 }

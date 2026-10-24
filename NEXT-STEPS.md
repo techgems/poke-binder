@@ -87,45 +87,24 @@ real round trip.**
    freshly created labels, and chip-X-discards-pending. `BinderSettingsTab.svelte` has the Labels
    panel. `binder-page.svelte.ts` clears or swaps pocket assignments on delete, return-to-tray,
    drops and paste; substep 4 moves those into `changeSlot`. Per-session only; nothing posted.
-2. **Schema and entity.** Migration under `PokeBinder.Migrations/Scripts/BinderDb/` adding:
-   - `binderCardLabels(id INTEGER PK, binderId INTEGER NOT NULL REFERENCES binders(id) ON DELETE
-     CASCADE, name TEXT NOT NULL, color TEXT NOT NULL)`, with `UNIQUE(binderId, name)` and an
-     index on `binderId`.
-   - `binderCardLabelAssignments(binderCardId INTEGER NOT NULL REFERENCES binderCards(id) ON
-     DELETE CASCADE, labelId INTEGER NOT NULL REFERENCES binderCardLabels(id) ON DELETE CASCADE,
-     orderIndex INTEGER NOT NULL CHECK (orderIndex BETWEEN 0 AND 2), PRIMARY KEY (binderCardId,
-     labelId))`. The three-cap and the cascade on both sides live in the schema.
-   - New `BinderCardLabel` and `BinderCardLabelAssignment` entities under
-     `PokeBinder.Binder.DbContext/Entities/` and their mappings in `BinderDbContext.cs`.
-3. **Slices, validators and tests.** Three touchpoints; no CRUD-per-action for labels.
-   - **New slice `CreateBinderCardLabel`**: `{ binderId, name, color }` → `{ id }`. The one
-     dedicated label slice. Fires from Create-and-apply in the modal and from Settings' "New
-     label" press. Validator: name length, colour whitelist, unique `(binderId, name)`. A label
-     always has a real id before anything else can reference it.
-   - **`SaveBinderSettings` grows `labels: { id, name, color }[]`** -- a sync of the binder's
-     labels. Every id is real (no nulls). The server reconciles:
-     - id in DB and in payload → **update** (rename and recolor).
-     - id in DB but not in payload → **delete**; `ON DELETE CASCADE` strips the join rows and
-       with them any `labelIds` on `binderCards`.
-     - id in payload but not in DB → validator rejects. No inserts through this field; new labels
-       only come through `CreateBinderCardLabel`.
-   - **`SaveBinderChanges.SavedCard` grows `labelIds: int[]`** -- 0–3 ids, each already in this
-     binder. Snapshot semantics match `isMissing`: within the save's `pages`, whatever labels the
-     pocket had are replaced by the request's array; an emptied pocket is absent from `cards` and
-     its join rows cascade. Validator: each id exists on this binder, no duplicates per pocket,
-     no more than three per pocket. `.Cascade(CascadeMode.Stop)` + null-return on every list rule.
-   - **`ReorderBinder` and `AddSetToBinder`** carry `labelIds` on `ReorderedCard` /
-     `ArrangedPocket` so labels travel with their cards through a reorder or add-set.
-   - **`GetFullBinder`** returns the binder's labels and each `BinderPlacement`'s ordered
-     `labelIds`.
-   - **Tests** per "Rules for tests":
-     - `CreateBinderCardLabel`: happy path, duplicate name, invalid colour, binder not found.
-     - `SaveBinderSettings` labels field: rename, recolor, delete-by-omission + cascade of join
-       rows, dangling id rejection, name-collision rejection across the state the request leaves
-       behind.
-     - `SaveBinderChanges`: assignments by id, cap enforcement, duplicates, labels travel through
-       a reorder, labels disappear when a pocket is emptied.
-4. **Client wiring.** Three write paths; only one of them calls the dedicated label slice.
+2. ✅ **(DONE) Schema and entity.** Migration under `PokeBinder.Migrations/Scripts/PokeBinder/`
+   (`005_CreateBinderCardLabels.sql`) created `binderCardLabels` and
+   `binderCardLabelAssignments` with the composite FK on `(binderId, indexInBinder)`,
+   `UNIQUE(binderId, name)`, cascades on both sides and the `CHECK` on `orderIndex`.
+   `BinderCardLabel` and `BinderCardLabelAssignment` entities and their mappings in
+   `BinderDbContext.cs`; `BinderCard.LabelAssignments` and `Binder.Labels` navigations added.
+3. ✅ **(DONE) Slices, validators and tests.** `CreateBinderCardLabel` with validator and
+   `POST /api/binders/{id}/labels`. `SaveBinderChanges.SavedCard` carries `LabelIds`; the handler's
+   `SaveLabelAssignmentsAsync` diffs per claimed pocket, the validator rejects dangling ids,
+   duplicates per pocket, and lists past the three-cap. `UpdateBinder.Request` carries a
+   `labels: { id, name, color }[]` sync; `SyncLabelsAsync` renames, recolors and deletes by
+   omission; validator rejects dangling ids, duplicate names in the leftover state, blank names
+   and unknown colours. `ReorderedCard` carries `LabelIds` with value-equal `Equals`;
+   `BinderArrangement` loads label assignments, carries them through sort and rewrites them in
+   `LayOut`; `ReorderBinder`, `AddSetToBinder` and `UpdateBinder` all `Include` the assignments.
+   `GetFullBinder` returns the binder's labels and each `BinderPlacement.LabelIds`. 32 new tests
+   cover every rule above; all 197 tests pass.
+4. ✅ **(DONE) Client wiring.** Three write paths; only one of them calls the dedicated label slice.
    - **Pending-labels staging stays client-only.** `pocketLabels.pending: SvelteMap<number,
      Label>` with local negative ids, separate from the committed `labels`. The picker merges
      them. Chip-X on a pending label drops it from both maps; nothing is sent.

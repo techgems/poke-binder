@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Binders.DbContext.Entities;
+using PokeBinder.Features.Binder.CreateBinderCardLabel;
 using PokeBinder.Features.Binder.Shared.Arrangement;
 using PokeBinder.Features.Binder.UpdateBinder.Models;
 using PokeBinder.TcgCatalog.DbContext;
@@ -56,6 +57,24 @@ public static class UpdateBinder
         /// sort and refused with anything else.
         /// </summary>
         public IReadOnlyList<SortCriterion>? Criteria { get; init; }
+
+        /// <summary>
+        /// The binder's labels as they should stand after this save. A sync, not a CRUD:
+        /// <list type="bullet">
+        ///   <item>A positive id already on the binder is an update: a different name or colour
+        ///   lands as a rename or recolor.</item>
+        ///   <item>A non-positive id is an insert -- the Settings tab stages new labels locally
+        ///   until Save, so a row the panel added arrives here with a negative client id and the
+        ///   handler creates it with a real one.</item>
+        ///   <item>An id in the DB but absent from the payload is a delete-by-omission, which
+        ///   cascades through the join to remove every chip of it.</item>
+        /// </list>
+        /// Null leaves the labels alone, which is what a client that opened Settings without
+        /// touching the Labels panel sends. The dedicated <c>CreateBinderCardLabel</c> endpoint is
+        /// still the modal's path -- that one commits a chip-applied label on close, which happens
+        /// before any Settings Save would.
+        /// </summary>
+        public IReadOnlyList<SavedLabel>? Labels { get; init; }
     }
 
     public record Response(int BinderId);
@@ -85,8 +104,12 @@ public static class UpdateBinder
 
         if (request.Rearrange is { } rearrange)
         {
+            // Include the label assignments so the rearrangement helpers carry each card's chips
+            // along with it. Tray and Drop empty the pockets; the cascade on the join strips the
+            // assignments when the binderCards rows go.
             var stored = await binderContext.BinderCards
                 .Where(card => card.BinderId == binder.Id)
+                .Include(card => card.LabelAssignments)
                 .OrderBy(card => card.IndexInBinder)
                 .ToListAsync(ct);
 
@@ -106,9 +129,84 @@ public static class UpdateBinder
             BinderArrangement.LayOutFromFirstPocket(stored, ordered, binder.Id, binderContext);
         }
 
+        if (request.Labels is not null)
+        {
+            await SyncLabelsAsync(request.Labels, binder.Id, binderContext, ct);
+        }
+
         await binderContext.SaveChangesAsync(ct);
 
         return new Response(binder.Id);
+    }
+
+    /// <summary>
+    /// Reconciles the binder's labels against the Settings-tab payload.
+    /// <list type="bullet">
+    ///   <item>Positive id in DB and in payload → update name and colour.</item>
+    ///   <item>Positive id in DB but not in payload → delete; the FK's ON DELETE CASCADE strips
+    ///   the join rows and takes every chip of it with the row.</item>
+    ///   <item>Positive id in payload but not in DB → the validator has already refused this; the
+    ///   lookup below falls through and does nothing.</item>
+    ///   <item>Non-positive id in payload → insert. New labels in the Settings panel stage locally
+    ///   until Save, so they arrive here with the client's negative placeholder.</item>
+    /// </list>
+    /// Deletes are applied before inserts so a payload that renames one label and gives another
+    /// its old name does not trip the <c>(binderId, name)</c> unique index on the way through.
+    /// Nothing is saved here: the caller commits with whatever else it is writing.
+    /// </summary>
+    private static async Task SyncLabelsAsync(
+        IReadOnlyList<SavedLabel> payload,
+        int binderId,
+        BinderDbContext context,
+        CancellationToken ct)
+    {
+        var stored = await context.BinderCardLabels
+            .Where(label => label.BinderId == binderId)
+            .ToListAsync(ct);
+
+        var byId = stored.ToDictionary(label => label.Id);
+
+        foreach (var entry in payload)
+        {
+            if (entry.Id <= 0)
+            {
+                // Insert carried below, after the deletes have cleared any name clashes.
+                continue;
+            }
+
+            if (!byId.Remove(entry.Id, out var existing))
+            {
+                // Validator-refused case; nothing to do here.
+                continue;
+            }
+
+            var name = (entry.Name ?? string.Empty).Trim();
+
+            if (!string.Equals(existing.Name, name, StringComparison.Ordinal))
+            {
+                existing.Name = name;
+            }
+
+            if (!string.Equals(existing.Color, entry.Color, StringComparison.Ordinal))
+            {
+                existing.Color = entry.Color!;
+            }
+        }
+
+        // Whatever is left is an id the payload left out. Delete cascades to the join rows.
+        context.BinderCardLabels.RemoveRange(byId.Values);
+
+        foreach (var entry in payload)
+        {
+            if (entry.Id > 0) continue;
+
+            context.BinderCardLabels.Add(new BinderCardLabel
+            {
+                BinderId = binderId,
+                Name = (entry.Name ?? string.Empty).Trim(),
+                Color = entry.Color!,
+            });
+        }
     }
 
     /// <summary>

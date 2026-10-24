@@ -53,8 +53,11 @@ public static class ReorderBinder
             .Select(binder => binder.Id)
             .FirstAsync(ct);
 
+        // Include the label assignments so the sort can carry them with each card -- a reorder
+        // moves the chip strip right along with the card the collector put it on.
         var stored = await binderContext.BinderCards
             .Where(card => card.BinderId == request.BinderId)
+            .Include(card => card.LabelAssignments)
             .OrderBy(card => card.IndexInBinder)
             .ToListAsync(ct);
 

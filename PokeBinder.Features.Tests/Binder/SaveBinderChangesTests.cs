@@ -28,7 +28,8 @@ public class SaveBinderChangesTests
         int[] pages,
         (int Pocket, int CardId)[]? cards = null,
         (int CardId, int Quantity)[]? tray = null,
-        bool[]? missing = null) =>
+        bool[]? missing = null,
+        int[][]? labelIds = null) =>
         new()
         {
             BinderId = BinderFixture.BinderId,
@@ -39,6 +40,7 @@ public class SaveBinderChangesTests
                     CardId = placement.CardId,
                     IndexInBinder = placement.Pocket,
                     IsMissing = missing is not null && missing[position],
+                    LabelIds = labelIds is not null ? labelIds[position] : [],
                 })
                 .ToList(),
             Tray = (tray ?? [])
@@ -522,5 +524,137 @@ public class SaveBinderChangesTests
         Assert.Equal(
             Enumerable.Range(0, 9).Concat(Enumerable.Range(18, 9)),
             pockets.OrderBy(pocket => pocket));
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Label assignments, which ride each pocket's snapshot
+    // -------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_pocket_with_label_ids_writes_the_join_rows()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "Trade")
+            .WithLabel(2, "PSA 10");
+
+        await HandleAsync(
+            fixture,
+            Save(pages: [1], cards: [(0, 100)], labelIds: [new[] { 1, 2 }]));
+
+        var stored = await fixture.StoredAssignmentsAsync();
+
+        Assert.Equal(new[] { 1, 2 }, stored[0]);
+    }
+
+    [Fact]
+    public async Task Omitting_a_label_from_a_claimed_pockets_payload_removes_it()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "Trade")
+            .WithLabel(2, "PSA 10")
+            .WithPlacements((0, 100))
+            .WithLabelsOn(0, 1, 2);
+
+        // Keep the card, drop label 2. Within the claim the payload is a snapshot.
+        await HandleAsync(
+            fixture,
+            Save(pages: [1], cards: [(0, 100)], labelIds: [new[] { 1 }]));
+
+        var stored = await fixture.StoredAssignmentsAsync();
+
+        Assert.Equal(new[] { 1 }, stored[0]);
+    }
+
+    [Fact]
+    public async Task Emptying_a_pocket_cascades_its_labels_away()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "Trade")
+            .WithPlacements((0, 100))
+            .WithLabelsOn(0, 1);
+
+        // Pocket 0 is on the claim and absent from the payload: emptied. The BinderCards row goes
+        // and the FK cascade on the join strips the assignment with it.
+        await HandleAsync(fixture, Save(pages: [1]));
+
+        var stored = await fixture.StoredAssignmentsAsync();
+
+        Assert.Empty(stored);
+    }
+
+    [Fact]
+    public async Task Pockets_outside_the_claim_keep_their_labels()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100, 200)
+            .WithLabel(1, "Trade")
+            .WithPlacements((0, 100), (9, 200))
+            .WithLabelsOn(9, 1);
+
+        // Page 1 only. Pocket 9 is on page 2 and the save has no opinion about it.
+        await HandleAsync(fixture, Save(pages: [1], cards: [(0, 100)], labelIds: [[]]));
+
+        var stored = await fixture.StoredAssignmentsAsync();
+
+        Assert.Equal(new[] { 1 }, stored[9]);
+        Assert.False(stored.ContainsKey(0));
+    }
+
+    [Fact]
+    public async Task A_label_id_not_on_this_binder_is_refused()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "Trade");
+
+        var result = await ValidateAsync(
+            fixture,
+            Save(pages: [1], cards: [(0, 100)], labelIds: [new[] { 1, 99 }]));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.PropertyName == nameof(SaveBinderChanges.Request.Cards)
+            && error.ErrorMessage.Contains("99"));
+    }
+
+    [Fact]
+    public async Task More_than_three_labels_on_one_pocket_is_refused()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "A")
+            .WithLabel(2, "B")
+            .WithLabel(3, "C")
+            .WithLabel(4, "D");
+
+        var result = await ValidateAsync(
+            fixture,
+            Save(pages: [1], cards: [(0, 100)], labelIds: [new[] { 1, 2, 3, 4 }]));
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task A_label_repeated_in_one_pocket_is_refused()
+    {
+        using var fixture = new BinderFixture()
+            .WithBinder()
+            .WithCatalogCards(100)
+            .WithLabel(1, "Trade");
+
+        var result = await ValidateAsync(
+            fixture,
+            Save(pages: [1], cards: [(0, 100)], labelIds: [new[] { 1, 1 }]));
+
+        Assert.False(result.IsValid);
     }
 }

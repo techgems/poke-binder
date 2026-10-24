@@ -41,6 +41,13 @@ public class Binder
     public ICollection<BinderTray> Tray { get; set; } = new List<BinderTray>();
 
     /// <summary>
+    /// The labels this binder owns. The collector creates them, renames and recolors them in
+    /// Settings, and applies them to cards through <see cref="BinderCardLabelAssignment"/>.
+    /// Deleting the binder cascades these rows away (see the FK on <c>binderCardLabels</c>).
+    /// </summary>
+    public ICollection<BinderCardLabel> Labels { get; set; } = new List<BinderCardLabel>();
+
+    /// <summary>
     /// How many pockets this binder has in total. Derived and never stored: it is the grid's
     /// pockets per page times <see cref="Pages"/>, so storing it would create a value that goes
     /// stale the moment either factor is edited.

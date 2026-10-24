@@ -28,6 +28,14 @@ namespace PokeBinder.Features.Binder.SaveBinderChanges;
 /// <param name="userId">The signed-in user, from the principal rather than from the request.</param>
 public class SaveBinderChangesValidator : AbstractValidator<SaveBinderChanges.Request>
 {
+    /// <summary>
+    /// How many labels one pocket may carry at once. Mirrors the client's
+    /// <c>MAX_LABELS_PER_POCKET</c> and the schema's CHECK on <c>orderIndex</c>, which caps at 2
+    /// (three slots): an INSERT past this fails at the database as a 500, which the rule below
+    /// turns into a 400 that names the pocket.
+    /// </summary>
+    private const int MaxLabelsPerPocket = 3;
+
     public SaveBinderChangesValidator(
         BinderDbContext binderContext,
         TcgCatalogDbContext catalogContext,
@@ -66,6 +74,19 @@ public class SaveBinderChangesValidator : AbstractValidator<SaveBinderChanges.Re
             // check below is a tighter one: distinct pockets, all inside at most two pages.
             .Must(cards => cards.Select(card => card.IndexInBinder).Distinct().Count() == cards.Count)
                 .WithMessage("Two cards are in the same pocket.");
+
+        RuleForEach(request => request.Cards).ChildRules(card =>
+        {
+            // The schema's CHECK on orderIndex caps at 2 (three slots), which the validator mirrors
+            // so the failure comes back as a 400 that names the pocket rather than a 500 from the
+            // database. Null is treated as empty: a client that leaves the field out is a client
+            // that is not using labels yet.
+            card.RuleFor(c => c.LabelIds)
+                .Must(ids => ids is null || ids.Count <= MaxLabelsPerPocket)
+                    .WithMessage($"A card has at most {MaxLabelsPerPocket} labels.")
+                .Must(ids => ids is null || ids.Distinct().Count() == ids.Count)
+                    .WithMessage("The same label is on one card twice.");
+        });
 
         // The binder's shape is a fact about this binder, so neither bound can be a constant, and
         // both come out of one read: the page numbers are checked against its page count and the
@@ -204,6 +225,46 @@ public class SaveBinderChangesValidator : AbstractValidator<SaveBinderChanges.Re
                     nameof(SaveBinderChanges.Request.Cards),
                     $"{(unknown.Count == 1 ? "Card" : "Cards")} {string.Join(", ", unknown)} " +
                     $"{(unknown.Count == 1 ? "is" : "are")} not in the catalog.");
+            });
+
+        // Every labelId referenced across the payload must already belong to this binder. A dangling
+        // id would hit the schema's FK and come back as a 500; here it is caught as a 400 that
+        // names the ids. One query for the whole payload, not one per pocket.
+        RuleFor(request => request)
+            .CustomAsync(async (request, validation, ct) =>
+            {
+                if (request.Cards is null)
+                {
+                    return;
+                }
+
+                var labelIds = request.Cards
+                    .Where(card => card.LabelIds is not null)
+                    .SelectMany(card => card.LabelIds!)
+                    .Distinct()
+                    .ToList();
+
+                if (labelIds.Count == 0)
+                {
+                    return;
+                }
+
+                var known = await binderContext.BinderCardLabels
+                    .Where(label => label.BinderId == request.BinderId && labelIds.Contains(label.Id))
+                    .Select(label => label.Id)
+                    .ToListAsync(ct);
+
+                var unknown = labelIds.Except(known).ToList();
+
+                if (unknown.Count == 0)
+                {
+                    return;
+                }
+
+                validation.AddFailure(
+                    nameof(SaveBinderChanges.Request.Cards),
+                    $"{(unknown.Count == 1 ? "Label" : "Labels")} {string.Join(", ", unknown)} " +
+                    $"{(unknown.Count == 1 ? "is" : "are")} not on this binder.");
             });
     }
 }

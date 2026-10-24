@@ -9,6 +9,8 @@ export interface ReorderedCard {
   cardId: number
   /** Travels with its card: a reserved pocket holds a real card and sorts like any other. */
   isMissing: boolean
+  /** Labels on the pocket, in chip-strip order. Travel with the card through a reorder. */
+  labelIds: number[]
 }
 
 /** Mirrors ReorderBinder.Response: every placed card, from pocket zero with no gaps. */

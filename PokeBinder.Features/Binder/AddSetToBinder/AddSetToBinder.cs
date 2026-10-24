@@ -129,8 +129,11 @@ public static class AddSetToBinder
             .Include(b => b.BinderSize)
             .FirstAsync(b => b.Id == request.BinderId && b.UserId == userId, ct);
 
+        // Include the label assignments so the kept cards keep their chips when they shift down to
+        // make room for the set at the front.
         var stored = await binderContext.BinderCards
             .Where(card => card.BinderId == binder.Id)
+            .Include(card => card.LabelAssignments)
             .OrderBy(card => card.IndexInBinder)
             .ToListAsync(ct);
 
@@ -152,10 +155,19 @@ public static class AddSetToBinder
 
         IEnumerable<ReorderedCard> kept = plan.KeepExisting
             ? stored.Select(card => new ReorderedCard(
-                card.IndexInBinder + plan.ExistingShift, card.CardId, card.IsMissing ?? false))
+                card.IndexInBinder + plan.ExistingShift,
+                card.CardId,
+                card.IsMissing ?? false,
+                // Labels follow their card to the shifted pocket, same rule as the missing flag.
+                card.LabelAssignments
+                    .OrderBy(a => a.OrderIndex)
+                    .Select(a => a.LabelId)
+                    .ToList()))
             : [];
 
-        var added = sorted.Select((cardId, offset) => new ReorderedCard(plan.SetStart + offset, cardId, false));
+        // The set's cards start unlabelled -- new placements, not something copied.
+        var added = sorted.Select((cardId, offset) =>
+            new ReorderedCard(plan.SetStart + offset, cardId, false, Array.Empty<int>()));
 
         var laidOut = BinderArrangement.LayOut(stored, [.. kept, .. added], binder.Id, binderContext);
 

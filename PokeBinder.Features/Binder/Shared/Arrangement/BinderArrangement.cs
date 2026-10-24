@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.TcgCatalog.DbContext;
+using LabelAssignmentEntity = PokeBinder.Binders.DbContext.Entities.BinderCardLabelAssignment;
 using PlacedCardEntity = PokeBinder.Binders.DbContext.Entities.BinderCard;
 
 namespace PokeBinder.Features.Binder.Shared.Arrangement;
@@ -31,13 +32,14 @@ namespace PokeBinder.Features.Binder.Shared.Arrangement;
 internal static class BinderArrangement
 {
     /// <summary>One card to sort, and where it sits -- in the binder, or in a list on its way in.</summary>
-    private sealed record Pocket(int IndexInBinder, int CardId, bool IsMissing);
+    private sealed record Pocket(int IndexInBinder, int CardId, bool IsMissing, IReadOnlyList<int> LabelIds);
 
     /// <summary>What a criterion can read about one placed card. Null wherever the catalog has no answer.</summary>
     private sealed record Row(
         int IndexInBinder,
         int CardId,
         bool IsMissing,
+        IReadOnlyList<int> LabelIds,
         int? SetId,
         string? SetName,
         long? ReleaseDateUnix,
@@ -51,33 +53,37 @@ internal static class BinderArrangement
         StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace);
 
     /// <summary>
-    /// The placed cards in the order the criteria put them, each with its missing flag -- the flag
-    /// travels with its card, since a reserved pocket holds a real card id and sorts like any other.
+    /// The placed cards in the order the criteria put them, each with its missing flag and its
+    /// labels -- both travel with their card, since a reserved pocket holds a real card id and
+    /// sorts like any other, and a chip is tied to the card the collector put it on.
     /// </summary>
     /// <param name="stored">
-    /// The binder's placed cards in pocket order, so the stable sort leaves two copies of one card
-    /// in the order they already had rather than an arbitrary one.
+    /// The binder's placed cards in pocket order, with each entity's
+    /// <see cref="PlacedCardEntity.LabelAssignments"/> loaded. The stable sort leaves two copies of
+    /// one card in the order they already had rather than an arbitrary one.
     /// </param>
-    internal static async Task<List<(int CardId, bool IsMissing)>> SortAsync(
+    internal static async Task<List<(int CardId, bool IsMissing, IReadOnlyList<int> LabelIds)>> SortAsync(
         List<PlacedCardEntity> stored,
         IReadOnlyList<SortCriterion> criteria,
         TcgCatalogDbContext catalogContext,
         CancellationToken ct)
     {
         var pockets = stored
-            .Select(card => new Pocket(card.IndexInBinder, card.CardId, card.IsMissing ?? false))
+            .Select(card => new Pocket(
+                card.IndexInBinder, card.CardId, card.IsMissing ?? false, LabelsFor(card)))
             .ToList();
 
         var rows = await ReadRowsAsync(pockets, catalogContext, ct);
 
         return Order(rows, criteria)
-            .Select(row => (row.CardId, row.IsMissing))
+            .Select(row => (row.CardId, row.IsMissing, row.LabelIds))
             .ToList();
     }
 
     /// <summary>
     /// Catalog cards that are not in the binder yet, in the order the criteria put them -- a set on
-    /// its way in. The same sort as a placed card gets, so the two never disagree.
+    /// its way in. The same sort as a placed card gets, so the two never disagree. These cards have
+    /// no labels: a set's cards start unlabelled.
     /// </summary>
     /// <param name="cardIds">The cards, in the order a tie between two of them should keep.</param>
     internal static async Task<List<int>> SortCardsAsync(
@@ -86,7 +92,7 @@ internal static class BinderArrangement
         TcgCatalogDbContext catalogContext,
         CancellationToken ct)
     {
-        var pockets = cardIds.Select((cardId, index) => new Pocket(index, cardId, false)).ToList();
+        var pockets = cardIds.Select((cardId, index) => new Pocket(index, cardId, false, [])).ToList();
 
         var rows = await ReadRowsAsync(pockets, catalogContext, ct);
 
@@ -94,18 +100,36 @@ internal static class BinderArrangement
     }
 
     /// <summary>
-    /// The placed cards in the order they sit now, gaps closed up. What "keep the order" lays out.
+    /// The placed cards in the order they sit now, gaps closed up. What "keep the order" lays out,
+    /// each with its labels.
     /// </summary>
-    /// <param name="stored">The binder's placed cards in pocket order.</param>
-    internal static List<(int CardId, bool IsMissing)> InPocketOrder(List<PlacedCardEntity> stored) =>
+    /// <param name="stored">
+    /// The binder's placed cards in pocket order, with each entity's
+    /// <see cref="PlacedCardEntity.LabelAssignments"/> loaded.
+    /// </param>
+    internal static List<(int CardId, bool IsMissing, IReadOnlyList<int> LabelIds)> InPocketOrder(
+        List<PlacedCardEntity> stored) =>
         stored
             .OrderBy(card => card.IndexInBinder)
-            .Select(card => (card.CardId, card.IsMissing ?? false))
+            .Select(card => (card.CardId, card.IsMissing ?? false, LabelsFor(card)))
+            .ToList();
+
+    /// <summary>
+    /// Pulls the labels off a tracked <see cref="PlacedCardEntity"/> in chip-strip order. The entity
+    /// must have had <c>Include(c =&gt; c.LabelAssignments)</c> on the read; without it the list
+    /// is empty, which would silently drop a labelled card's chips on a reorder. Callers that write
+    /// through BinderArrangement load the navigation.
+    /// </summary>
+    private static IReadOnlyList<int> LabelsFor(PlacedCardEntity card) =>
+        card.LabelAssignments
+            .OrderBy(a => a.OrderIndex)
+            .Select(a => a.LabelId)
             .ToList();
 
     /// <summary>
     /// Rewrites the pockets as <paramref name="ordered"/>: pocket <c>n</c> gets the <c>n</c>th card,
-    /// and every pocket past the last card is emptied. Answers with where each card landed.
+    /// its labels, and its missing flag; every pocket past the last card is emptied. Answers with
+    /// where each card landed.
     ///
     /// <para>
     /// A diff by pocket rather than delete-everything-and-insert. The row's key is the binder and
@@ -115,17 +139,23 @@ internal static class BinderArrangement
     /// that slice writes.
     /// </para>
     /// </summary>
-    /// <param name="stored">Every placed card of the binder, tracked.</param>
+    /// <param name="stored">
+    /// Every placed card of the binder, tracked. The caller loads <c>LabelAssignments</c> so this
+    /// method can rewrite them alongside the pockets.
+    /// </param>
     internal static List<ReorderedCard> LayOutFromFirstPocket(
         List<PlacedCardEntity> stored,
-        IReadOnlyList<(int CardId, bool IsMissing)> ordered,
+        IReadOnlyList<(int CardId, bool IsMissing, IReadOnlyList<int> LabelIds)> ordered,
         int binderId,
         BinderDbContext context) =>
         // Captured as values before anything is written: the order was read off the same entities
         // the write changes.
         LayOut(
             stored,
-            ordered.Select((card, index) => new ReorderedCard(index, card.CardId, card.IsMissing)).ToList(),
+            ordered
+                .Select((card, index) =>
+                    new ReorderedCard(index, card.CardId, card.IsMissing, card.LabelIds))
+                .ToList(),
             binderId,
             context);
 
@@ -133,9 +163,13 @@ internal static class BinderArrangement
     /// Rewrites the pockets as <paramref name="laidOut"/> says, gaps and all: each card goes in the
     /// pocket it names, and every pocket it does not name is emptied. The same diff by pocket as
     /// <see cref="LayOutFromFirstPocket"/>, for a layout that does not start at pocket zero or
-    /// leaves pockets empty in between. Answers with the layout, in pocket order.
+    /// leaves pockets empty in between. Rewrites each kept pocket's label assignments at its new
+    /// index; emptied pockets lose their assignments through the FK cascade. Answers with the
+    /// layout, in pocket order.
     /// </summary>
-    /// <param name="stored">Every placed card of the binder, tracked.</param>
+    /// <param name="stored">
+    /// Every placed card of the binder, tracked. The caller loads <c>LabelAssignments</c>.
+    /// </param>
     /// <param name="laidOut">At most one card per pocket.</param>
     internal static List<ReorderedCard> LayOut(
         List<PlacedCardEntity> stored,
@@ -167,10 +201,56 @@ internal static class BinderArrangement
             });
         }
 
-        // Whatever is left held a card before and is not in the layout now.
+        // Whatever is left held a card before and is not in the layout now. The FK cascade from the
+        // join to binderCards strips its assignments.
         context.BinderCards.RemoveRange(byPocket.Values);
 
+        LayOutLabelsAsync(stored, laidOut, binderId, context);
+
         return laidOut.OrderBy(card => card.IndexInBinder).ToList();
+    }
+
+    /// <summary>
+    /// Rewrites the label assignments to match <paramref name="laidOut"/>. Reorder-shaped: the join
+    /// is small, every pocket could have moved, and a diff by join key would miss the common case
+    /// (card at pocket A with labels [1,2] ends up at pocket B with labels [1,2]) looking like two
+    /// deletes and two inserts anyway. So the previous assignments on the laid-out pockets go, and
+    /// the new ones are written at their new indices. Nothing committed here.
+    /// </summary>
+    private static void LayOutLabelsAsync(
+        List<PlacedCardEntity> stored,
+        IReadOnlyList<ReorderedCard> laidOut,
+        int binderId,
+        BinderDbContext context)
+    {
+        var touched = laidOut.Select(card => card.IndexInBinder).ToHashSet();
+
+        foreach (var card in stored)
+        {
+            if (!touched.Contains(card.IndexInBinder))
+            {
+                continue;
+            }
+
+            foreach (var assignment in card.LabelAssignments.ToList())
+            {
+                context.BinderCardLabelAssignments.Remove(assignment);
+            }
+        }
+
+        foreach (var card in laidOut)
+        {
+            for (var order = 0; order < card.LabelIds.Count; order++)
+            {
+                context.BinderCardLabelAssignments.Add(new LabelAssignmentEntity
+                {
+                    BinderId = binderId,
+                    IndexInBinder = card.IndexInBinder,
+                    LabelId = card.LabelIds[order],
+                    OrderIndex = order,
+                });
+            }
+        }
     }
 
     /// <summary>
@@ -226,7 +306,7 @@ internal static class BinderArrangement
                 // by, so every criterion puts it last, and it is kept rather than dropped.
                 if (!cards.TryGetValue(pocket.CardId, out var card))
                 {
-                    return new Row(pocket.IndexInBinder, pocket.CardId, pocket.IsMissing,
+                    return new Row(pocket.IndexInBinder, pocket.CardId, pocket.IsMissing, pocket.LabelIds,
                         null, null, null, null, null, null, null);
                 }
 
@@ -239,6 +319,7 @@ internal static class BinderArrangement
                     pocket.IndexInBinder,
                     pocket.CardId,
                     pocket.IsMissing,
+                    pocket.LabelIds,
                     card.SetId,
                     card.SetName,
                     card.ReleaseDateUnix,

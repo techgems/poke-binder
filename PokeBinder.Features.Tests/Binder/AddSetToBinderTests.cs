@@ -346,4 +346,39 @@ public class AddSetToBinderTests
 
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(AddSetToBinder.Request.Criteria));
     }
+
+    // -------------------------------------------------------------------------------------------
+    // Labels on existing cards travel with them; the set's cards arrive unlabelled
+    // -------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Labels_on_a_kept_card_follow_it_to_its_new_pocket()
+    {
+        using var fixture = WithASet()
+            .WithLabel(1, "Trade", "blue")
+            .WithLabelsOn(0, 1);
+
+        // Existing cards go after the set and shift back by a page. Pocket 0 had card 11 with
+        // label 1; after the add it is at pocket 0 + setPages * cardsPerPage = 9.
+        await HandleAsync(fixture, AddSet(existing: ExistingCards.End));
+
+        var placements = await fixture.StoredPlacementsAsync();
+        var assignments = await fixture.StoredAssignmentsAsync();
+
+        Assert.Equal(11, placements[9]);
+        Assert.Equal(new[] { 1 }, assignments[9]);
+        Assert.False(assignments.ContainsKey(0));
+    }
+
+    [Fact]
+    public async Task The_sets_cards_arrive_unlabelled()
+    {
+        using var fixture = WithASet();
+
+        await HandleAsync(fixture, AddSet());
+
+        var assignments = await fixture.StoredAssignmentsAsync();
+
+        Assert.Empty(assignments);
+    }
 }

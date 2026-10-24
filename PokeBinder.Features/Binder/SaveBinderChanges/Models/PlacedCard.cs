@@ -26,4 +26,14 @@ public class PlacedCard
     /// to round-trip what it was given.
     /// </summary>
     public bool IsMissing { get; set; }
+
+    /// <summary>
+    /// Zero to three labels on this pocket, in the order they appear in the chip strip. Each id is
+    /// one the binder already has -- the Create-and-apply flow calls <c>CreateBinderCardLabel</c>
+    /// first and lands the real id here. Carried wholesale like <see cref="IsMissing"/>: within
+    /// the claim, whatever labels the pocket had are replaced by this list, and leaving it empty
+    /// is "this pocket has no labels". The validator refuses an id not on this binder, duplicates
+    /// in one pocket, and a list past three.
+    /// </summary>
+    public IReadOnlyList<int> LabelIds { get; set; } = [];
 }

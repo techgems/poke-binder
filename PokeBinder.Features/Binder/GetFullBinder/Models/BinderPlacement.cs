@@ -23,6 +23,12 @@ public class BinderPlacement
     public bool IsMissing { get; set; }
 
     /// <summary>
+    /// The labels on this pocket, in chip-strip order (0, 1, 2). Zero to three ids, each one in
+    /// <see cref="GetFullBinder.Response.Labels"/>.
+    /// </summary>
+    public IReadOnlyList<int> LabelIds { get; set; } = [];
+
+    /// <summary>
     /// The card itself, or null when the binder points at a card the catalog no longer has -- the
     /// two live in separate databases with no foreign key between them, so this is possible and a
     /// missing row must not take the whole binder down with it.

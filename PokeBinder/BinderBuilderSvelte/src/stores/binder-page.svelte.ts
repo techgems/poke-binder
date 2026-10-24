@@ -24,12 +24,14 @@ import { tray } from './tray.svelte'
 const DEFAULT_COLUMNS = 3
 const DEFAULT_ROWS = 3
 
-/** One pocket on screen: the card in it, the index the binder and the server know it by, and
- * whether the pocket is flagged as a card the collector does not own yet. */
+/** One pocket on screen: the card in it, the index the binder and the server know it by, whether
+ * the pocket is flagged as a card the collector does not own yet, and the labels on it. */
 export interface BinderSlotView {
   index: number
   card: CardSearchResult | null
   missing: boolean
+  /** The labels on this pocket, in chip-strip order. Empty on an empty pocket. */
+  labelIds: readonly number[]
 }
 
 /** One page on screen. */
@@ -38,10 +40,16 @@ export interface BinderPageView {
   slots: BinderSlotView[]
 }
 
-/** A full pocket in a snapshot of the binder: the card, and whether the pocket is flagged missing. */
+/** A full pocket in a snapshot of the binder: the card, the missing flag, and the labels on it. */
 export interface ArrangedPocket {
   card: CardSearchResult
   missing: boolean
+  /**
+   * The labels on this pocket, in chip-strip order (0, 1, 2). Zero to three ids, each one on the
+   * binder's committed labels. Travels with the slot so a drag, a reorder and an undo all keep
+   * the chips with their card the same way the missing flag already does.
+   */
+  labelIds: readonly number[]
 }
 
 /**
@@ -144,7 +152,11 @@ function adoptLayout(layout: readonly ReorderedCard[], added: readonly CardSearc
     const card = cards.get(placed.cardId)
 
     if (card && placed.indexInBinder < after.length) {
-      after[placed.indexInBinder] = { card, missing: placed.isMissing }
+      after[placed.indexInBinder] = {
+        card,
+        missing: placed.isMissing,
+        labelIds: placed.labelIds ?? [],
+      }
     }
   }
 
@@ -180,6 +192,17 @@ export const binderPage = {
    * the slot itself, read through `isMissing` or straight off a `BinderSlotView`. */
   get slots(): readonly (CardSearchResult | null)[] {
     return slots.map((slot) => slot?.card ?? null)
+  },
+
+  /** Every pocket in the binder as a full `ArrangedPocket`, nulls for empty ones. For the labels
+   * store, which has to count assignments across the whole binder and swap ids on each. */
+  get slotEntities(): readonly (ArrangedPocket | null)[] {
+    return slots
+  },
+
+  /** One pocket as a full `ArrangedPocket`, or null when empty or out of range. */
+  pocketAt(index: number): ArrangedPocket | null {
+    return slots[index] ?? null
   },
 
   /** Which spread is open, counted from zero. */
@@ -231,6 +254,7 @@ export const binderPage = {
           index: start + offset,
           card: slot?.card ?? null,
           missing: slot?.missing ?? false,
+          labelIds: slot?.labelIds ?? [],
         }
       }),
     }
@@ -311,10 +335,16 @@ export const binderPage = {
       // here is better than rendering a hole halfway down the page.
       if (!placement.card || placement.indexInBinder >= placed.length) continue
 
-      placed[placement.indexInBinder] = { card: placement.card, missing: placement.isMissing }
+      placed[placement.indexInBinder] = {
+        card: placement.card,
+        missing: placement.isMissing,
+        labelIds: placement.labelIds ?? [],
+      }
     }
 
     slots = placed
+
+    pocketLabels.loadFromPreload(preloaded.labels ?? [])
 
     tray.load(
       preloaded.tray
@@ -354,17 +384,13 @@ export const binderPage = {
         if (source.index === index) return
 
         // A straight exchange: whatever was in the target lands where the dragged card came from,
-        // which for an empty target is the same as moving it. The whole slot moves rather than just
-        // the card, so the missing flag travels with it.
+        // which for an empty target is the same as moving it. The whole slot moves rather than
+        // just the card, so the missing flag and the labels travel with it.
         const sourceSlot = slots[source.index] ?? null
         const targetSlot = slots[index] ?? null
 
         changeSlot(index, sourceSlot)
         changeSlot(source.index, targetSlot)
-
-        // Labels follow their card. Substep 4 moves this into the slot delta so it ends up
-        // undoable like the rest; for now the client-only store is swapped alongside the slot.
-        pocketLabels.swapPockets(source.index, index)
 
         return
       }
@@ -375,13 +401,10 @@ export const binderPage = {
         tray.add(displaced.card)
       }
 
-      // A card placed from the tray is not missing: the collector is putting one in. If the pocket
-      // was flagged missing for an older card, that flag went with the displaced slot above.
-      changeSlot(index, { card: source.card, missing: false })
-
-      // Displaced goes to the tray; labels do not travel to the tray, so clear whatever was on
-      // this pocket. The new card starts with no labels.
-      pocketLabels.clearPocket(index)
+      // A card placed from the tray is not missing and has no labels: the collector is putting
+      // one in. If the pocket had labels on an older card, they went with the displaced slot
+      // above and never travelled to the tray.
+      changeSlot(index, { card: source.card, missing: false, labelIds: [] })
 
       // Placing spends one of the copies waiting in the tray; setQuantity drops the entry when the
       // last one leaves.
@@ -390,8 +413,8 @@ export const binderPage = {
   },
 
   /** Drops the card being dragged back into the tray. Only a card from a pocket has anywhere to go.
-   * The missing flag is left behind -- a tray entry is one card with a count, with nowhere to keep
-   * it -- and an undo brings it back with its slot. Labels follow the same rule. */
+   * The missing flag and the labels are left behind -- a tray entry is one card with a count, with
+   * nowhere to keep them -- and an undo brings them back with the slot. */
   dropOnTray(): void {
     const source = dragged
 
@@ -405,8 +428,6 @@ export const binderPage = {
       changeSlot(index, null)
 
       tray.add(card)
-
-      pocketLabels.clearPocket(index)
     })
   },
 
@@ -423,23 +444,19 @@ export const binderPage = {
       changeSlot(index, null)
 
       tray.add(slot.card)
-
-      pocketLabels.clearPocket(index)
     })
   },
 
   /**
    * Empties the pocket. The card goes nowhere -- not to the tray -- which is what sets this apart
-   * from `returnToTray`. Undo brings the slot back as it was, missing flag included, like any other
-   * slot change, so there is no confirmation to carry. Labels on the pocket go with the card.
+   * from `returnToTray`. Undo brings the slot back as it was, missing flag and labels included,
+   * like any other slot change, so there is no confirmation to carry.
    */
   deleteFromBinder(index: number): void {
     if (!slots[index]) return
 
     history.act(() => {
       changeSlot(index, null)
-
-      pocketLabels.clearPocket(index)
     })
   },
 
@@ -464,11 +481,9 @@ export const binderPage = {
     history.act(() => {
       if (existing && displacedTo === 'tray') tray.add(existing.card)
 
-      changeSlot(index, { card, missing: false })
-
-      // Displaced card -- whether sent to tray or discarded -- loses its labels; the pasted card
-      // starts with none, same as a tray drop.
-      pocketLabels.clearPocket(index)
+      // The displaced card's labels go with the slot the write replaces: they are not copied to
+      // the tray entry, and the pasted card starts with none of its own.
+      changeSlot(index, { card, missing: false, labelIds: [] })
     })
   },
 
@@ -483,13 +498,30 @@ export const binderPage = {
     if (!current) return
 
     history.act(() => {
-      changeSlot(index, { card: current.card, missing: !current.missing })
+      changeSlot(index, { card: current.card, missing: !current.missing, labelIds: current.labelIds })
+    })
+  },
+
+  /**
+   * Rewrites a pocket's labels. Goes through `changeSlot` like every other slot write, so an undo
+   * walks the chips back as it walks a drag back. No-op on an empty pocket -- labels have no card
+   * to ride on, and the Label modal cannot open from one.
+   */
+  setPocketLabels(index: number, labelIds: readonly number[]): void {
+    const current = slots[index]
+
+    if (!current) return
+
+    history.act(() => {
+      changeSlot(index, { card: current.card, missing: current.missing, labelIds: [...labelIds] })
     })
   },
 
   /** The binder as it stands, every pocket, as a snapshot that later edits do not reach into. */
   get arrangement(): Arrangement {
-    return slots.map((slot) => (slot ? { card: slot.card, missing: slot.missing } : null))
+    return slots.map((slot) =>
+      slot ? { card: slot.card, missing: slot.missing, labelIds: slot.labelIds } : null,
+    )
   },
 
   /**
@@ -536,7 +568,7 @@ export const binderPage = {
     if (!free) return false
 
     history.act(() => {
-      changeSlot(free.index, { card, missing: false })
+      changeSlot(free.index, { card, missing: false, labelIds: [] })
       tray.setQuantity(card.id, tray.quantityOf(card.id) - 1)
     })
 

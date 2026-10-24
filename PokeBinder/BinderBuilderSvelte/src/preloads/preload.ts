@@ -30,8 +30,17 @@ export interface PreloadedPlacement {
   /** Its place on that page, counted from zero. */
   slotOnPage: number
   isMissing: boolean
+  /** The labels on this pocket, in chip-strip order. Each id is in <see cref="PreloadedBinder.labels"/>. */
+  labelIds: number[]
   /** Null when the catalog no longer has the card the binder points at. */
   card: PreloadedCard | null
+}
+
+/** One label the binder owns. Mirrors GetFullBinder's BinderLabel. */
+export interface PreloadedBinderLabel {
+  id: number
+  name: string
+  color: string
 }
 
 export interface PreloadedTrayCard {
@@ -64,6 +73,7 @@ export interface PreloadedBinder {
   binder: PreloadedBinderSummary | null
   cards: PreloadedPlacement[]
   tray: PreloadedTrayCard[]
+  labels: PreloadedBinderLabel[]
 }
 
 /** One grid a binder can be set to. Mirrors GetNewBinderOptions' BinderSizeOption. */

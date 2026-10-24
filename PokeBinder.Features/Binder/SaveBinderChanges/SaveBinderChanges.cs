@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PokeBinder.Binders.DbContext;
 using PokeBinder.Features.Binder.SaveBinderChanges.Models;
+using LabelAssignmentEntity = PokeBinder.Binders.DbContext.Entities.BinderCardLabelAssignment;
 using PlacedCardEntity = PokeBinder.Binders.DbContext.Entities.BinderCard;
 using TrayEntry = PokeBinder.Binders.DbContext.Entities.BinderTray;
 
@@ -159,16 +160,47 @@ public static class SaveBinderChanges
         var claimed = PocketsOnPages(request.Pages, cardsPerPage);
 
         var (placed, changed, removed) = await SaveCardsAsync(request, claimed, context, ct);
+        var labelsTouched = await SaveLabelAssignmentsAsync(request, claimed, context, ct);
         var (added, updated, trayRemoved) = await SaveTrayAsync(request, context, ct);
 
-        // One call for both halves, for the reason in the summary. Most ticks change nothing on one
-        // side or the other, and a tick that changes nothing at all costs two reads and no write.
-        if (placed > 0 || changed > 0 || removed > 0 || added > 0 || updated > 0 || trayRemoved > 0)
+        if (AnythingToWrite(placed, changed, removed, labelsTouched, added, updated, trayRemoved))
         {
             await context.SaveChangesAsync(ct);
         }
 
         return new Response(request.BinderId, placed, changed, removed, added, updated, trayRemoved);
+    }
+
+    /// <summary>
+    /// Whether any half of the diff queued a write. One call for all of them, for the reason in
+    /// the summary: most ticks change nothing on one side or another, and a tick that changes
+    /// nothing at all costs the reads and no write.
+    /// </summary>
+    private static bool AnythingToWrite(
+        int placed,
+        int changed,
+        int removed,
+        bool labelsTouched,
+        int trayAdded,
+        int trayUpdated,
+        int trayRemoved)
+    {
+        if (placed > 0 || changed > 0 || removed > 0)
+        {
+            return true;
+        }
+
+        if (labelsTouched)
+        {
+            return true;
+        }
+
+        if (trayAdded > 0 || trayUpdated > 0 || trayRemoved > 0)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -257,6 +289,101 @@ public static class SaveBinderChanges
         }
 
         return (placed, changed, removed);
+    }
+
+    /// <summary>
+    /// Diffs each claimed pocket's label list against what is stored and queues the difference.
+    /// Returns whether anything is pending, so the caller can skip the commit on a tick that
+    /// changed nothing. Nothing is written here: the caller commits all halves together.
+    ///
+    /// <para>
+    /// The diff is by (pocket, labelId), the join row's identity. The cascade on the FK from the
+    /// join to <c>binderCards</c> handles the pocket-emptied case automatically: an emptied pocket
+    /// is removed above in <see cref="SaveCardsAsync"/>, and the join rows go with it. Here only
+    /// the pockets the request leaves populated are reconciled.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> SaveLabelAssignmentsAsync(
+        Request request,
+        HashSet<int> claimed,
+        BinderDbContext context,
+        CancellationToken ct)
+    {
+        // A save that claimed no pages had nothing to say above and has nothing to say here.
+        if (claimed.Count == 0)
+        {
+            return false;
+        }
+
+        var lowest = claimed.Min();
+        var highest = claimed.Max();
+
+        var stored = await context.BinderCardLabelAssignments
+            .Where(a => a.BinderId == request.BinderId
+                && a.IndexInBinder >= lowest
+                && a.IndexInBinder <= highest)
+            .ToListAsync(ct);
+
+        // Keyed by (pocket, labelId): the row's identity in the join. Each stored entry is either
+        // reused, rewritten (orderIndex changed), or deleted when it is not in the payload.
+        var storedByKey = stored.ToDictionary(a => (a.IndexInBinder, a.LabelId));
+
+        // Only pockets inside the claim are reconciled; a pocket outside is one the save has no
+        // opinion about. SaveCardsAsync has already removed the pockets the request left out of
+        // its payload, and the cascade on binderCards strips the join rows for those; nothing to
+        // do here for them.
+        var touched = false;
+
+        foreach (var card in request.Cards)
+        {
+            if (!claimed.Contains(card.IndexInBinder))
+            {
+                continue;
+            }
+
+            var labelIds = card.LabelIds ?? [];
+
+            // Walked position by position so the orderIndex matches the client's chip strip.
+            for (var order = 0; order < labelIds.Count; order++)
+            {
+                var labelId = labelIds[order];
+                var key = (card.IndexInBinder, labelId);
+
+                if (storedByKey.Remove(key, out var existing))
+                {
+                    if (existing.OrderIndex != order)
+                    {
+                        existing.OrderIndex = order;
+                        touched = true;
+                    }
+
+                    continue;
+                }
+
+                context.BinderCardLabelAssignments.Add(new LabelAssignmentEntity
+                {
+                    BinderId = request.BinderId,
+                    IndexInBinder = card.IndexInBinder,
+                    LabelId = labelId,
+                    OrderIndex = order,
+                });
+
+                touched = true;
+            }
+        }
+
+        // Whatever the walk did not strike off is an assignment on a claimed pocket that the
+        // payload left out: the collector removed that chip.
+        foreach (var orphan in storedByKey.Values)
+        {
+            if (claimed.Contains(orphan.IndexInBinder))
+            {
+                context.BinderCardLabelAssignments.Remove(orphan);
+                touched = true;
+            }
+        }
+
+        return touched;
     }
 
     /// <summary>

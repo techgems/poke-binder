@@ -221,6 +221,72 @@ public sealed class BinderFixture : IDisposable
         return this;
     }
 
+    /// <summary>
+    /// One label owned by the binder. Explicit id so tests can reference it from a payload or an
+    /// assertion without a second read.
+    /// </summary>
+    public BinderFixture WithLabel(int id, string name, string color = "blue")
+    {
+        Binders.BinderCardLabels.Add(new BinderCardLabel
+        {
+            Id = id,
+            BinderId = BinderId,
+            Name = name,
+            Color = color,
+        });
+
+        Binders.SaveChanges();
+
+        return this;
+    }
+
+    /// <summary>
+    /// Assigns the given labels to a pocket, in the order they appear.
+    /// </summary>
+    public BinderFixture WithLabelsOn(int pocket, params int[] labelIds)
+    {
+        for (var order = 0; order < labelIds.Length; order++)
+        {
+            Binders.BinderCardLabelAssignments.Add(new BinderCardLabelAssignment
+            {
+                BinderId = BinderId,
+                IndexInBinder = pocket,
+                LabelId = labelIds[order],
+                OrderIndex = order,
+            });
+        }
+
+        Binders.SaveChanges();
+
+        return this;
+    }
+
+    /// <summary>The labels the binder owns now, keyed by id.</summary>
+    public async Task<Dictionary<int, (string Name, string Color)>> StoredLabelsAsync()
+    {
+        Binders.ChangeTracker.Clear();
+
+        return await Binders.BinderCardLabels
+            .Where(label => label.BinderId == BinderId)
+            .ToDictionaryAsync(label => label.Id, label => (label.Name, label.Color));
+    }
+
+    /// <summary>The label assignments on the binder now, grouped by pocket in chip-strip order.</summary>
+    public async Task<Dictionary<int, List<int>>> StoredAssignmentsAsync()
+    {
+        Binders.ChangeTracker.Clear();
+
+        var rows = await Binders.BinderCardLabelAssignments
+            .Where(a => a.BinderId == BinderId)
+            .OrderBy(a => a.IndexInBinder)
+            .ThenBy(a => a.OrderIndex)
+            .ToListAsync();
+
+        return rows
+            .GroupBy(a => a.IndexInBinder)
+            .ToDictionary(group => group.Key, group => group.Select(a => a.LabelId).ToList());
+    }
+
     /// <summary>The pockets flagged missing now.</summary>
     public async Task<HashSet<int>> StoredMissingAsync()
     {
