@@ -16,121 +16,87 @@ moment it runs.
 
 ---
 
-## 1. Card labels
+## 1. Dockerize the app and orchestrate with Aspire
 
-Short tags you give the cards in a binder -- up to **three per card**, in the pocket's bottom-left
-corner -- picked from a list of labels **the binder owns**. A label is a short name and one of
-**eight colours**; the collector creates them, applies them to as many cards as they like, and
-manages them from Settings. Rename a label and every chip of it in the binder follows; delete it
-and every assignment of it goes with it.
+Everything the app depends on at runtime becomes a container, the solution gains a new
+`PokeBinder.AppHost` project to compose them, and `dotnet run` on that AppHost replaces the current
+`dotnet run` on the web project as the dev loop. Prod will be a single EC2 running nginx and the
+app on the same host, with CloudFront in front of a public S3 bucket for images; the dev setup is a
+faithful mimic of that shape rather than a different arrangement that happens to run.
 
-The per-pocket mockup (first attempt, in the code since commit 82079ba) and the binder-scoped UI
-reshape (substep 1 below, in the code since the local commit after it) are both done. **Substeps 2–3
-are the server work; substep 4 is the client wiring that replaces the session-only state with the
-real round trip.**
+### What runs
 
-### What it does
+- **`pokebinder-app`** — the web project in a multi-stage Dockerfile (SDK → `vite build` →
+  publish → `mcr.microsoft.com/dotnet/aspnet:10.0` runtime). SQLite files stay on disk; the
+  `Databases/` folder is bind-mounted so the local DBs survive a rebuild.
+- **`edge-nginx`** — `nginx:alpine`, fronts the app on `pokebinder.localhost`. Mirrors the EC2's
+  own nginx: gzip, request logging, nothing fancy. Plain HTTP in dev; TLS is a prod concern.
+- **`cdn-nginx`** — `nginx:alpine` again, different config, fronts MinIO on
+  `cdn.pokebinder.localhost` with `proxy_cache`. The local CloudFront: cache on disk, honour
+  `Cache-Control`, serve-stale-on-error. Not an edge network — the semantics the app sees (public
+  GET, cached, no auth) are the ones that matter and these match.
+- **`minio`** — `minio/minio:latest`. The local S3. One public-read bucket for card images. Admin
+  uploads (once that page exists) write here with `PutObjectAsync`; in prod the same code writes to
+  real S3 by swapping the endpoint.
+- **`seeder`** — one-shot: on first start, scans `C:\ImagesTCG` and uploads it to the MinIO card
+  bucket, then exits. `WithParentRelationship(minio)` so it waits for MinIO to be ready.
 
-- **A chip per label**, each a short tag (around 20 characters) in a bright background, in the
-  pocket's bottom-left corner. Three chips fit side-by-side at the standard pocket size and wrap
-  onto two lines when a tag is long. Missing's chip stays bottom-right.
-- **Up to three labels per card.** The schema's `CHECK` and the validator both say so; the picker
-  disables the fourth row while three are checked.
-- **The picker lives in the Label modal**, opened from the Tag button in the toolbox. Two tabs:
-  **Assign** (default) shows the labels on this card at the top and the labels available in the
-  binder below; drag from Available onto the card, or click a row to add. Each chip on the card
-  has an X that returns it to Available; Clear all empties the card side in one press. **Create
-  label** is a tab for the inline create form; Save there creates the label on the binder (one
-  dedicated slice call -- see below) and, as long as the card has room, applies it to this
-  pocket, then switches back to Assign.
-- **Pending-until-close for freshly created labels.** A label created in the modal is pending
-  while the modal is open: dropping it off the card with its chip-X before the modal closes
-  discards it entirely rather than returning it to Available, which is the typo / wrong-colour /
-  accidental-creation escape. Once the modal closes, pending labels are committed and that path
-  is gone.
-- **Settings owns rename, recolor and delete.** A Labels section in `BinderSettingsTab.svelte`
-  lists every label with its name, swatch and usage count, with per-row Edit (inline rename and
-  recolor) and Delete -- Delete asks first with the count ("Delete 'Trade'? This removes it from
-  12 cards."). Settings' Save button is what sends the labels sync -- edits do not fire per
-  press.
-- **Label names are unique per binder**, enforced in the validator and by a `UNIQUE(binderId,
-  name)` index.
-- **No cap on how many labels a binder has.** Collector prunes from Settings.
-- **A label stays once created**, even when no card uses it; orphans are not auto-cleaned.
-- **Labels travel with their card** on a drag, a reorder and `returnToTray` -- same rule the
-  missing flag already follows. **Deleting the card drops its labels** (the delete and the
-  paste-conflict Remove both set the slot to null, so the assignments go with it). **Copy does
-  not carry them**, matching the copy-no-label rule for everything that is not on the catalog
-  card.
-- **The spotlight does not show the chips.** Spotlight is for looking at the art.
-- **The eight colours stay as the Tailwind-named set** -- red, orange, amber, green, teal, blue,
-  purple, pink. The user does not pick their own, so the eight are what they are and new ones can
-  be added without rewriting any stored row.
-- **Spotlight / Click-add mutex** stays in effect; label edits happen through the toolbox and the
-  modal, not through plain card clicks.
+### Why the choices
+
+- **MinIO over LocalStack.** LocalStack's community CloudFront is a stub and the image is ~800 MB;
+  MinIO speaks S3 well enough that `AWSSDK.S3` with an endpoint override does not know the
+  difference, and the image is ~70 MB. The piece in front of the bucket is what nginx is for, not
+  LocalStack.
+- **nginx `proxy_cache` as CloudFront.** CloudFront's app-visible behaviour for public images is
+  cache-on-disk + conditional GETs + `Cache-Control` honour. nginx does the same thing. Signed URLs
+  are the piece it does not model — images are public, so this does not apply.
+- **Two nginxes rather than one.** Prod has two things fronting different origins (EC2 nginx →
+  app, CloudFront → S3). Collapsing them locally would mean the app's generated image URLs land on
+  the app host, not a CDN host, which is not what they do in prod.
+- **Aspire over `docker-compose.yml`.** Service discovery (the app reads MinIO's URL from env vars
+  Aspire injects, not a hardcoded `localhost:9000`), one dashboard for all logs, and the web
+  project stays a `ProjectReference` so it is debuggable from the IDE instead of being rebuilt as
+  an image on every F5.
+
+### Images in dev — local mimic, not a non-prod cloud CDN
+
+The app is not published, so a non-prod CDN would start out as a copy of `C:\ImagesTCG` anyway;
+MinIO on loopback is faster than any CDN; admin uploads work identically against MinIO as against
+S3 because it is the same SDK call. The `seeder` container populates MinIO from `C:\ImagesTCG` on
+first run so there is a reproducible image set without AWS credentials or internet. Once prod is
+live, a real non-prod CDN becomes a staging story and goes in its own step.
 
 ### Where it plugs in
 
-- **The chip and the picker** live in `BinderPage.svelte` (chips in the pocket) and
-  `LabelModal.svelte` (the Assign + Create tabs). Both exist today in the substep-1 shape.
-- **The Settings section** is in `BinderSettingsTab.svelte` as its own panel. Also already in the
-  substep-1 shape; substep 4 swaps its per-edit writes for the Save-button sync.
-- **The join table carries the three-cap.** A per-pocket array on the client, a join row per
-  assignment on the server, so a cascade on the card or on the label cleans itself up.
+- **New project `PokeBinder.AppHost/`**, added to `PokeBinder.slnx`. The Aspire SDK, one
+  `Program.cs` composing the resources above, no code of its own.
+- **New `PokeBinder/Dockerfile`** — multi-stage, publishes the Vite bundle in the build stage so
+  the runtime image carries the compiled SPA.
+- **`aspire/edge/nginx.conf`** and **`aspire/cdn/nginx.conf`** committed. Hostnames use the
+  `*.localhost` TLD so no `hosts` file edits are needed.
+- **`CardImages:BaseUrl`** keeps reading from `IConfiguration`; Aspire sets it to
+  `http://cdn.pokebinder.localhost` for the app resource. `appsettings.Development.json` keeps
+  working for the plain `dotnet run` path.
+- **`.claude/launch.json`** gets a second entry pointing at the AppHost; `pokebinder` stays as it
+  is for one-process debugging on a plain `dotnet run`.
+- **`CLAUDE.md`** gains a "Running under Aspire" section alongside the existing "Running the app
+  locally" one. The sign-in flow (`passwordless.txt`) still works the same way; the file lives in
+  the bind-mounted project folder.
+- **`PokeBinder.Features.Tests`** is not touched. The in-memory provider story stands.
+- **Not in scope:** LiteStream backup/restore for the SQLite files (its own step after this
+  lands), the ETL (local tool, stays as-is until its logic migrates into admin pages one page at a
+  time), the admin upload page itself, observability (below), swapping SQLite for Postgres, TLS in
+  dev.
 
-### Substeps
+### Observability — not in this step
 
-1. ✅ **(DONE) Binder-scoped labels, UI only.** `stores/labels.svelte.ts` holds two SvelteMaps:
-   the binder's labels (keyed by a local id, carrying name and color) and the pocket assignments
-   (keyed by pocket index, with an ordered list of up to three label ids). `LabelModal.svelte` has
-   the Assign / Create tabs with drag-and-drop between the two lists, pending-until-close for
-   freshly created labels, and chip-X-discards-pending. `BinderSettingsTab.svelte` has the Labels
-   panel. `binder-page.svelte.ts` clears or swaps pocket assignments on delete, return-to-tray,
-   drops and paste; substep 4 moves those into `changeSlot`. Per-session only; nothing posted.
-2. ✅ **(DONE) Schema and entity.** Migration under `PokeBinder.Migrations/Scripts/PokeBinder/`
-   (`005_CreateBinderCardLabels.sql`) created `binderCardLabels` and
-   `binderCardLabelAssignments` with the composite FK on `(binderId, indexInBinder)`,
-   `UNIQUE(binderId, name)`, cascades on both sides and the `CHECK` on `orderIndex`.
-   `BinderCardLabel` and `BinderCardLabelAssignment` entities and their mappings in
-   `BinderDbContext.cs`; `BinderCard.LabelAssignments` and `Binder.Labels` navigations added.
-3. ✅ **(DONE) Slices, validators and tests.** `CreateBinderCardLabel` with validator and
-   `POST /api/binders/{id}/labels`. `SaveBinderChanges.SavedCard` carries `LabelIds`; the handler's
-   `SaveLabelAssignmentsAsync` diffs per claimed pocket, the validator rejects dangling ids,
-   duplicates per pocket, and lists past the three-cap. `UpdateBinder.Request` carries a
-   `labels: { id, name, color }[]` sync; `SyncLabelsAsync` renames, recolors and deletes by
-   omission; validator rejects dangling ids, duplicate names in the leftover state, blank names
-   and unknown colours. `ReorderedCard` carries `LabelIds` with value-equal `Equals`;
-   `BinderArrangement` loads label assignments, carries them through sort and rewrites them in
-   `LayOut`; `ReorderBinder`, `AddSetToBinder` and `UpdateBinder` all `Include` the assignments.
-   `GetFullBinder` returns the binder's labels and each `BinderPlacement.LabelIds`. 32 new tests
-   cover every rule above; all 197 tests pass.
-4. ✅ **(DONE) Client wiring.** Three write paths; only one of them calls the dedicated label slice.
-   - **Pending-labels staging stays client-only.** `pocketLabels.pending: SvelteMap<number,
-     Label>` with local negative ids, separate from the committed `labels`. The picker merges
-     them. Chip-X on a pending label drops it from both maps; nothing is sent.
-   - **Create-and-apply (modal) → `CreateBinderCardLabel` right away.** On success, swap the
-     negative id for the real id in `pocketAssignments`, move the entry from `pending` into
-     `labels`, record a `LabelCreateDelta`. On failure, error toast ("Could not create '{name}'.
-     Try again."), pending entry dropped, no card change.
-   - **Modal close** records the assignment changes in history and arms the debounced
-     `SaveBinderChanges`, which now carries each affected pocket's `labelIds` alongside its card
-     and missing flag. One save, same existing debounce window.
-   - **Settings panel's labels list** round-trips through `SaveBinderSettings` on its Save button:
-     the full `labels` field with every id, carrying any renames and recolors; omission is a
-     delete. Settings' "New label" still calls `CreateBinderCardLabel` first so the id exists
-     before Save sends the sync.
-   - **`SlotDelta` gains `labelIds: readonly number[]`** on `ArrangedPocket`, next to the missing
-     flag. `pocketDiffers` compares the arrays. The explicit `pocketLabels.clearPocket` /
-     `swapPockets` calls in `binder-page.svelte.ts` go away -- `changeSlot` carries the whole
-     slot (card + missing + labelIds).
-   - **Preload**: `PreloadedBinder` lands the binder's labels and each pocket's `labelIds` at
-     load, replacing the substep-1 local-only state.
-   - **History deltas**:
-     - Assignment changes: existing `SlotDelta` with the new `labelIds` field. Fully undoable via
-       the existing save flow.
-     - `LabelCreateDelta`: one entry per `CreateBinderCardLabel` success.
-     - Settings edits (rename, recolor, delete) are not Ctrl+Z undoable in this round; Settings
-       has its own Save and Discard controls, and the delete has the count-aware confirmation.
+Prod sends app logs to CloudWatch via the CloudWatch agent on the EC2, which is a host-level
+concern and does not change how the app logs (stdout, structured). Metrics and traces are a
+separate decision — leaning Grafana (open-source-aligned, Grafana Cloud's free tier is generous at
+this scale, and reading CloudWatch through its data source means logs and metrics land in one UI
+without duplicating log storage). Datadog is simpler to turn on but overlaps with the CloudWatch
+spend and does not pay back at a one-dev project's volume. **Its own NEXT-STEPS entry, after this
+one lands**, with the OpenTelemetry collector added as another Aspire resource.
 
 ---
 
