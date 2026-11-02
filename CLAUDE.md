@@ -299,3 +299,9 @@ is exactly what the browser does on activation, before believing it.
 anything the reader has to act on or decide -- a failed check, an open question, a judgement call
 they may disagree with. Leave out the walk through how it was done, measurements that only confirm
 the request was met, and restating the request. A one-line change gets a one-line report.
+
+**No fluff.** Every sentence must carry information the reader does not already have. Cut
+preamble ("I've gone ahead and…", "As requested…"), transitions ("Now let me…", "Next I will…"),
+self-congratulation ("Perfect!", "Great, that worked"), restated conclusions, and sign-offs. Lists
+over prose where a list fits. The report has two jobs: let the reader skim what happened and keep
+the token count down -- both are undermined by narrative connective tissue.
