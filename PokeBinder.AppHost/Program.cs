@@ -73,12 +73,29 @@ var app = builder.AddProject<Projects.PokeBinder>("pokebinder-app")
     .WithEnvironment("ASPNETCORE_FORWARDEDHEADERS_ENABLED", "true")
     .WaitFor(cdn);
 
+// Terminates TLS with the ASP.NET Core dev certificate, which `dotnet dev-certs https --trust`
+// already put in the machine's trust store, so the browser accepts it without a warning.
+// The certificate APIs are still marked experimental in Aspire 13.6.
+const int ProxyHttpsPort = 8443;
+#pragma warning disable ASPIRECERTIFICATES001
 builder.AddContainer("pokebinder-proxy", "nginx", "alpine")
     .WithBindMount("../aspire/proxy/default.conf.template", "/etc/nginx/templates/default.conf.template", isReadOnly: true)
     .WithEnvironment("APP_ORIGIN", app.GetEndpoint("http"))
-    .WithEnvironment("NGINX_ENVSUBST_FILTER", "^APP_ORIGIN$")
+    .WithEnvironment("HTTPS_PORT", ProxyHttpsPort.ToString())
+    .WithEnvironment("NGINX_ENVSUBST_FILTER", "^(APP_ORIGIN|TLS_CERT|TLS_KEY|HTTPS_PORT)$")
+    .WithHttpsDeveloperCertificate()
+    .WithHttpsCertificateConfiguration(ctx =>
+    {
+        ctx.EnvironmentVariables["TLS_CERT"] = ctx.CertificatePath;
+        ctx.EnvironmentVariables["TLS_KEY"] = ctx.KeyPath;
+        return Task.CompletedTask;
+    })
+    .WithHttpsEndpoint(port: ProxyHttpsPort, targetPort: 443)
+    .WithUrlForEndpoint("https", url => url.Url = $"https://pokebinder.dev.localhost:{ProxyHttpsPort}")
+    // Only redirects to the HTTPS endpoint, so the dashboard does not offer it as a link.
     .WithHttpEndpoint(port: 8080, targetPort: 80)
-    .WithUrlForEndpoint("http", url => url.Url = "http://pokebinder.localhost:8080")
+    .WithUrlForEndpoint("http", url => url.DisplayLocation = UrlDisplayLocation.DetailsOnly)
     .WaitFor(app);
+#pragma warning restore ASPIRECERTIFICATES001
 
 builder.Build().Run();

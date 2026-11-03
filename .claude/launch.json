@@ -9,8 +9,8 @@
         "--project",
         "PokeBinder.AppHost/PokeBinder.AppHost.csproj"
       ],
-      "port": 8080,
-      "url": "http://pokebinder.localhost:8080"
+      "port": 8443,
+      "url": "https://pokebinder.dev.localhost:8443"
     }
   ]
 }

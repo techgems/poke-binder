@@ -258,7 +258,7 @@ dotnet run --project PokeBinder.AppHost/PokeBinder.AppHost.csproj
 
 | Resource | Stands in for | Where |
 | --- | --- | --- |
-| `pokebinder-proxy` | the EC2's nginx | **http://pokebinder.localhost:8080** — the address to use |
+| `pokebinder-proxy` | the EC2's nginx | **https://pokebinder.dev.localhost:8443** — the address to use |
 | `pokebinder-app` | the app | http://localhost:5076, as a project, not a container |
 | `cdn-nginx` | CloudFront | http://cdn.pokebinder.localhost:8081, `CardImages:BaseUrl` for the app |
 | `minio` | S3 | bucket `card-images`; ports and console are in the dashboard |
@@ -269,7 +269,14 @@ The Aspire dashboard is on http://localhost:15076; the console prints the login 
 - **The app runs as a project, so it runs in Development**: `Program.cs` calls
   `RunViteDevServer()`, which brings up Vite for the SPA with it. Vite picks whatever port is free
   (5173 upward) and the tag helpers resolve it, so the port it prints is not one to hard-code
-  anywhere. Browse through `pokebinder.localhost:8080`, not port 5076.
+  anywhere. Browse through `pokebinder.dev.localhost:8443`, not port 5076.
+- **TLS ends at `pokebinder-proxy`**, as it will on the EC2, with the ASP.NET Core dev certificate
+  that Aspire hands the container. That certificate covers `*.dev.localhost` and not
+  `*.localhost`, which is why the host has the extra `dev` label. Port 8080 only answers with a
+  redirect to 8443. The app behind the proxy stays on plain HTTP and learns the scheme from
+  `X-Forwarded-Proto`. A browser that warns about the certificate means it is not trusted on this
+  machine yet: `dotnet dev-certs https --trust`. The certificate APIs are experimental in Aspire
+  13.6, hence the `#pragma` around the proxy in the AppHost.
 - **The nginx configs are templates**: `aspire/proxy/` and `aspire/cdn/` hold
   `default.conf.template`, and the AppHost fills in the upstream addresses Aspire assigns. Edit the
   template, not the file nginx renders from it inside the container.
@@ -293,23 +300,23 @@ A changed port in that file is not a change anybody made, so do not edit it, rev
 it. It is generated, and `.gitignore` keeps it out of the repo.
 
 **Stop it again before the turn is over.** Any prompt an agent started the AppHost for is a prompt
-that ends by stopping it — no leaving it up for the next one. It holds ports 8080, 8081 and 5076
+that ends by stopping it — no leaving it up for the next one. It holds ports 8443, 8080, 8081, 5076
 and a Vite port, so one left behind is what makes the next start fail, and its Vite child keeps
 rebuilding against a session nobody is watching. A preview server is stopped by the same tool that
 launched it, and Ctrl+C takes the containers down with the AppHost. A killed AppHost process does
-not: `pokebinder-proxy-*`, `cdn-nginx-*` and `minio-*` are left running, and need a
-`docker rm -f`. The MinIO volume stays either way.
+not: `pokebinder-proxy-*`, `cdn-nginx-*`, `minio-*` and Aspire's `tunnel-proxy-*` are left running,
+and need a `docker rm -f`. The MinIO volume stays either way.
 
 ### Signing in
 
 Every binder page is behind auth, and the sign-in is passwordless — there is no password to type,
 and in Development there is no mail server either. The loop is:
 
-1. Submit an email address on `http://pokebinder.localhost:8080/Account/Login`. An unknown address
-   registers an account on the spot, which is intended: dev accounts are meant to be cheap.
+1. Submit an email address on `https://pokebinder.dev.localhost:8443/Account/Login`. An unknown
+   address registers an account on the spot, which is intended: dev accounts are meant to be cheap.
 2. `LoginModel.GenerateTokenAndLink` writes the one-time link to **`PokeBinder/passwordless.txt`**
    instead of sending it. The file is gitignored and is overwritten on every attempt, so the link in
-   it is always the most recent one, and it points at the edge host the request came through.
+   it is always the most recent one, and it points at the proxy host the request came through.
 3. Open that URL. It lands on `/Account/AuthCallback`, which sets the cookie and drops you on the
    site signed in.
 

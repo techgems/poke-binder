@@ -29,8 +29,8 @@ faithful mimic of that shape rather than a different arrangement that happens to
 - **`pokebinder-app`** — the web project in a multi-stage Dockerfile (SDK → `vite build` →
   publish → `mcr.microsoft.com/dotnet/aspnet:10.0` runtime). SQLite files stay on disk; the
   `Databases/` folder is bind-mounted so the local DBs survive a rebuild.
-- **`pokebinder-proxy`** — `nginx:alpine`, fronts the app on `pokebinder.localhost`. Mirrors the
-  EC2's own nginx: gzip, request logging, nothing fancy. Plain HTTP in dev; TLS is a prod concern.
+- **`pokebinder-proxy`** — `nginx:alpine`, fronts the app on `pokebinder.dev.localhost`. Mirrors
+  the EC2's own nginx: TLS, gzip, request logging, nothing fancy.
 - **`cdn-nginx`** — `nginx:alpine` again, different config, fronts MinIO on
   `cdn.pokebinder.localhost` with `proxy_cache`. The local CloudFront: cache on disk, honour
   `Cache-Control`, serve-stale-on-error. Not an edge network — the semantics the app sees (public
@@ -85,8 +85,7 @@ live, a real non-prod CDN becomes a staging story and goes in its own step.
 - **`PokeBinder.Features.Tests`** is not touched. The in-memory provider story stands.
 - **Not in scope:** LiteStream backup/restore for the SQLite files (its own step after this
   lands), the ETL (local tool, stays as-is until its logic migrates into admin pages one page at a
-  time), the admin upload page itself, observability (below), swapping SQLite for Postgres, TLS in
-  dev.
+  time), the admin upload page itself, observability (below), swapping SQLite for Postgres.
 
 ### Observability — not in this step
 
