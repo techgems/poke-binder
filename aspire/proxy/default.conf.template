@@ -1,0 +1,30 @@
+# pokebinder-proxy: the local stand-in for the nginx on the EC2, in front of the app.
+#
+# A template, not a finished config: the nginx image runs envsubst over /etc/nginx/templates on
+# start, and the AppHost sets APP_ORIGIN to wherever the app is listening. Only APP_ORIGIN is
+# substituted (NGINX_ENVSUBST_FILTER), so nginx's own $variables pass through untouched.
+#
+# Plain HTTP: TLS is the EC2's concern, not dev's. Requests are logged to stdout by the image's
+# default access_log, which is what lands in the Aspire dashboard.
+
+server {
+    listen 80;
+    server_name pokebinder.localhost;
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 1024;
+    gzip_types text/css text/plain application/javascript application/json image/svg+xml;
+
+    location / {
+        proxy_pass ${APP_ORIGIN};
+        proxy_http_version 1.1;
+
+        # The app builds absolute links -- the sign-in link above all -- from the Host it sees, so it
+        # has to see the one the browser used rather than nginx's upstream address.
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

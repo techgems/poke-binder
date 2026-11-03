@@ -1,0 +1,41 @@
+# cdn-nginx: the local stand-in for CloudFront in front of the card-image bucket.
+#
+# Not an edge network. What it reproduces is what the app and the browser can see of CloudFront for
+# public images: anonymous GETs, a cache on disk, the origin's Cache-Control honoured, conditional
+# GETs back to the origin, and stale copies served when the origin is down. The bucket's name is
+# CloudFront's origin path here too, so image URLs carry the object key and nothing else.
+#
+# A template: the AppHost sets MINIO_ORIGIN and CARD_BUCKET, and only those are substituted.
+
+proxy_cache_path /var/cache/nginx/cdn levels=1:2 keys_zone=cdn:10m max_size=5g inactive=30d use_temp_path=off;
+
+server {
+    listen 80;
+    server_name cdn.pokebinder.localhost;
+
+    location / {
+        limit_except GET { deny all; }
+
+        proxy_pass ${MINIO_ORIGIN}/${CARD_BUCKET}/;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization "";
+
+        proxy_cache cdn;
+        # CloudFront's default cache key: the path, with the query string ignored.
+        proxy_cache_key $uri;
+
+        # Used only when the origin sends no Cache-Control or Expires of its own, which it does
+        # override: 24h is CloudFront's default TTL, and errors are cached briefly like its error
+        # caching, so a missing image does not hit the bucket on every request.
+        proxy_cache_valid 200 24h;
+        proxy_cache_valid 403 404 10s;
+
+        proxy_cache_revalidate on;
+        proxy_cache_lock on;
+        proxy_cache_background_update on;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+
+        # CloudFront's X-Cache, near enough: HIT, MISS, REVALIDATED, STALE.
+        add_header X-Cache $upstream_cache_status always;
+    }
+}

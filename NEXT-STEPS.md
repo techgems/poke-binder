@@ -29,8 +29,8 @@ faithful mimic of that shape rather than a different arrangement that happens to
 - **`pokebinder-app`** — the web project in a multi-stage Dockerfile (SDK → `vite build` →
   publish → `mcr.microsoft.com/dotnet/aspnet:10.0` runtime). SQLite files stay on disk; the
   `Databases/` folder is bind-mounted so the local DBs survive a rebuild.
-- **`edge-nginx`** — `nginx:alpine`, fronts the app on `pokebinder.localhost`. Mirrors the EC2's
-  own nginx: gzip, request logging, nothing fancy. Plain HTTP in dev; TLS is a prod concern.
+- **`pokebinder-proxy`** — `nginx:alpine`, fronts the app on `pokebinder.localhost`. Mirrors the
+  EC2's own nginx: gzip, request logging, nothing fancy. Plain HTTP in dev; TLS is a prod concern.
 - **`cdn-nginx`** — `nginx:alpine` again, different config, fronts MinIO on
   `cdn.pokebinder.localhost` with `proxy_cache`. The local CloudFront: cache on disk, honour
   `Cache-Control`, serve-stale-on-error. Not an edge network — the semantics the app sees (public
@@ -72,7 +72,7 @@ live, a real non-prod CDN becomes a staging story and goes in its own step.
   `Program.cs` composing the resources above, no code of its own.
 - **New `PokeBinder/Dockerfile`** — multi-stage, publishes the Vite bundle in the build stage so
   the runtime image carries the compiled SPA.
-- **`aspire/edge/nginx.conf`** and **`aspire/cdn/nginx.conf`** committed. Hostnames use the
+- **`aspire/proxy/nginx.conf`** and **`aspire/cdn/nginx.conf`** committed. Hostnames use the
   `*.localhost` TLD so no `hosts` file edits are needed.
 - **`CardImages:BaseUrl`** keeps reading from `IConfiguration`; Aspire sets it to
   `http://cdn.pokebinder.localhost` for the app resource. `appsettings.Development.json` keeps

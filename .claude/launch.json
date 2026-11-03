@@ -7,15 +7,10 @@
       "runtimeArgs": [
         "run",
         "--project",
-        "PokeBinder/PokeBinder.csproj",
-        "--no-launch-profile",
-        "--",
-        "--environment",
-        "Development",
-        "--urls",
-        "http://localhost:5076"
+        "PokeBinder.AppHost/PokeBinder.AppHost.csproj"
       ],
-      "port": 5076
+      "port": 8080,
+      "url": "http://pokebinder.localhost:8080"
     }
   ]
 }

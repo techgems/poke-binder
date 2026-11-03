@@ -1,0 +1,18 @@
+# Read in place of a root .dockerignore when building with PokeBinder/Dockerfile. The context is the
+# repository root, so everything the image does not need is left out here.
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+.git/
+.claude/
+Databases/
+TCGCSV/
+Scripts/
+PokeBinderETL/
+PokeBinder.Migrations/
+PokeBinder.Features.Tests/
+PokeBinder.AppHost/
+aspire/
+**/passwordless.txt
+**/manifest.dev.json

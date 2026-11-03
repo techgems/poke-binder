@@ -243,33 +243,73 @@ NEXT-STEPS.md -- without the tests having to be rewritten with it.
 
 ## Running the app locally
 
-`.claude/launch.json` holds the one configuration, `pokebinder`: `dotnet run` on
-**http://localhost:5076** with the Development environment. Start it from there rather than by hand
-— `Program.cs` calls `RunViteDevServer()` in Development, so the same command also brings up Vite
-for the SPA and the two stay in step. Vite picks whatever port is free (5173 upward) and the tag
-helpers resolve it, so the port it prints is not one to hard-code anywhere.
+**Aspire is the only way to run the app.** `PokeBinder.AppHost` composes it with everything it
+depends on at runtime, in the shape prod will have: one EC2 running nginx in front of the app, and
+CloudFront in front of a public S3 bucket of card art. Never `dotnet run` `PokeBinder.csproj` on
+its own: `CardImages:BaseUrl` comes from the AppHost, so the app refuses to start without it, and a
+page reached around the edge is not the page prod serves.
+
+It needs Docker Desktop running. Start it with the `pokebinder` configuration in
+`.claude/launch.json`, the only one there, or by hand:
+
+```bash
+dotnet run --project PokeBinder.AppHost/PokeBinder.AppHost.csproj
+```
+
+| Resource | Stands in for | Where |
+| --- | --- | --- |
+| `pokebinder-proxy` | the EC2's nginx | **http://pokebinder.localhost:8080** — the address to use |
+| `pokebinder-app` | the app | http://localhost:5076, as a project, not a container |
+| `cdn-nginx` | CloudFront | http://cdn.pokebinder.localhost:8081, `CardImages:BaseUrl` for the app |
+| `minio` | S3 | bucket `card-images`; ports and console are in the dashboard |
+| `seeder` | — | one-shot: copies `C:\ImagesTCG` into the bucket, then exits |
+
+The Aspire dashboard is on http://localhost:15076; the console prints the login link.
+
+- **The app runs as a project, so it runs in Development**: `Program.cs` calls
+  `RunViteDevServer()`, which brings up Vite for the SPA with it. Vite picks whatever port is free
+  (5173 upward) and the tag helpers resolve it, so the port it prints is not one to hard-code
+  anywhere. Browse through `pokebinder.localhost:8080`, not port 5076.
+- **The nginx configs are templates**: `aspire/proxy/` and `aspire/cdn/` hold
+  `default.conf.template`, and the AppHost fills in the upstream addresses Aspire assigns. Edit the
+  template, not the file nginx renders from it inside the container.
+- **Card art shows broken until the seeder has finished.** The first run uploads the whole of
+  `C:\ImagesTCG` (about 2 GB); after that, `aws s3 sync` sends only what is new. MinIO's data is
+  in the `pokebinder-minio-data` volume, so the upload happens once, not on every start. The folder
+  is `Seeder:CardImagesFolder` in the AppHost's `appsettings.json`.
+- **The app never serves card art itself.** A card's `imageUrl` is its object key in the bucket
+  (`Ruby & Sapphire/83475_in_1000x1000.jpg`), and `CardImages:BaseUrl`, which the AppHost sets to
+  `cdn-nginx`, is the CDN it is appended to. The ETL still writes file paths:
+  **re-run `Scripts/CardImagePathsToObjectKeys.sql` after every ETL load.**
+- **MinIO's image is Chainguard's (`cgr.dev/chainguard/minio`)**, because MinIO no longer publishes
+  images to Docker Hub or Quay. It only starts as root, hence the `--user 0`.
+- **The MinIO password is generated on the first run** and kept in the AppHost's user secrets
+  (`Parameters:minio-password`). The volume is formatted with it, so a cleared secret leaves a
+  volume nothing can open: remove the volume along with it.
 
 **Never touch `manifest.dev.json`.** The Vite dev server rewrites
 `wwwroot/BinderBuilderSvelte/manifest.dev.json` every time it starts, with whatever port it got.
 A changed port in that file is not a change anybody made, so do not edit it, revert it or report
 it. It is generated, and `.gitignore` keeps it out of the repo.
 
-**Stop it again before the turn is over.** Any prompt an agent started the server for is a prompt
-that ends by killing it — no leaving it up for the next one. It holds port 5076 and a Vite port, so
-a server left behind is what makes the next `dotnet run` bind somewhere else or fail outright, and
-its Vite child keeps rebuilding against a session nobody is watching. The Ctrl+C equivalent depends
-on how it was started; a preview server is stopped by the same tool that launched it.
+**Stop it again before the turn is over.** Any prompt an agent started the AppHost for is a prompt
+that ends by stopping it — no leaving it up for the next one. It holds ports 8080, 8081 and 5076
+and a Vite port, so one left behind is what makes the next start fail, and its Vite child keeps
+rebuilding against a session nobody is watching. A preview server is stopped by the same tool that
+launched it, and Ctrl+C takes the containers down with the AppHost. A killed AppHost process does
+not: `pokebinder-proxy-*`, `cdn-nginx-*` and `minio-*` are left running, and need a
+`docker rm -f`. The MinIO volume stays either way.
 
 ### Signing in
 
 Every binder page is behind auth, and the sign-in is passwordless — there is no password to type,
 and in Development there is no mail server either. The loop is:
 
-1. Submit an email address on `/Account/Login`. An unknown address registers an account on the spot,
-   which is intended: dev accounts are meant to be cheap.
+1. Submit an email address on `http://pokebinder.localhost:8080/Account/Login`. An unknown address
+   registers an account on the spot, which is intended: dev accounts are meant to be cheap.
 2. `LoginModel.GenerateTokenAndLink` writes the one-time link to **`PokeBinder/passwordless.txt`**
    instead of sending it. The file is gitignored and is overwritten on every attempt, so the link in
-   it is always the most recent one.
+   it is always the most recent one, and it points at the edge host the request came through.
 3. Open that URL. It lands on `/Account/AuthCallback`, which sets the cookie and drops you on the
    site signed in.
 
@@ -292,6 +332,20 @@ One caveat when driving the page with browser automation: synthesised `Enter`/`S
 arrive with an empty `event.key` and so never produce the activation click a real key press would.
 A keyboard path that looks broken under automation is worth confirming with `element.click()`, which
 is exactly what the browser does on activation, before believing it.
+
+### The image that ships
+
+`PokeBinder/Dockerfile` is the image that ships, built from the repository root. It is for the
+deploy, not a way to run the app locally:
+
+```bash
+docker build -f PokeBinder/Dockerfile -t pokebinder-app .
+```
+
+It builds the SPA bundle and the binder shell sheet itself. `site.tailwind.css` it takes as
+committed, since the standalone Tailwind CLI is not in the image, so rebuild that sheet before
+building the image. Run it with the host's `Databases/` folder mounted at `/Databases` and
+`CardImages__BaseUrl` set to the CDN; without the latter the app refuses to start.
 
 ## Reporting back
 

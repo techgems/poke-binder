@@ -95,8 +95,8 @@ public static class SearchCardsByFilter
             rows.RemoveAt(rows.Count - 1);
         }
 
-        // The card stores a local file path, so it becomes a URL once the rows are back rather than
-        // inside the query — string surgery in SQL would buy nothing here.
+        // The card holds its art's bucket key, so it becomes a URL once the rows are back rather
+        // than inside the query — string surgery in SQL would buy nothing here.
         foreach (var row in rows)
         {
             row.ImageUrl = imageUrls.ToPublicUrl(row.ImageUrl);

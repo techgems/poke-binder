@@ -21,7 +21,7 @@ public class BinderCardDetails
 
     public int TcgPlayerId { get; set; }
 
-    /// <summary>Loadable URL for the art, already resolved from the ETL's local file path.</summary>
+    /// <summary>Loadable URL for the art, already resolved from the stored object key.</summary>
     public string? ImageUrl { get; set; }
 
     public string? SetName { get; set; }

@@ -205,7 +205,7 @@ public static class AddSetToBinder
             })
             .ToDictionaryAsync(card => card.Id, ct);
 
-        // The card stores a local file path, so it becomes a URL once the rows are back.
+        // The card holds its art's bucket key, so it becomes a URL once the rows are back.
         foreach (var card in cards.Values)
         {
             card.ImageUrl = imageUrls.ToPublicUrl(card.ImageUrl);

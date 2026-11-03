@@ -186,8 +186,8 @@ public static class GetFullBinder
             })
             .ToListAsync(ct);
 
-        // The card stores a local file path, so it becomes a URL once the rows are back rather than
-        // inside the query — string surgery in SQL would buy nothing here.
+        // The card holds its art's bucket key, so it becomes a URL once the rows are back rather
+        // than inside the query — string surgery in SQL would buy nothing here.
         foreach (var card in cards)
         {
             card.ImageUrl = imageUrls.ToPublicUrl(card.ImageUrl);

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.FileProviders;
 using PokeBinder.Binders.DbContext.Entities;
 using PokeBinder.Binders.Users.DI;
 using PokeBinder.Features.CardImages;
@@ -18,13 +17,12 @@ var tcgCatalogConnectionString = builder.Configuration.GetConnectionString("TcgC
 
 builder.Services.AddFeatures(applicationConnectionString, tcgCatalogConnectionString);
 
-// Card art still sits on the machine that ran the ETL, recorded as absolute file paths. LocalRoot
-// is the prefix stripped off those paths and BaseUrl is what replaces it, so pointing BaseUrl at a
-// CDN later is the whole migration.
-var cardImageRoot = builder.Configuration["CardImages:LocalRoot"] ?? string.Empty;
-var cardImageBaseUrl = builder.Configuration["CardImages:BaseUrl"] ?? "/cardImages";
+// Card art is served from a CDN in front of the card-image bucket, never by the app. Cards store
+// the object key and BaseUrl is the CDN it is appended to.
+var cardImageBaseUrl = builder.Configuration["CardImages:BaseUrl"]
+    ?? throw new InvalidOperationException("CardImages:BaseUrl is not set.");
 
-builder.Services.AddSingleton(new CardImageUrls(cardImageRoot, cardImageBaseUrl));
+builder.Services.AddSingleton(new CardImageUrls(cardImageBaseUrl));
 
 builder.Services
     .AddBinderIdentity(options => options.SignIn.RequireConfirmedAccount = true)
@@ -63,18 +61,6 @@ else
 }
 
 app.UseHttpsRedirection();
-
-// Temporary: while BaseUrl is still app-relative, serve the ETL's image folder ourselves so the
-// art resolves in development. Once BaseUrl points at a CDN this stops mapping anything.
-if (!cardImageBaseUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-    && Directory.Exists(cardImageRoot))
-{
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new PhysicalFileProvider(cardImageRoot),
-        RequestPath = cardImageBaseUrl,
-    });
-}
 
 app.UseRouting();
 

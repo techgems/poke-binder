@@ -20,7 +20,7 @@ public class AddSetToBinderTests
 {
     private const int SetId = 5;
 
-    private static readonly CardImageUrls ImageUrls = new("C:/ImagesTCG", "/cardImages");
+    private static readonly CardImageUrls ImageUrls = new("http://cdn.test");
 
     private static SortCriterion ByNumber(SortDirection direction = SortDirection.Asc) =>
         new() { Key = CriterionKey.Number, Direction = direction };
