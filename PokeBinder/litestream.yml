@@ -1,0 +1,47 @@
+# Litestream: continuous replication of the app's two SQLite databases into a private S3 bucket.
+#
+# One file for both places it runs. In the shipped image it is /etc/litestream.yml, and Litestream
+# starts the app itself (`replicate -exec`). Under Aspire it is the `litestream` resource, a Windows
+# process beside the app, replicating into MinIO. What differs between the two is set from outside,
+# and Litestream expands the variables before parsing:
+#
+#   DATABASES_DIR           the folder holding the .db files: /Databases in the image
+#   LITESTREAM_BUCKET       the backup bucket, pokebinder-db-backups
+#   LITESTREAM_S3_ENDPOINT  MinIO's address under Aspire; empty against real S3, which is "unset"
+#
+# `type: s3` is not optional, whatever the docs say: without it the replica is a local folder named
+# by `path`, relative to wherever Litestream was started, and nothing reaches the bucket.
+#
+# Credentials are not in here: Litestream reads AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, or the
+# EC2's instance role when those are absent.
+#
+# Litestream puts each database in WAL mode on first start, and that sticks. Nothing else may
+# checkpoint-truncate the WAL behind its back, and only one Litestream may replicate a database:
+# a second app instance writing the same files is not something this setup survives.
+
+# How far back a restore can go. Snapshots are full copies; between them, restores replay the
+# changes Litestream ships every second.
+snapshot:
+  interval: 24h
+  retention: 168h
+
+dbs:
+  # Accounts, binders, labels, the tray. Nothing else can rebuild it.
+  - path: ${DATABASES_DIR}/PokeBinder.db
+    # A host that starts with no database -- a new EC2, a wiped volume -- comes back from the
+    # bucket instead of starting empty. A database that is there is never overwritten.
+    restore-if-db-not-exists: true
+    replica:
+      type: s3
+      bucket: ${LITESTREAM_BUCKET}
+      path: PokeBinder
+      endpoint: ${LITESTREAM_S3_ENDPOINT}
+
+  # The card catalog. The ETL and Scripts/ could rebuild it, slowly; the bucket is quicker.
+  - path: ${DATABASES_DIR}/TcgCatalog.db
+    restore-if-db-not-exists: true
+    replica:
+      type: s3
+      bucket: ${LITESTREAM_BUCKET}
+      path: TcgCatalog
+      endpoint: ${LITESTREAM_S3_ENDPOINT}

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using PokeBinder.Binders.DbContext.Entities;
 using PokeBinder.Binders.Users.DI;
+using PokeBinder.Emails.DI;
 using PokeBinder.Features.CardImages;
 using PokeBinder.Features.DI;
 using ViteDotNet;
@@ -23,6 +24,17 @@ var cardImageBaseUrl = builder.Configuration["CardImages:BaseUrl"]
     ?? throw new InvalidOperationException("CardImages:BaseUrl is not set.");
 
 builder.Services.AddSingleton(new CardImageUrls(cardImageBaseUrl));
+
+// Every email goes out through Bird, locally as in production. The Bird section is checked at
+// startup: the AppHost passes it from its user secrets, production from the environment.
+builder.Services.AddEmails();
+builder.Services.AddBirdEmailSender(builder.Configuration);
+
+// Signing in without a mail provider: in Development only, Passwordless:WriteLinkToFile writes the
+// sign-in link to passwordless.txt instead of mailing it. Anywhere else the setting is refused, since
+// a link on disk is a credential on disk.
+if (builder.Configuration.GetValue<bool>("Passwordless:WriteLinkToFile") && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("Passwordless:WriteLinkToFile is for Development only.");
 
 builder.Services
     .AddBinderIdentity(options => options.SignIn.RequireConfirmedAccount = true)

@@ -15,6 +15,8 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<BinderCardLabelAssignment> BinderCardLabelAssignments =>
         Set<BinderCardLabelAssignment>();
 
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
@@ -148,6 +150,20 @@ public class BinderDbContext : Microsoft.EntityFrameworkCore.DbContext
             // assignments of one label", which the PK does not lead with.
             entity.HasIndex(e => e.LabelId)
                 .HasDatabaseName("IX_binderCardLabelAssignments_labelId");
+        });
+
+        modelBuilder.Entity<EmailTemplate>(entity =>
+        {
+            entity.ToTable("emailTemplates");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.Subject).HasColumnName("subject");
+            entity.Property(e => e.Html).HasColumnName("html");
+            entity.Property(e => e.Text).HasColumnName("text");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updatedAt");
+
+            entity.HasIndex(e => e.Name).IsUnique().HasDatabaseName("IX_emailTemplates_name");
         });
 
         modelBuilder.Entity<User>(entity =>

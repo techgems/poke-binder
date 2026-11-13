@@ -5,6 +5,9 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
 const string CardBucket = "card-images";
+// Where Litestream replicates the SQLite databases. Private, and nothing fronts it: only the app's
+// host ever reads or writes it.
+const string BackupBucket = "pokebinder-db-backups";
 
 // The folder the ETL downloads card art into, which the seeder copies into the bucket. Its layout
 // is the bucket's: a file's path below it is the object key a card stores.
@@ -32,21 +35,25 @@ var minio = builder.AddContainer("minio", "cgr.dev/chainguard/minio", "latest")
     .WithHttpHealthCheck("/minio/health/live", endpointName: "api")
     .WithVolume("pokebinder-minio-data", "/data");
 
-// One-shot: copies the card art into the bucket and exits. `sync` only sends what the bucket does
-// not have yet, so the first run uploads everything and every later one only what the ETL has
-// added since. The AWS CLI rather than a MinIO client, because it is the same call against real S3.
-builder.AddContainer("seeder", "amazon/aws-cli", "latest")
+// One-shot: makes sure both buckets exist, copies the card art into its bucket and exits. `sync`
+// only sends what the bucket does not have yet, so the first run uploads everything and every later
+// one only what the ETL has added since. The AWS CLI rather than a MinIO client, because it is the
+// same call against real S3. The backup bucket gets no policy, and a bucket without one is private.
+var seeder = builder.AddContainer("seeder", "amazon/aws-cli", "latest")
     .WithBindMount(cardImagesFolder, "/images", isReadOnly: true)
     .WithEnvironment("S3_ENDPOINT", minio.GetEndpoint("api"))
     .WithEnvironment("AWS_ACCESS_KEY_ID", minioUser)
     .WithEnvironment("AWS_SECRET_ACCESS_KEY", minioPassword)
     .WithEnvironment("AWS_DEFAULT_REGION", "us-east-1")
     .WithEnvironment("CARD_BUCKET", CardBucket)
+    .WithEnvironment("BACKUP_BUCKET", BackupBucket)
     .WithEntrypoint("/bin/sh")
     .WithArgs("-c", """
         set -e
-        aws --endpoint-url "$S3_ENDPOINT" s3api head-bucket --bucket "$CARD_BUCKET" 2>/dev/null \
-          || aws --endpoint-url "$S3_ENDPOINT" s3api create-bucket --bucket "$CARD_BUCKET"
+        for bucket in "$CARD_BUCKET" "$BACKUP_BUCKET"; do
+          aws --endpoint-url "$S3_ENDPOINT" s3api head-bucket --bucket "$bucket" 2>/dev/null \
+            || aws --endpoint-url "$S3_ENDPOINT" s3api create-bucket --bucket "$bucket"
+        done
         aws --endpoint-url "$S3_ENDPOINT" s3api put-bucket-policy --bucket "$CARD_BUCKET" --policy \
           "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::$CARD_BUCKET/*\"}]}"
         aws --endpoint-url "$S3_ENDPOINT" s3 sync /images "s3://$CARD_BUCKET" --only-show-errors \
@@ -55,6 +62,29 @@ builder.AddContainer("seeder", "amazon/aws-cli", "latest")
         """)
     .WithParentRelationship(minio)
     .WaitFor(minio);
+
+// Replicates Databases/ into the backup bucket, with the same litestream.yml the image ships. A
+// Windows process rather than a container: the app is a Windows process too, and SQLite's file
+// locks do not cross Docker Desktop's file share, so a container would be writing the same database
+// as the app without either of them knowing.
+var litestreamExecutable = builder.Configuration["Litestream:Executable"]
+    ?? throw new InvalidOperationException("Litestream:Executable is not set for the AppHost.");
+var repositoryRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, ".."));
+builder.AddExecutable(
+        "litestream",
+        litestreamExecutable,
+        repositoryRoot,
+        "replicate", "-config", Path.Combine(repositoryRoot, "PokeBinder", "litestream.yml"))
+    // Forward slashes: the path lands inside YAML, where a backslash is an escape in some scalars.
+    .WithEnvironment("DATABASES_DIR", Path.Combine(repositoryRoot, "Databases").Replace('\\', '/'))
+    .WithEnvironment("LITESTREAM_BUCKET", BackupBucket)
+    .WithEnvironment("LITESTREAM_S3_ENDPOINT", minio.GetEndpoint("api"))
+    .WithEnvironment("AWS_ACCESS_KEY_ID", minioUser)
+    .WithEnvironment("AWS_SECRET_ACCESS_KEY", minioPassword)
+    .WithEnvironment("AWS_DEFAULT_REGION", "us-east-1")
+    .WithParentRelationship(minio)
+    // The seeder is what creates the bucket.
+    .WaitForCompletion(seeder);
 
 var cdn = builder.AddContainer("cdn-nginx", "nginx", "alpine")
     .WithBindMount("../aspire/cdn/default.conf.template", "/etc/nginx/templates/default.conf.template", isReadOnly: true)
@@ -65,13 +95,32 @@ var cdn = builder.AddContainer("cdn-nginx", "nginx", "alpine")
     .WithUrlForEndpoint("http", url => url.Url = "http://cdn.pokebinder.localhost:8081")
     .WaitFor(minio);
 
+// Bird, the email provider, configured under Bird: in the AppHost's user secrets -- the same names
+// the app reads. The key is a parameter, so the dashboard masks it and asks for it when it is not
+// set; the app will not start without it. Bird:FromMail is optional: the sending domain can come
+// after the key, and until it does the app starts and only a send fails.
+var birdApiKey = builder.AddParameterFromConfiguration("bird-api-key", "Bird:ApiKey", secret: true);
+var birdFromMail = builder.Configuration["Bird:FromMail"];
+
 // A project rather than the Dockerfile's image, so it stays debuggable from the IDE; the Dockerfile
 // is what ships. Its card-art URLs point at the CDN host, as they will in prod.
 var app = builder.AddProject<Projects.PokeBinder>("pokebinder-app")
     .WithEnvironment("CardImages__BaseUrl", "http://cdn.pokebinder.localhost:8081")
+    .WithEnvironment("Bird__ApiKey", birdApiKey)
+    .WithEnvironment("Bird__FromName", "PokeBinder")
     // nginx forwards the scheme; without this the app would not believe it.
     .WithEnvironment("ASPNETCORE_FORWARDEDHEADERS_ENABLED", "true")
     .WaitFor(cdn);
+
+if (!string.IsNullOrWhiteSpace(birdFromMail))
+    app.WithEnvironment("Bird__FromMail", birdFromMail);
+
+// Sign-in mails its link through Bird. Passwordless:WriteLinkToFile = true in the AppHost's user
+// secrets (or its environment) has the app write the link to PokeBinder/passwordless.txt instead,
+// for signing in without a mail provider.
+var writeLinkToFile = builder.Configuration["Passwordless:WriteLinkToFile"];
+if (!string.IsNullOrWhiteSpace(writeLinkToFile))
+    app.WithEnvironment("Passwordless__WriteLinkToFile", writeLinkToFile);
 
 // Terminates TLS with the ASP.NET Core dev certificate, which `dotnet dev-certs https --trust`
 // already put in the machine's trust store, so the browser accepts it without a warning.

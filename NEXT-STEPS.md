@@ -16,92 +16,9 @@ moment it runs.
 
 ---
 
-## 1. Dockerize the app and orchestrate with Aspire
+## 1. One code per data source on `sets`
 
-Everything the app depends on at runtime becomes a container, the solution gains a new
-`PokeBinder.AppHost` project to compose them, and `dotnet run` on that AppHost replaces the current
-`dotnet run` on the web project as the dev loop. Prod will be a single EC2 running nginx and the
-app on the same host, with CloudFront in front of a public S3 bucket for images; the dev setup is a
-faithful mimic of that shape rather than a different arrangement that happens to run.
-
-### What runs
-
-- **`pokebinder-app`** — the web project in a multi-stage Dockerfile (SDK → `vite build` →
-  publish → `mcr.microsoft.com/dotnet/aspnet:10.0` runtime). SQLite files stay on disk; the
-  `Databases/` folder is bind-mounted so the local DBs survive a rebuild.
-- **`pokebinder-proxy`** — `nginx:alpine`, fronts the app on `pokebinder.dev.localhost`. Mirrors
-  the EC2's own nginx: TLS, gzip, request logging, nothing fancy.
-- **`cdn-nginx`** — `nginx:alpine` again, different config, fronts MinIO on
-  `cdn.pokebinder.localhost` with `proxy_cache`. The local CloudFront: cache on disk, honour
-  `Cache-Control`, serve-stale-on-error. Not an edge network — the semantics the app sees (public
-  GET, cached, no auth) are the ones that matter and these match.
-- **`minio`** — `minio/minio:latest`. The local S3. One public-read bucket for card images. Admin
-  uploads (once that page exists) write here with `PutObjectAsync`; in prod the same code writes to
-  real S3 by swapping the endpoint.
-- **`seeder`** — one-shot: on first start, scans `C:\ImagesTCG` and uploads it to the MinIO card
-  bucket, then exits. `WithParentRelationship(minio)` so it waits for MinIO to be ready.
-
-### Why the choices
-
-- **MinIO over LocalStack.** LocalStack's community CloudFront is a stub and the image is ~800 MB;
-  MinIO speaks S3 well enough that `AWSSDK.S3` with an endpoint override does not know the
-  difference, and the image is ~70 MB. The piece in front of the bucket is what nginx is for, not
-  LocalStack.
-- **nginx `proxy_cache` as CloudFront.** CloudFront's app-visible behaviour for public images is
-  cache-on-disk + conditional GETs + `Cache-Control` honour. nginx does the same thing. Signed URLs
-  are the piece it does not model — images are public, so this does not apply.
-- **Two nginxes rather than one.** Prod has two things fronting different origins (EC2 nginx →
-  app, CloudFront → S3). Collapsing them locally would mean the app's generated image URLs land on
-  the app host, not a CDN host, which is not what they do in prod.
-- **Aspire over `docker-compose.yml`.** Service discovery (the app reads MinIO's URL from env vars
-  Aspire injects, not a hardcoded `localhost:9000`), one dashboard for all logs, and the web
-  project stays a `ProjectReference` so it is debuggable from the IDE instead of being rebuilt as
-  an image on every F5.
-
-### Images in dev — local mimic, not a non-prod cloud CDN
-
-The app is not published, so a non-prod CDN would start out as a copy of `C:\ImagesTCG` anyway;
-MinIO on loopback is faster than any CDN; admin uploads work identically against MinIO as against
-S3 because it is the same SDK call. The `seeder` container populates MinIO from `C:\ImagesTCG` on
-first run so there is a reproducible image set without AWS credentials or internet. Once prod is
-live, a real non-prod CDN becomes a staging story and goes in its own step.
-
-### Where it plugs in
-
-- **New project `PokeBinder.AppHost/`**, added to `PokeBinder.slnx`. The Aspire SDK, one
-  `Program.cs` composing the resources above, no code of its own.
-- **New `PokeBinder/Dockerfile`** — multi-stage, publishes the Vite bundle in the build stage so
-  the runtime image carries the compiled SPA.
-- **`aspire/proxy/nginx.conf`** and **`aspire/cdn/nginx.conf`** committed. Hostnames use the
-  `*.localhost` TLD so no `hosts` file edits are needed.
-- **`CardImages:BaseUrl`** keeps reading from `IConfiguration`; Aspire sets it to
-  `http://cdn.pokebinder.localhost` for the app resource. `appsettings.Development.json` keeps
-  working for the plain `dotnet run` path.
-- **`.claude/launch.json`** gets a second entry pointing at the AppHost; `pokebinder` stays as it
-  is for one-process debugging on a plain `dotnet run`.
-- **`CLAUDE.md`** gains a "Running under Aspire" section alongside the existing "Running the app
-  locally" one. The sign-in flow (`passwordless.txt`) still works the same way; the file lives in
-  the bind-mounted project folder.
-- **`PokeBinder.Features.Tests`** is not touched. The in-memory provider story stands.
-- **Not in scope:** LiteStream backup/restore for the SQLite files (its own step after this
-  lands), the ETL (local tool, stays as-is until its logic migrates into admin pages one page at a
-  time), the admin upload page itself, observability (below), swapping SQLite for Postgres.
-
-### Observability — not in this step
-
-Prod sends app logs to CloudWatch via the CloudWatch agent on the EC2, which is a host-level
-concern and does not change how the app logs (stdout, structured). Metrics and traces are a
-separate decision — leaning Grafana (open-source-aligned, Grafana Cloud's free tier is generous at
-this scale, and reading CloudWatch through its data source means logs and metrics land in one UI
-without duplicating log storage). Datadog is simpler to turn on but overlaps with the CloudWatch
-spend and does not pay back at a one-dev project's volume. **Its own NEXT-STEPS entry, after this
-one lands**, with the OpenTelemetry collector added as another Aspire resource.
-
----
-
-## 2. One code per data source on `sets`
-
-Before LoadSet (step 3): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
+Before LoadSet (step 2): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
 **adds `tcgDexCode`**, and the changes to carry both through the app. Today's one code is
 TCGplayer's (`ME02`, `ME-AH`); TCGdex has ids of its own (`me02`), and more data sources may follow,
 so each source gets its own column rather than a single code that means whichever source wrote it.
@@ -134,7 +51,7 @@ so each source gets its own column rather than a single code that means whicheve
 
 ---
 
-## 3. LoadSet: loading a set from the TCGdex API
+## 2. LoadSet: loading a set from the TCGdex API
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
@@ -157,7 +74,7 @@ Checked against the live API on 2026-09-30; worth re-checking when the work star
 
 - **A set** is `GET /v2/en/sets/{id}`: `id` (`me02`), `name`, `releaseDate` (`2025-11-14`),
   `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. The `id` is
-  what goes in `sets.tcgDexCode` (step 2). The TCGplayer code is usually the same id upper-cased
+  what goes in `sets.tcgDexCode` (step 1). The TCGplayer code is usually the same id upper-cased
   (`ME02`, `SV01`), but not always: Ascended Heroes is `ME-AH` in the catalog.
 - **The set's `cards` are briefs** -- `id`, `localId`, `name`, `image` -- with no rarity or category,
   so the full card is a second request each: `GET /v2/en/cards/{id}`, one per card, 130 for ME02.
@@ -220,7 +137,7 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 ### Open questions
 
 - **Where do `tcgPlayerCode` and `fullName` come from?** `tcgDexCode` is the TCGdex set id, but
-  `sets.tcgPlayerCode` (today's `code`, renamed in step 2) is what the ETL upserts sets on (`ME03`,
+  `sets.tcgPlayerCode` (today's `code`, renamed in step 1) is what the ETL upserts sets on (`ME03`,
   `SV01`), and `fullName` is the long form ("Mega Evolution: Perfect Order" against "ME: Perfect
   Order"). Either the form grows two fields or something derives them.
 - **Which series is "currently running"?** `series.endDateUnix` holds **0** for the open one, not
@@ -251,12 +168,12 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
   direction -- for every card in it.
 - **Prices: where they live and how they stay current.** They need a home in the schema, which
   variants and which market to keep, and a decision on freshness: a set is loaded once, but prices
-  move daily, so the load's prices are a snapshot from that day and step 4 is what refreshes them.
+  move daily, so the load's prices are a snapshot from that day and step 3 is what refreshes them.
 - **Reloading.** Does loading a set that already exists update it, or is that refused outright?
 
 ---
 
-## 4. Refreshing a set's card prices from TCGdex
+## 3. Refreshing a set's card prices from TCGdex
 
 An admin action that does one thing: **tell the backend to update the prices of every card in one
 set**. It fetches that set's cards from TCGdex and writes their prices onto the catalog cards they
@@ -275,22 +192,22 @@ every admin page.
   validator and tests per "Rules for tests" in `CLAUDE.md`. The TCGdex call goes behind something
   the tests can replace, since a test never reaches a real service any more than it reaches a real
   database.
-- **What TCGdex gives** is in step 3: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
+- **What TCGdex gives** is in step 2: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
   `pricing` on each full card (`GET /v2/en/cards/{id}`), one request per card.
 - **Matching.** `thirdParty.tcgplayer` on a TCGdex card against `cards.tcgPlayerId`, which is
   `UNIQUE` -- the one key both sides already carry. The catalog set's TCGdex id is
-  `sets.tcgDexCode` (step 2).
+  `sets.tcgDexCode` (step 1).
 
 ### Open questions
 
-- **Where the prices are stored.** The catalog has no price column or table yet. Step 3 raises the
+- **Where the prices are stored.** The catalog has no price column or table yet. Step 2 raises the
   same question; whichever step is built first answers it for both.
 - **What the result reports.** Cards updated, catalog cards TCGdex had no price for, and TCGdex
   cards that matched nothing are the obvious three.
 
 ---
 
-## 5. Move code shared between slices into each section's `Shared` folder
+## 4. Move code shared between slices into each section's `Shared` folder
 
 Scan `PokeBinder.Features` for code that more than one slice of a section uses, and move it into
 that section's `Shared` folder, following "Rules for code shared between slices" in `CLAUDE.md`.

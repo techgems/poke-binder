@@ -177,6 +177,69 @@ PokeBinder.Features/Binder/Shared/Arrangement/   namespace PokeBinder.Features.B
   code that is not about any one of them (`SqlLiteLikePatterns`), whichever slices happen to call
   it today.
 
+## Projects for outside services
+
+Two class libraries hold the code that talks to things outside the app.
+
+- **`PokeBinder.AWS` is the only project that uses AWS services.** The SDK clients, their
+  configuration, and the code that calls S3, SES and the rest all live here. No other project
+  references an `AWSSDK.*` package; anything that needs AWS goes through this project.
+- **`PokeBinder.Emails` turns a template and a model into an email**: subject, HTML body and plain
+  text. It then hands that message to a sender interface. The templates never know which provider
+  delivers the mail, so changing providers means writing a new sender and touching no template.
+  Bird.com is the provider for now; SES is the one production will use.
+  - Because SES is an AWS service, **its sender belongs in `PokeBinder.AWS`**, which implements
+    the interface `PokeBinder.Emails` defines. `PokeBinder.Emails` itself never references AWS.
+  - **Templates are Liquid, rendered by Fluid (`Fluid.Core`), not Razor**, because they are
+    edited at runtime. Razor would mean compiling them. `EmailRenderer` takes an
+    `EmailTemplate`, which holds the Liquid source for the subject, the HTML and the text, plus a
+    model, and returns a `RenderedEmail`.
+  - **Each email has a model record of its own**, and a template can only reach that model's
+    public properties (case-insensitive) and the objects under them. Never pass an entity: every
+    property on it becomes something a template can print.
+  - **A name the model does not have is an error, not a blank.** `Rendering/VariableCheck` checks
+    every name in the template against the model's type before rendering, and
+    `Validate<TModel>` runs the same check for whatever saves an edited template. Fluid's own
+    `StrictVariables` stays off: it cannot tell a null property from a missing one, so it would
+    reject every optional value.
+  - **The HTML part is HTML-encoded**, so values print escaped unless the template asks for
+    `| raw`. The subject and the text are not encoded.
+  - **Templates live in PokeBinder.db's `emailTemplates` table**, one row per email, keyed by a
+    unique `name` that the code asks for (`sign-in`). `EmailTemplateStore` reads a row by that
+    name and caches nothing, so a saved edit applies to the very next email.
+    - **No migration inserts a template.** Templates are edited content, and a migration runs
+      only once.
+    - **The starting templates are in `Scripts/SeedEmailTemplates.sql`**, which inserts each one
+      only when its name is missing. Run it on any new database. Re-running it never overwrites
+      an edited template; to reset one, delete its row first.
+  - **An email is a model record in `Messages/` implementing `IEmailModel`**, whose static
+    `TemplateName` names its row. `SignInEmail` is `sign-in`. A new email needs three things: the
+    record, a seed statement for its template, and a call to `Mailer.SendAsync(to, model, ct)`.
+    `Mailer` loads the template, renders it and hands it to the sender.
+  - **Every failure is an `EmailException`**: a missing template
+    (`EmailTemplateMissingException`), a broken one (`EmailTemplateException`), or a refused send
+    (`EmailSendException`). Nothing is sent in any of those cases. The login page catches the base
+    class, logs it, and tells the user the email could not be sent.
+  - `AddEmails()` registers `Mailer`, the renderer and the store. It needs `AddBinderDataAccess`
+    alongside it, and a sender.
+  - **Every email is sent for real, through Bird, locally as well as in production.** There is no
+    file or fake sender, and none should be added. Signing in without a mail provider is handled
+    by the login page itself, not by the email pipeline: see "Signing in".
+  - **Bird is the sender for now**: `Bird/BirdEmailSender`, registered by
+    `AddBirdEmailSender(configuration)`. It calls Bird's email API
+    (`POST https://{region}.platform.bird.com/v1/email/messages`, bearer key), not the older
+    channel API that Bird's documentation used to describe.
+    - **Configuration** is the `Bird` section: `ApiKey`, `FromMail`, `FromName`. The key is
+      checked at startup, so a missing one stops the app instead of the first email. The region
+      comes from the key's `bk_{region}_` prefix, so there is no separate setting for it.
+    - **`FromMail` is optional at startup.** It has to be an address on a domain verified in Bird,
+      and that domain may be set up after the key. Until it is, the app runs and a send throws
+      `EmailSendException`.
+    - **Every send is `transactional`, with open and click tracking off.** Click tracking would
+      route a sign-in link's one-time token through Bird's redirector.
+    - **A refusal throws `EmailSendException`** with Bird's status code and response body. An
+      unverified From domain comes back as a 422.
+
 ## Rules for catalog data
 
 **A migration is for the schema and for data the app cannot start without. Catalog data is
@@ -261,8 +324,9 @@ dotnet run --project PokeBinder.AppHost/PokeBinder.AppHost.csproj
 | `pokebinder-proxy` | the EC2's nginx | **https://pokebinder.dev.localhost:8443** — the address to use |
 | `pokebinder-app` | the app | http://localhost:5076, as a project, not a container |
 | `cdn-nginx` | CloudFront | http://cdn.pokebinder.localhost:8081, `CardImages:BaseUrl` for the app |
-| `minio` | S3 | bucket `card-images`; ports and console are in the dashboard |
-| `seeder` | — | one-shot: copies `C:\ImagesTCG` into the bucket, then exits |
+| `minio` | S3 | buckets `card-images` and `pokebinder-db-backups`; ports and console are in the dashboard |
+| `seeder` | — | one-shot: creates both buckets, copies `C:\ImagesTCG` into `card-images`, then exits |
+| `litestream` | Litestream on the EC2 | a Windows process replicating `Databases/` into `pokebinder-db-backups` |
 
 The Aspire dashboard is on http://localhost:15076; the console prints the login link.
 
@@ -288,11 +352,54 @@ The Aspire dashboard is on http://localhost:15076; the console prints the login 
   (`Ruby & Sapphire/83475_in_1000x1000.jpg`), and `CardImages:BaseUrl`, which the AppHost sets to
   `cdn-nginx`, is the CDN it is appended to. The ETL still writes file paths:
   **re-run `Scripts/CardImagePathsToObjectKeys.sql` after every ETL load.**
+- **`pokebinder-db-backups` is private and nothing fronts it.** Litestream replicates the SQLite
+  databases into it, so it gets no bucket policy (a bucket without one refuses anonymous requests)
+  and no nginx: only the app's host ever touches it, with credentials.
+- **Litestream runs on the real `Databases/`**, with `PokeBinder/litestream.yml`, the same file the
+  image ships. Both databases are in WAL mode because of it; that is permanent and expected, as are
+  the `.*.db-litestream` folders beside them. The binary is `Litestream:Executable` in the AppHost's
+  `appsettings.json` (`C:\Litestream\litestream.exe`, v0.5.17), and it starts once the seeder has
+  made the bucket, so on a first run it waits out the whole card-art upload.
+  - **It is a Windows process, not a container, and must stay one.** SQLite's file locks do not
+    cross Docker Desktop's file share, so a container replicating `Databases/` would be writing the
+    same files as the app without either of them knowing.
+  - **One replicator per bucket path.** Never run the shipped image against
+    `pokebinder-db-backups` while the AppHost is up: its Litestream pushes its own transactions
+    onto the same paths. Point it at another bucket or another `path`.
+  - **Restore with the image, not with the Windows binary**, which fails on Windows trying to fsync
+    a directory. Into an empty folder, never over `Databases/`:
+
+    ```bash
+    docker run --rm --user 0 -v <empty folder>:/restore -e AWS_ACCESS_KEY_ID=pokebinder \
+      -e AWS_SECRET_ACCESS_KEY=<minio-password> --entrypoint litestream pokebinder-app restore \
+      -o /restore/PokeBinder.db \
+      "s3://pokebinder-db-backups/PokeBinder?endpoint=http://host.docker.internal:<minio api port>&forcePathStyle=true"
+    ```
 - **MinIO's image is Chainguard's (`cgr.dev/chainguard/minio`)**, because MinIO no longer publishes
   images to Docker Hub or Quay. It only starts as root, hence the `--user 0`.
 - **The MinIO password is generated on the first run** and kept in the AppHost's user secrets
   (`Parameters:minio-password`). The volume is formatted with it, so a cleared secret leaves a
   volume nothing can open: remove the volume along with it.
+- **The Bird settings are also AppHost user secrets**, under the same names the app reads:
+  `Bird:ApiKey` and `Bird:FromMail`. The AppHost passes them to the app as `Bird__ApiKey` and
+  `Bird__FromMail`, and sets `Bird__FromName` itself.
+  - **The key is required.** If it is missing, the dashboard asks for it as the `bird-api-key`
+    parameter and the app does not start until it has a value.
+  - **`Bird:FromMail` is optional.** When it is unset, the AppHost passes nothing for it.
+
+  ```bash
+  dotnet user-secrets set "Bird:ApiKey" "<bk_… key>" --project PokeBinder.AppHost
+  ```
+
+  ```bash
+  dotnet user-secrets set "Bird:FromMail" "<address on a verified domain>" --project PokeBinder.AppHost
+  ```
+
+  To run without the real key, pass a placeholder in the environment instead:
+  `env "Bird__ApiKey=bk_us1_placeholder" dotnet run --project …`.
+- **Local runs send real mail.** A sign-in goes through Bird to whatever address was typed, and
+  it needs `Bird:FromMail`. To sign in without sending anything, turn on
+  `Passwordless:WriteLinkToFile` as described under "Signing in".
 
 **Never touch `manifest.dev.json`.** The Vite dev server rewrites
 `wwwroot/BinderBuilderSvelte/manifest.dev.json` every time it starts, with whatever port it got.
@@ -303,25 +410,40 @@ it. It is generated, and `.gitignore` keeps it out of the repo.
 that ends by stopping it — no leaving it up for the next one. It holds ports 8443, 8080, 8081, 5076
 and a Vite port, so one left behind is what makes the next start fail, and its Vite child keeps
 rebuilding against a session nobody is watching. A preview server is stopped by the same tool that
-launched it, and Ctrl+C takes the containers down with the AppHost. A killed AppHost process does
-not: `pokebinder-proxy-*`, `cdn-nginx-*`, `minio-*` and Aspire's `tunnel-proxy-*` are left running,
+launched it, and Ctrl+C takes the containers down with the AppHost. Neither `preview_stop` nor a
+killed AppHost process does: `pokebinder-proxy-*`, `cdn-nginx-*`, `minio-*` and Aspire's `tunnel-proxy-*` are left running,
 and need a `docker rm -f`. The MinIO volume stays either way.
 
 ### Signing in
 
-Every binder page is behind auth, and the sign-in is passwordless — there is no password to type,
-and in Development there is no mail server either. The loop is:
+Every binder page is behind auth, and the sign-in is passwordless: there is no password to type.
+The link is sent as the `sign-in` email, through Bird, to the address typed in, whether the app is
+running locally or in production.
+
+**An agent signs in without mail.** Sending to a made-up dev address is a real send that bounces,
+and an agent cannot read a real inbox. Start the AppHost with `Passwordless:WriteLinkToFile`
+turned on instead:
+`env "Passwordless__WriteLinkToFile=true" dotnet run --project PokeBinder.AppHost/PokeBinder.AppHost.csproj`.
+Setting it in the AppHost's user secrets does the same for every run. The AppHost passes it on;
+the app honours it in Development only and refuses to start with it anywhere else. With it on,
+the loop is:
 
 1. Submit an email address on `https://pokebinder.dev.localhost:8443/Account/Login`. An unknown
    address registers an account on the spot, which is intended: dev accounts are meant to be cheap.
-2. `LoginModel.GenerateTokenAndLink` writes the one-time link to **`PokeBinder/passwordless.txt`**
-   instead of sending it. The file is gitignored and is overwritten on every attempt, so the link in
-   it is always the most recent one, and it points at the proxy host the request came through.
+2. The login page writes the one-time link to **`PokeBinder/passwordless.txt`** instead of mailing
+   it. The file is gitignored and overwritten on every attempt, so it always holds the newest
+   link, and the link points at the proxy host the request came through.
 3. Open that URL. It lands on `/Account/AuthCallback`, which sets the cookie and drops you on the
    site signed in.
 
-The token is single-use and short-lived; a stale `passwordless.txt` from an earlier session will not
-work, so re-submit the email rather than reusing what is already on disk.
+The token is single-use and lasts 15 minutes; a `passwordless.txt` from an earlier session will not
+work, so re-submit the email rather than reusing what is on disk.
+
+**If the page says the email could not be sent**, the reason is in the app's log. The usual causes:
+- `Bird:FromMail` is unset.
+- The `sign-in` template is missing from `PokeBinder.db`; run `Scripts/SeedEmailTemplates.sql`
+  against it.
+- Bird refused the email; its status code and response body are in the log.
 
 ### Finding a binder
 
@@ -351,8 +473,15 @@ docker build -f PokeBinder/Dockerfile -t pokebinder-app .
 
 It builds the SPA bundle and the binder shell sheet itself. `site.tailwind.css` it takes as
 committed, since the standalone Tailwind CLI is not in the image, so rebuild that sheet before
-building the image. Run it with the host's `Databases/` folder mounted at `/Databases` and
-`CardImages__BaseUrl` set to the CDN; without the latter the app refuses to start.
+building the image. Run it with the host's `Databases/` folder mounted at `/Databases`,
+`CardImages__BaseUrl` set to the CDN, and `Bird__ApiKey` set; without either of those the app
+refuses to start. `Bird__FromMail` is needed for mail to actually go out.
+
+Litestream is the image's entrypoint: it restores any database `/Databases` is missing from
+`pokebinder-db-backups`, then starts the app as its child and replicates while it runs. It needs
+the bucket's credentials -- the EC2's instance role, or `AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY` -- and `LITESTREAM_S3_ENDPOINT` only when the bucket is not on AWS. The
+binary's version and hashes are pinned in the Dockerfile.
 
 ## Reporting back
 

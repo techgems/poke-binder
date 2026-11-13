@@ -76,6 +76,7 @@ registered as tag helpers in `Pages/_ViewImports.cshtml`.
 Sign-in is passwordless: `/Account/Login` takes an email, creates the user if
 they are new, and issues a one-time token consumed at `/Account/AuthCallback`.
 
-Email delivery is not implemented yet — `Login.cshtml.cs` writes the login link
-to `passwordless.txt` in the working directory instead. Open that file to
-complete a sign-in locally.
+The link goes out as the `sign-in` email, sent through Bird by
+`PokeBinder.Emails`, locally as well as in production. To sign in locally
+without sending mail, turn on `Passwordless:WriteLinkToFile` (Development only):
+the link is then written to `passwordless.txt` in the working directory instead.
