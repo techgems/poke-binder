@@ -163,18 +163,18 @@ public class CardUpsertService
         var setsToInsert = generationConfig.Sets.Select(set => new Set()
         {
             FullName = set.FullName,
-            Code = set.Code,
+            TcgPlayerCode = set.Code,
             SeriesId = insertedGenerationId,
             Name = set.DisplayName,
             PriorityOrder = set.PriorityOrder.GetValueOrDefault(),
             ReleaseDateUnix = set.ReleaseDate.ToUnixTimeSeconds()
         }).ToList();
 
-        var upsertedSets = _cardDbContext.Sets.UpsertRange(setsToInsert).On(x => x.Code).RunAndReturn().ToList();
+        var upsertedSets = _cardDbContext.Sets.UpsertRange(setsToInsert).On(x => x.TcgPlayerCode).RunAndReturn().ToList();
 
         foreach (var set in generationConfig.Sets)
         {
-            var setFromDb = upsertedSets.First(x => x.Code == set.Code);
+            var setFromDb = upsertedSets.First(x => x.TcgPlayerCode == set.Code);
 
             var cardList = _cardCsvUtils.MapCsvFilesToSingleCardList(set.CsvFiles, generationConfig.BaseDirectory);
 

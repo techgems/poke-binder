@@ -50,7 +50,7 @@ public sealed class RarityWeightFixture : IDisposable
         Context.Sets.Add(new Set
         {
             Id = AscendedHeroesId,
-            Code = "ME-AH",
+            TcgPlayerCode = "ME-AH",
             Name = "ME: Ascended Heroes",
             FullName = "Mega Evolution: Ascended Heroes",
             SeriesId = 1,
@@ -60,7 +60,7 @@ public sealed class RarityWeightFixture : IDisposable
         Context.Sets.Add(new Set
         {
             Id = AnniversaryId,
-            Code = "SV-30",
+            TcgPlayerCode = "SV-30",
             Name = "30th Anniversary",
             FullName = "Scarlet & Violet: 30th Anniversary",
             SeriesId = 1,
@@ -70,7 +70,7 @@ public sealed class RarityWeightFixture : IDisposable
         Context.Sets.Add(new Set
         {
             Id = EmptySetId,
-            Code = "NEW",
+            TcgPlayerCode = "NEW",
             Name = "Not Loaded Yet",
             FullName = "Not Loaded Yet",
             SeriesId = 1,

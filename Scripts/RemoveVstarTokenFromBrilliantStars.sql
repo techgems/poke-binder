@@ -38,7 +38,7 @@ WHERE [tcgPlayerId] = 264925;
 -- catalog where Brilliant Stars has a genuine promo, cannot remove a row that is still in use.
 DELETE FROM [rarityBySetFilterOption]
 WHERE [rarity] = 'Promo'
-  AND [setId] = (SELECT [id] FROM [sets] WHERE [code] = 'SWSH09')
+  AND [setId] = (SELECT [id] FROM [sets] WHERE [tcgPlayerCode] = 'SWSH09')
   AND NOT EXISTS (
       SELECT 1 FROM [cards]
       WHERE [cards].[setId] = [rarityBySetFilterOption].[setId]

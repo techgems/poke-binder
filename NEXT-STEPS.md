@@ -16,42 +16,7 @@ moment it runs.
 
 ---
 
-## 1. One code per data source on `sets`
-
-Before LoadSet (step 2): a catalog migration that **renames `sets.code` to `tcgPlayerCode`** and
-**adds `tcgDexCode`**, and the changes to carry both through the app. Today's one code is
-TCGplayer's (`ME02`, `ME-AH`); TCGdex has ids of its own (`me02`), and more data sources may follow,
-so each source gets its own column rather than a single code that means whichever source wrote it.
-
-### Where it plugs in
-
-- **The migration** goes in `PokeBinder.Migrations/Scripts/TcgCatalog/`, after
-  `010_AddRarityOrdersToRarityBySetFilterOption.sql`. `code` is defined in
-  `001_CreateTcgCatalogSchema.sql` as `TEXT UNIQUE NOT NULL`, so the rename keeps that constraint.
-- **Filling `tcgDexCode` for the sets already loaded is catalog data, not schema**, so per "Rules
-  for catalog data" in `CLAUDE.md` it goes in a re-runnable script in `Scripts/`, not in the
-  migration. The column has to allow null until that script has run, and for any set TCGdex does
-  not have.
-- **The entity and mapping.** `Set.Code` in `PokeBinder.TcgCatalog.DbContext/Entities/Set.cs`, and
-  `HasColumnName("code")` in `TcgCatalogDbContext.cs`.
-- **What reads `Code` today:**
-  - the ETL, which upserts sets on it (`PokeBinderETL/Db/Repositories/CardUpsertService.cs`,
-    `.On(x => x.Code)`, then looks sets back up by it);
-  - `GetRarityBySetForAdminEdit` and its `RaritySetChoice` model, and `RaritySetEditor.cshtml.cs`,
-    which shows it beside the set name on `/admin/setRarity`;
-  - the test fixtures that build sets (`CatalogFixture.cs`, `BinderFixture.cs`,
-    `GetSearchStarterFiltersTests.cs`).
-- **The scripts in `Scripts/` join on `[sets].[code]`** -- `SeedRarityWeights.sql` resolves every
-  set by it, and so does `RemoveVstarTokenFromBrilliantStars.sql`. They have to move to the new
-  column name, or the next run of either fails.
-
-### Open questions
-
-- **Is `tcgDexCode` unique?** Unique where it is set, like `tcgPlayerCode`, or not constrained.
-
----
-
-## 2. LoadSet: loading a set from the TCGdex API
+## 1. LoadSet: loading a set from the TCGdex API
 
 `Pages/Admin/LoadSet.cshtml` is still the empty stub it has always been. It becomes the page that
 loads a new set, taking that job off the ETL: a Razor page on `_AdminLayout`, built from Static
@@ -74,7 +39,7 @@ Checked against the live API on 2026-09-30; worth re-checking when the work star
 
 - **A set** is `GET /v2/en/sets/{id}`: `id` (`me02`), `name`, `releaseDate` (`2025-11-14`),
   `serie` (`{ id, name }`), `abbreviation.official` (`PFL`), `cardCount`, and `cards`. The `id` is
-  what goes in `sets.tcgDexCode` (step 1). The TCGplayer code is usually the same id upper-cased
+  what goes in `sets.tcgDexCode`. The TCGplayer code is usually the same id upper-cased
   (`ME02`, `SV01`), but not always: Ascended Heroes is `ME-AH` in the catalog.
 - **The set's `cards` are briefs** -- `id`, `localId`, `name`, `image` -- with no rarity or category,
   so the full card is a second request each: `GET /v2/en/cards/{id}`, one per card, 130 for ME02.
@@ -137,7 +102,7 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
 ### Open questions
 
 - **Where do `tcgPlayerCode` and `fullName` come from?** `tcgDexCode` is the TCGdex set id, but
-  `sets.tcgPlayerCode` (today's `code`, renamed in step 1) is what the ETL upserts sets on (`ME03`,
+  `sets.tcgPlayerCode` is what the ETL upserts sets on (`ME03`,
   `SV01`), and `fullName` is the long form ("Mega Evolution: Perfect Order" against "ME: Perfect
   Order"). Either the form grows two fields or something derives them.
 - **Which series is "currently running"?** `series.endDateUnix` holds **0** for the open one, not
@@ -168,12 +133,12 @@ The slice gets tests. See "Rules for tests" in `CLAUDE.md`.
   direction -- for every card in it.
 - **Prices: where they live and how they stay current.** They need a home in the schema, which
   variants and which market to keep, and a decision on freshness: a set is loaded once, but prices
-  move daily, so the load's prices are a snapshot from that day and step 3 is what refreshes them.
+  move daily, so the load's prices are a snapshot from that day and step 2 is what refreshes them.
 - **Reloading.** Does loading a set that already exists update it, or is that refused outright?
 
 ---
 
-## 3. Refreshing a set's card prices from TCGdex
+## 2. Refreshing a set's card prices from TCGdex
 
 An admin action that does one thing: **tell the backend to update the prices of every card in one
 set**. It fetches that set's cards from TCGdex and writes their prices onto the catalog cards they
@@ -192,11 +157,11 @@ every admin page.
   validator and tests per "Rules for tests" in `CLAUDE.md`. The TCGdex call goes behind something
   the tests can replace, since a test never reaches a real service any more than it reaches a real
   database.
-- **What TCGdex gives** is in step 2: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
+- **What TCGdex gives** is in step 1: the set's card list (`GET /v2/en/sets/{id}`, briefs only), and
   `pricing` on each full card (`GET /v2/en/cards/{id}`), one request per card.
 - **Matching.** `thirdParty.tcgplayer` on a TCGdex card against `cards.tcgPlayerId`, which is
   `UNIQUE` -- the one key both sides already carry. The catalog set's TCGdex id is
-  `sets.tcgDexCode` (step 1).
+  `sets.tcgDexCode`.
 
 ### Open questions
 
@@ -207,7 +172,7 @@ every admin page.
 
 ---
 
-## 4. Move code shared between slices into each section's `Shared` folder
+## 3. Move code shared between slices into each section's `Shared` folder
 
 Scan `PokeBinder.Features` for code that more than one slice of a section uses, and move it into
 that section's `Shared` folder, following "Rules for code shared between slices" in `CLAUDE.md`.

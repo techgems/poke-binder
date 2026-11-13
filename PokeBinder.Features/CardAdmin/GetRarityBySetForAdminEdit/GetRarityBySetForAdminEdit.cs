@@ -48,7 +48,7 @@ public static class GetRarityBySetForAdminEdit
     /// neither value settle at the foot in name order.
     /// </para>
     /// </param>
-    public record SelectedSet(int SetId, string SetName, string SetCode, IReadOnlyList<RarityWeightRow> Rarities);
+    public record SelectedSet(int SetId, string SetName, string SetTcgPlayerCode, IReadOnlyList<RarityWeightRow> Rarities);
 
     public static async Task<Response> Handler(
         Request request,
@@ -65,7 +65,7 @@ public static class GetRarityBySetForAdminEdit
         var set = await context.Sets
             .AsNoTracking()
             .Where(candidate => candidate.Id == setId)
-            .Select(candidate => new { candidate.Id, candidate.Name, candidate.Code })
+            .Select(candidate => new { candidate.Id, candidate.Name, candidate.TcgPlayerCode })
             .FirstOrDefaultAsync(ct);
 
         if (set is null)
@@ -110,7 +110,7 @@ public static class GetRarityBySetForAdminEdit
             .ThenBy(rarity => rarity.Rarity)
             .ToList();
 
-        return new Response(sets, new SelectedSet(set.Id, set.Name, set.Code, ordered));
+        return new Response(sets, new SelectedSet(set.Id, set.Name, set.TcgPlayerCode, ordered));
     }
 
     /// <summary>
@@ -126,7 +126,7 @@ public static class GetRarityBySetForAdminEdit
             {
                 Id = set.Id,
                 Name = set.Name,
-                Code = set.Code,
+                TcgPlayerCode = set.TcgPlayerCode,
                 UnweightedCount = context.RarityBySetFilterOptions
                     .Count(rarity => rarity.SetId == set.Id
                         && rarity.PullRateRarityOrder == null

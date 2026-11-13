@@ -4,7 +4,14 @@ public class Set
 {
     public int Id { get; set; }
 
-    public string Code { get; set; } = string.Empty;
+    /// <summary>TCGplayer's code for the set (<c>ME02</c>, <c>ME-AH</c>). Unique, and every set has one.</summary>
+    public string TcgPlayerCode { get; set; } = string.Empty;
+
+    /// <summary>
+    /// TCGdex's id for the set (<c>me02</c>, <c>me02.5</c>), or null for a set TCGdex does not have.
+    /// Unique where set.
+    /// </summary>
+    public string? TcgDexCode { get; set; }
 
     public string Name { get; set; } = string.Empty;
 

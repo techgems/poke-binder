@@ -50,9 +50,9 @@ public sealed class CatalogFixture : IDisposable
         Context.Series.Add(new Series { Id = 1, Slug = "base", Name = "Base Series", GameId = 1 });
         Context.Series.Add(new Series { Id = 2, Slug = "neo", Name = "Neo Series", GameId = 1 });
 
-        Context.Sets.Add(new Set { Id = 1, Code = "BS", Name = "Base Set", FullName = "Base Set", SeriesId = 1 });
-        Context.Sets.Add(new Set { Id = 2, Code = "JU", Name = "Jungle", FullName = "Jungle", SeriesId = 1 });
-        Context.Sets.Add(new Set { Id = 3, Code = "N1", Name = "Neo Genesis", FullName = "Neo Genesis", SeriesId = 2 });
+        Context.Sets.Add(new Set { Id = 1, TcgPlayerCode = "BS", Name = "Base Set", FullName = "Base Set", SeriesId = 1 });
+        Context.Sets.Add(new Set { Id = 2, TcgPlayerCode = "JU", Name = "Jungle", FullName = "Jungle", SeriesId = 1 });
+        Context.Sets.Add(new Set { Id = 3, TcgPlayerCode = "N1", Name = "Neo Genesis", FullName = "Neo Genesis", SeriesId = 2 });
 
         Context.GenerationFilterOptions.Add(new GenerationFilterOption { Id = 1, Name = "Generation I" });
         Context.GenerationFilterOptions.Add(new GenerationFilterOption { Id = 2, Name = "Generation II" });

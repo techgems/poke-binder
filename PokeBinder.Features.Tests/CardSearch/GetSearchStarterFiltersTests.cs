@@ -199,7 +199,7 @@ public class GetSearchStarterFiltersTests
 
         // Added behind the cache's back. A second call under the same stamp must not see it --
         // which is the only way, from outside, to prove the rows did not come from the catalog.
-        fixture.Context.Sets.Add(new Set { Id = 99, Code = "XX", Name = "Added later", FullName = "Added later", SeriesId = 1 });
+        fixture.Context.Sets.Add(new Set { Id = 99, TcgPlayerCode = "XX", Name = "Added later", FullName = "Added later", SeriesId = 1 });
         await fixture.Context.SaveChangesAsync();
 
         var second = await HandleAsync(fixture, Holding(sets: "stale"));
@@ -215,7 +215,7 @@ public class GetSearchStarterFiltersTests
 
         await HandleAsync(fixture, Holding());
 
-        fixture.Context.Sets.Add(new Set { Id = 99, Code = "XX", Name = "Added later", FullName = "Added later", SeriesId = 1 });
+        fixture.Context.Sets.Add(new Set { Id = 99, TcgPlayerCode = "XX", Name = "Added later", FullName = "Added later", SeriesId = 1 });
         await fixture.Context.SaveChangesAsync();
 
         // The stamp is part of the cache key, so moving it is what retires the old entry. Nothing
@@ -237,7 +237,7 @@ public class GetSearchStarterFiltersTests
 
         await HandleAsync(fixture, Holding());
 
-        fixture.Context.Sets.Add(new Set { Id = 99, Code = "XX", Name = "Added later", FullName = "Added later", SeriesId = 1 });
+        fixture.Context.Sets.Add(new Set { Id = 99, TcgPlayerCode = "XX", Name = "Added later", FullName = "Added later", SeriesId = 1 });
         await fixture.Context.SaveChangesAsync();
 
         var response = await HandleAsync(fixture, Holding());
@@ -300,7 +300,7 @@ public class GetSearchStarterFiltersTests
 
         fixture.Context.Sets.Add(new Set
         {
-            Id = 99, Code = "XX", Name = "Pictured", FullName = "Pictured", SeriesId = 1,
+            Id = 99, TcgPlayerCode = "XX", Name = "Pictured", FullName = "Pictured", SeriesId = 1,
             ImageUrl = "/images/sets/xx.png",
         });
         await fixture.Context.SaveChangesAsync();

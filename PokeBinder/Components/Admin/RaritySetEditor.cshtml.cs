@@ -76,6 +76,6 @@ public class RaritySetEditor : StaticNode
     /// </summary>
     public static string SetLabel(RaritySetChoice set) =>
         set.UnweightedCount == 0
-            ? $"{set.Name} ({set.Code})"
-            : $"{set.Name} ({set.Code}) -- {set.UnweightedCount} unweighted";
+            ? $"{set.Name} ({set.TcgPlayerCode})"
+            : $"{set.Name} ({set.TcgPlayerCode}) -- {set.UnweightedCount} unweighted";
 }

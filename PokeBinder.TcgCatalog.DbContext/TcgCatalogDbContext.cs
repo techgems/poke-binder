@@ -56,7 +56,8 @@ public class TcgCatalogDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.ToTable("sets");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Code).HasColumnName("code");
+            entity.Property(e => e.TcgPlayerCode).HasColumnName("tcgPlayerCode");
+            entity.Property(e => e.TcgDexCode).HasColumnName("tcgDexCode");
             entity.Property(e => e.Name).HasColumnName("name");
             entity.Property(e => e.FullName).HasColumnName("fullName");
             entity.Property(e => e.ReleaseDateUnix).HasColumnName("releaseDateUnix");

@@ -17,8 +17,8 @@
 -- old values back, because each statement below writes what it holds. That is the trade for being
 -- able to restore a rebuilt catalog exactly.
 --
--- RUN IT AFTER THE SETS AND CARDS ARE LOADED. Every statement resolves its set by code, so a set
--- the catalog does not have yet is silently skipped rather than created.
+-- RUN IT AFTER THE SETS AND CARDS ARE LOADED. Every statement resolves its set by TCGplayer code,
+-- so a set the catalog does not have yet is silently skipped rather than created.
 --
 -- WHERE THE NUMBERS CAME FROM is recorded per set, because the rows are not all the same quality:
 --
@@ -42,8 +42,8 @@
 -- no source rates, and three odd singles. Those rows have no value in the database either, and an
 -- absent row here means an unweighted row there.
 --
--- Rows are matched by (set code, rarity name) rather than by id, because ids are assigned per
--- database while a set's code and a rarity's name are the set's own facts.
+-- Rows are matched by (set tcgPlayerCode, rarity name) rather than by id, because ids are assigned
+-- per database while a set's code and a rarity's name are the set's own facts.
 
 -- BASE01  Base Set -- entered by hand, predating the research
 WITH v(rarity, pullRate, nameOrder) AS (VALUES
@@ -54,7 +54,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -69,7 +69,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -84,7 +84,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -99,7 +99,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -115,7 +115,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -130,7 +130,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -145,7 +145,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BASE07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BASE07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -160,7 +160,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'NEO01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'NEO01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -175,7 +175,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'NEO02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'NEO02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -191,7 +191,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'NEO03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'NEO03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -207,7 +207,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'NEO04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'NEO04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -222,7 +222,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'LC01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'LC01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -237,7 +237,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ECARD01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ECARD01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -253,7 +253,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ECARD02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ECARD02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -269,7 +269,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ECARD03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ECARD03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -285,7 +285,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -301,7 +301,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -318,7 +318,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -335,7 +335,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -351,7 +351,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -368,7 +368,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -385,7 +385,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -401,7 +401,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX08'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX08'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -417,7 +417,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX09'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX09'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -434,7 +434,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX10'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX10'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -450,7 +450,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX11'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX11'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -466,7 +466,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX12'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX12'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -482,7 +482,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX13'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX13'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -498,7 +498,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX14'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX14'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -514,7 +514,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX15'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX15'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -530,7 +530,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'EX16'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'EX16'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -546,7 +546,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -562,7 +562,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -578,7 +578,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -594,7 +594,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -610,7 +610,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -626,7 +626,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -644,7 +644,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'DP07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'DP07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -662,7 +662,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'PL01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'PL01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -679,7 +679,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'PL02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'PL02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -697,7 +697,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'PL03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'PL03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -714,7 +714,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'PL04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'PL04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -730,7 +730,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'HGSS01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'HGSS01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -746,7 +746,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'HGSS02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'HGSS02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -762,7 +762,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'HGSS03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'HGSS03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -778,7 +778,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'HGSS04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'HGSS04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -794,7 +794,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'COL'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'COL'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -811,7 +811,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -827,7 +827,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -844,7 +844,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -861,7 +861,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -878,7 +878,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -895,7 +895,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -913,7 +913,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -931,7 +931,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW08'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW08'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -949,7 +949,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW09'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW09'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -967,7 +967,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW10'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW10'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -984,7 +984,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'BW-LD'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'BW-LD'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -996,7 +996,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY00'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY00'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1012,7 +1012,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1029,7 +1029,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1046,7 +1046,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1063,7 +1063,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1080,7 +1080,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1097,7 +1097,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1114,7 +1114,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1132,7 +1132,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY08'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY08'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1150,7 +1150,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY09'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY09'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1166,7 +1166,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY-GEN'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY-GEN'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1184,7 +1184,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY10'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY10'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1202,7 +1202,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY11'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY11'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1220,7 +1220,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'XY12'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'XY12'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1237,7 +1237,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1254,7 +1254,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1272,7 +1272,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1289,7 +1289,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM-SL'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM-SL'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1306,7 +1306,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1324,7 +1324,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1342,7 +1342,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1361,7 +1361,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1378,7 +1378,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM-DM'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM-DM'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1396,7 +1396,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM08'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM08'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1414,7 +1414,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM09'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM09'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1431,7 +1431,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM10'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM10'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1448,7 +1448,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM11'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM11'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1465,7 +1465,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM-HF'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM-HF'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1483,7 +1483,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SM12'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SM12'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1500,7 +1500,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1517,7 +1517,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1534,7 +1534,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1550,7 +1550,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH-CP'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH-CP'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1568,7 +1568,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1587,7 +1587,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH-SF'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH-SF'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1604,7 +1604,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1621,7 +1621,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1638,7 +1638,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1653,7 +1653,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH-CEL25'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH-CEL25'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1670,7 +1670,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH08'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH08'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1687,7 +1687,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH09'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH09'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1705,7 +1705,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH10'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH10'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1722,7 +1722,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH-PGO'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH-PGO'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1740,7 +1740,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH11'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH11'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1758,7 +1758,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH12'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH12'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1776,7 +1776,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SWSH-CZ'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SWSH-CZ'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1795,7 +1795,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1814,7 +1814,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1833,7 +1833,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1852,7 +1852,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV04'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV04'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1873,7 +1873,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV-PF'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV-PF'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1893,7 +1893,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV05'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV05'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1913,7 +1913,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV06'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV06'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1933,7 +1933,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV-SF'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV-SF'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1953,7 +1953,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV07'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV07'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1973,7 +1973,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV08'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV08'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -1992,7 +1992,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV-PE'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV-PE'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2011,7 +2011,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV09'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV09'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2030,7 +2030,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV10'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV10'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2049,7 +2049,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV-WF'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV-WF'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2068,7 +2068,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'SV-BB'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'SV-BB'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2087,7 +2087,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ME01'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ME01'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2106,7 +2106,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ME02'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ME02'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2126,7 +2126,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ME-AH'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ME-AH'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],
@@ -2145,7 +2145,7 @@ WITH v(rarity, pullRate, nameOrder) AS (VALUES
 )
 INSERT INTO [rarityBySetFilterOption] ([setId], [rarity], [pullRateRarityOrder], [nameRarityOrder])
 SELECT [sets].[id], v.[rarity], v.[pullRate], v.[nameOrder]
-FROM v JOIN [sets] ON [sets].[code] = 'ME03'
+FROM v JOIN [sets] ON [sets].[tcgPlayerCode] = 'ME03'
 WHERE true
 ON CONFLICT([setId], [rarity]) DO UPDATE SET
     [pullRateRarityOrder] = excluded.[pullRateRarityOrder],

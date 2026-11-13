@@ -154,7 +154,7 @@ public sealed class BinderFixture : IDisposable
         Catalog.Sets.Add(new Set
         {
             Id = setId,
-            Code = $"S{setId}",
+            TcgPlayerCode = $"S{setId}",
             Name = name,
             FullName = name,
             SeriesId = 1,
